@@ -1,5 +1,6 @@
 import { FORECAST_STATUS, RISK_LEVEL, SAILING_STATUS } from '@badagil/shared';
 import type {
+  Port,
   RouteStop,
   RouteSummary,
   SailingScheduleSummary,
@@ -7,6 +8,49 @@ import type {
   TomorrowForecastSummary,
   Vessel
 } from '@badagil/shared';
+
+export const mockPorts: Port[] = [
+  {
+    id: 'port-incheon',
+    portCode: 'ICN',
+    portName: '인천항',
+    regionName: '인천광역시',
+    latitude: 37.4603,
+    longitude: 126.5922
+  },
+  {
+    id: 'port-baengnyeong',
+    portCode: 'BN',
+    portName: '백령도',
+    regionName: '인천광역시 옹진군',
+    latitude: 37.9672,
+    longitude: 124.6304
+  },
+  {
+    id: 'port-deokjeok',
+    portCode: 'DJ',
+    portName: '덕적도',
+    regionName: '인천광역시 옹진군',
+    latitude: 37.2268,
+    longitude: 126.1489
+  },
+  {
+    id: 'port-socheong',
+    portCode: 'SC',
+    portName: '소청도',
+    regionName: '인천광역시 옹진군',
+    latitude: 37.7605,
+    longitude: 124.7248
+  },
+  {
+    id: 'port-daecheong',
+    portCode: 'DC',
+    portName: '대청도',
+    regionName: '인천광역시 옹진군',
+    latitude: 37.8244,
+    longitude: 124.7056
+  }
+];
 
 export const mockRoutes: RouteSummary[] = [
   {
@@ -180,4 +224,3 @@ export const mockTomorrowForecasts: TomorrowForecastSummary[] = [
     updatedAt: '2026-05-26T06:00:00.000Z'
   }
 ];
-

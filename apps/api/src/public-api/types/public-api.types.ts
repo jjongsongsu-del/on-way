@@ -1,4 +1,5 @@
 import type {
+  Port,
   RouteStop,
   RouteSummary,
   SailingScheduleSummary,
@@ -31,7 +32,9 @@ export type ScheduleSearchParams = RouteSearchParams & {
 };
 
 export type PublicFerryApiClient = {
+  getPorts(): Promise<PublicApiResult<Port[]>>;
   getRoutes(): Promise<PublicApiResult<RouteSummary[]>>;
+  getRoute(routeId: string): Promise<PublicApiResult<RouteSummary | null>>;
   searchRoutes(params: RouteSearchParams): Promise<PublicApiResult<RouteSummary[]>>;
   getRouteStops(routeId: string): Promise<PublicApiResult<RouteStop[]>>;
   getSchedules(params: ScheduleSearchParams): Promise<PublicApiResult<SailingScheduleSummary[]>>;
@@ -39,4 +42,3 @@ export type PublicFerryApiClient = {
   getTomorrowForecast(params: RouteSearchParams): Promise<PublicApiResult<TomorrowForecastSummary | null>>;
   getVessels(): Promise<PublicApiResult<Vessel[]>>;
 };
-

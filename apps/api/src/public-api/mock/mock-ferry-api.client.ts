@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   mockRouteStops,
+  mockPorts,
   mockRoutes,
   mockSchedules,
   mockTodayStatuses,
@@ -16,8 +17,16 @@ import type {
 
 @Injectable()
 export class MockFerryApiClient implements PublicFerryApiClient {
+  async getPorts() {
+    return this.result(mockPorts);
+  }
+
   async getRoutes() {
     return this.result(mockRoutes);
+  }
+
+  async getRoute(routeId: string) {
+    return this.result(mockRoutes.find((route) => route.id === routeId) ?? null);
   }
 
   async searchRoutes(params: RouteSearchParams) {
@@ -81,4 +90,3 @@ export class MockFerryApiClient implements PublicFerryApiClient {
     };
   }
 }
-

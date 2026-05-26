@@ -1,5 +1,6 @@
 export const CACHE_TTL_SECONDS = {
   ROUTES: 24 * 60 * 60,
+  PORTS: 24 * 60 * 60,
   ROUTE_STOPS: 24 * 60 * 60,
   VESSELS: 24 * 60 * 60,
   SCHEDULES: 15 * 60,
@@ -8,7 +9,9 @@ export const CACHE_TTL_SECONDS = {
 } as const;
 
 export const CACHE_KEYS = {
+  ports: () => 'ports:all',
   routes: () => 'routes:all',
+  route: (routeId: string) => `routes:${routeId}`,
   routeStops: (routeId: string) => `routes:${routeId}:stops`,
   vessels: () => 'vessels:all',
   schedules: (departure: string, arrival: string, date: string) =>
@@ -16,4 +19,3 @@ export const CACHE_KEYS = {
   todayStatus: (departure: string, arrival: string) => `status:today:${departure}:${arrival}`,
   tomorrowForecast: (departure: string, arrival: string) => `forecast:tomorrow:${departure}:${arrival}`
 };
-

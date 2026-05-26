@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { CACHE_KEYS, CACHE_TTL_SECONDS } from '../cache/cache-policy';
 import { CacheService } from '../cache/cache.service';
 import { toApiResponse } from '../normalizer/public-api.normalizer';
@@ -29,6 +29,22 @@ export class RoutesService {
     return toApiResponse(cached.value, cached);
   }
 
+  async getRoute(routeId: string) {
+    const cached = await this.cacheService.remember(CACHE_KEYS.route(routeId), CACHE_TTL_SECONDS.ROUTES, () =>
+      this.ferryApiClient.getRoute(routeId)
+    );
+
+    if (!cached.value.data) {
+      throw new NotFoundException({
+        code: 'ROUTE_NOT_FOUND',
+        message: 'Route was not found',
+        userMessage: '요청한 항로를 찾을 수 없습니다.'
+      });
+    }
+
+    return toApiResponse(cached.value, cached);
+  }
+
   async getRouteStops(routeId: string) {
     const cached = await this.cacheService.remember(
       CACHE_KEYS.routeStops(routeId),
@@ -39,4 +55,3 @@ export class RoutesService {
     return toApiResponse(cached.value, cached);
   }
 }
-
