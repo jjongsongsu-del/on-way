@@ -1,0 +1,185 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Route {
+  id                 String            @id @default(cuid())
+  licenseRouteCode   String?           @map("license_route_code")
+  licenseRouteName   String?           @map("license_route_name")
+  operationRouteCode String?           @map("operation_route_code")
+  operationRouteName String            @map("operation_route_name")
+  provider           String
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+  stops              RouteStop[]
+  schedules          SailingSchedule[]
+  forecasts          SailingForecast[]
+
+  @@map("route")
+}
+
+model RouteStop {
+  id           String   @id @default(cuid())
+  routeId      String   @map("route_id")
+  stopSequence Int      @map("stop_sequence")
+  portCode     String?  @map("port_code")
+  portName     String   @map("port_name")
+  latitude     Decimal? @db.Decimal(10, 7)
+  longitude    Decimal? @db.Decimal(10, 7)
+  route        Route    @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  @@index([routeId, stopSequence])
+  @@map("route_stop")
+}
+
+model Vessel {
+  id                String            @id @default(cuid())
+  vesselCode        String?           @map("vessel_code")
+  vesselName        String            @map("vessel_name")
+  passengerCapacity Int?              @map("passenger_capacity")
+  operatorName      String?           @map("operator_name")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+  schedules         SailingSchedule[]
+  forecasts         SailingForecast[]
+
+  @@map("vessel")
+}
+
+model SailingSchedule {
+  id                String           @id @default(cuid())
+  sailingDate       DateTime         @map("sailing_date") @db.Date
+  departureTime     String           @map("departure_time")
+  departurePortName String           @map("departure_port_name")
+  arrivalPortName   String           @map("arrival_port_name")
+  routeId           String?          @map("route_id")
+  vesselId          String?          @map("vessel_id")
+  controlReason     String?          @map("control_reason")
+  passengerCapacity Int?             @map("passenger_capacity")
+  status            SailingStatusCode @default(UNKNOWN)
+  source            String
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+  route             Route?           @relation(fields: [routeId], references: [id])
+  vessel            Vessel?          @relation(fields: [vesselId], references: [id])
+  statuses          SailingStatus[]
+
+  @@index([sailingDate, departurePortName, arrivalPortName])
+  @@map("sailing_schedule")
+}
+
+model SailingStatus {
+  id            String            @id @default(cuid())
+  scheduleId    String?           @map("schedule_id")
+  sailingDate   DateTime          @map("sailing_date") @db.Date
+  vesselName    String?           @map("vessel_name")
+  routeName     String?           @map("route_name")
+  statusCode    SailingStatusCode @default(UNKNOWN) @map("status_code")
+  statusName    String            @map("status_name")
+  delayMinutes  Int?              @map("delay_minutes")
+  controlReason String?           @map("control_reason")
+  source        String
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+  schedule      SailingSchedule?  @relation(fields: [scheduleId], references: [id])
+
+  @@index([sailingDate, statusCode])
+  @@map("sailing_status")
+}
+
+model SailingForecast {
+  id              String             @id @default(cuid())
+  forecastDate    DateTime           @map("forecast_date") @db.Date
+  routeId         String?            @map("route_id")
+  vesselId        String?            @map("vessel_id")
+  forecastStatus  ForecastStatusCode @default(UNKNOWN) @map("forecast_status")
+  forecastReason  String?            @map("forecast_reason")
+  weatherSummary  String?            @map("weather_summary")
+  riskLevel       RiskLevel          @default(UNKNOWN) @map("risk_level")
+  source          String
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+  route           Route?             @relation(fields: [routeId], references: [id])
+  vessel          Vessel?            @relation(fields: [vesselId], references: [id])
+
+  @@index([forecastDate, forecastStatus])
+  @@map("sailing_forecast")
+}
+
+model UserFavorite {
+  id                  String       @id @default(cuid())
+  userId              String       @map("user_id")
+  favoriteType        FavoriteType @map("favorite_type")
+  targetId            String       @map("target_id")
+  notificationEnabled Boolean      @default(true) @map("notification_enabled")
+  createdAt           DateTime     @default(now()) @map("created_at")
+
+  @@index([userId, favoriteType])
+  @@map("user_favorite")
+}
+
+model NotificationRule {
+  id                           String   @id @default(cuid())
+  userId                       String   @map("user_id")
+  favoriteId                   String?  @map("favorite_id")
+  notifyStatusChange           Boolean  @default(true) @map("notify_status_change")
+  notifyDepartureMinutesBefore Int?     @map("notify_departure_minutes_before")
+  notifyForecastUpdate         Boolean  @default(true) @map("notify_forecast_update")
+  createdAt                    DateTime @default(now()) @map("created_at")
+  updatedAt                    DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@map("notification_rule")
+}
+
+model NotificationEvent {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  eventType String   @map("event_type")
+  title     String
+  body      String
+  payload   Json?
+  sentAt    DateTime? @map("sent_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, eventType])
+  @@map("notification_event")
+}
+
+enum SailingStatusCode {
+  NORMAL
+  SCHEDULED
+  DELAYED
+  CANCELED
+  CONTROLLED
+  COMPLETED
+  UNKNOWN
+}
+
+enum ForecastStatusCode {
+  AVAILABLE
+  CAUTION
+  UNCERTAIN
+  CONTROL_POSSIBLE
+  UNAVAILABLE
+  UNKNOWN
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  UNKNOWN
+}
+
+enum FavoriteType {
+  ROUTE
+  VESSEL
+  TERMINAL
+  PORT
+}

@@ -1,0 +1,23 @@
+{
+  "name": "sea-load",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.3.0",
+  "scripts": {
+    "dev": "corepack pnpm --parallel --filter @badagil/api --filter @badagil/mobile dev",
+    "dev:api": "corepack pnpm --filter @badagil/api dev",
+    "dev:mobile": "corepack pnpm --filter @badagil/mobile dev",
+    "build": "corepack pnpm -r build",
+    "lint": "corepack pnpm -r lint",
+    "typecheck": "corepack pnpm -r typecheck",
+    "db:generate": "corepack pnpm --filter @badagil/api db:generate",
+    "db:migrate": "corepack pnpm --filter @badagil/api db:migrate"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.50.0",
+    "@typescript-eslint/parser": "^8.50.0",
+    "@types/node": "^24.10.1",
+    "eslint": "^9.39.2",
+    "typescript": "^5.9.3"
+  }
+}
