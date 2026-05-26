@@ -1,6 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ForecastsModule } from './forecasts/forecasts.module';
 import { HealthModule } from './health/health.module';
+import { RoutesModule } from './routes/routes.module';
+import { SchedulesModule } from './schedules/schedules.module';
+import { StatusesModule } from './statuses/statuses.module';
 
 @Module({
   imports: [
@@ -8,8 +12,11 @@ import { HealthModule } from './health/health.module';
       isGlobal: true,
       envFilePath: ['.env.local', '.env']
     }),
-    HealthModule
+    HealthModule,
+    RoutesModule,
+    SchedulesModule,
+    StatusesModule,
+    ForecastsModule
   ]
 })
 export class AppModule {}
-
