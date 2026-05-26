@@ -1,5 +1,9 @@
 export * from './constants/forecast-status';
+export * from './constants/favorite-type';
+export * from './constants/platform';
+export * from './constants/risk-level';
 export * from './constants/sailing-status';
 export * from './schemas/api-response.schema';
+export * from './schemas/domain.schema';
+export * from './schemas/query.schema';
 export * from './types/domain';
-

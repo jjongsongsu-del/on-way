@@ -3,7 +3,9 @@ import { z } from 'zod';
 export const apiMetaSchema = z.object({
   source: z.string().optional(),
   cached: z.boolean().optional(),
-  updatedAt: z.string()
+  updatedAt: z.string(),
+  fallback: z.boolean().optional(),
+  requestId: z.string().optional()
 });
 
 export const apiErrorSchema = z.object({
@@ -20,4 +22,7 @@ export const createApiResponseSchema = <T extends z.ZodType>(dataSchema: T) =>
 
 export type ApiMeta = z.infer<typeof apiMetaSchema>;
 export type ApiError = z.infer<typeof apiErrorSchema>;
-
+export type ApiResponse<T> = {
+  data: T;
+  meta: ApiMeta;
+};

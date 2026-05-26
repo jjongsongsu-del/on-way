@@ -20,6 +20,7 @@ model Route {
   schedules          SailingSchedule[]
   forecasts          SailingForecast[]
 
+  @@index([provider, operationRouteCode])
   @@map("route")
 }
 
@@ -32,9 +33,43 @@ model RouteStop {
   latitude     Decimal? @db.Decimal(10, 7)
   longitude    Decimal? @db.Decimal(10, 7)
   route        Route    @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  port         Port?    @relation(fields: [portCode], references: [portCode])
 
   @@index([routeId, stopSequence])
   @@map("route_stop")
+}
+
+model Port {
+  id         String      @id @default(cuid())
+  portCode   String      @unique @map("port_code")
+  portName   String      @map("port_name")
+  regionName String?     @map("region_name")
+  latitude   Decimal?    @db.Decimal(10, 7)
+  longitude  Decimal?    @db.Decimal(10, 7)
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
+  routeStops RouteStop[]
+  terminals  Terminal[]
+
+  @@index([portName])
+  @@map("port")
+}
+
+model Terminal {
+  id           String   @id @default(cuid())
+  portId       String?  @map("port_id")
+  terminalCode String?  @map("terminal_code")
+  terminalName String   @map("terminal_name")
+  address      String?
+  latitude     Decimal? @db.Decimal(10, 7)
+  longitude    Decimal? @db.Decimal(10, 7)
+  mapUrl       String?  @map("map_url")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  port         Port?    @relation(fields: [portId], references: [id])
+
+  @@index([terminalName])
+  @@map("terminal")
 }
 
 model Vessel {
@@ -52,21 +87,21 @@ model Vessel {
 }
 
 model SailingSchedule {
-  id                String           @id @default(cuid())
-  sailingDate       DateTime         @map("sailing_date") @db.Date
-  departureTime     String           @map("departure_time")
-  departurePortName String           @map("departure_port_name")
-  arrivalPortName   String           @map("arrival_port_name")
-  routeId           String?          @map("route_id")
-  vesselId          String?          @map("vessel_id")
-  controlReason     String?          @map("control_reason")
-  passengerCapacity Int?             @map("passenger_capacity")
+  id                String            @id @default(cuid())
+  sailingDate       DateTime          @map("sailing_date") @db.Date
+  departureTime     String            @map("departure_time")
+  departurePortName String            @map("departure_port_name")
+  arrivalPortName   String            @map("arrival_port_name")
+  routeId           String?           @map("route_id")
+  vesselId          String?           @map("vessel_id")
+  controlReason     String?           @map("control_reason")
+  passengerCapacity Int?              @map("passenger_capacity")
   status            SailingStatusCode @default(UNKNOWN)
   source            String
-  createdAt         DateTime         @default(now()) @map("created_at")
-  updatedAt         DateTime         @updatedAt @map("updated_at")
-  route             Route?           @relation(fields: [routeId], references: [id])
-  vessel            Vessel?          @relation(fields: [vesselId], references: [id])
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+  route             Route?            @relation(fields: [routeId], references: [id])
+  vessel            Vessel?           @relation(fields: [vesselId], references: [id])
   statuses          SailingStatus[]
 
   @@index([sailingDate, departurePortName, arrivalPortName])
@@ -93,19 +128,19 @@ model SailingStatus {
 }
 
 model SailingForecast {
-  id              String             @id @default(cuid())
-  forecastDate    DateTime           @map("forecast_date") @db.Date
-  routeId         String?            @map("route_id")
-  vesselId        String?            @map("vessel_id")
-  forecastStatus  ForecastStatusCode @default(UNKNOWN) @map("forecast_status")
-  forecastReason  String?            @map("forecast_reason")
-  weatherSummary  String?            @map("weather_summary")
-  riskLevel       RiskLevel          @default(UNKNOWN) @map("risk_level")
-  source          String
-  createdAt       DateTime           @default(now()) @map("created_at")
-  updatedAt       DateTime           @updatedAt @map("updated_at")
-  route           Route?             @relation(fields: [routeId], references: [id])
-  vessel          Vessel?            @relation(fields: [vesselId], references: [id])
+  id             String             @id @default(cuid())
+  forecastDate   DateTime           @map("forecast_date") @db.Date
+  routeId        String?            @map("route_id")
+  vesselId       String?            @map("vessel_id")
+  forecastStatus ForecastStatusCode @default(UNKNOWN) @map("forecast_status")
+  forecastReason String?            @map("forecast_reason")
+  weatherSummary String?            @map("weather_summary")
+  riskLevel      RiskLevel          @default(UNKNOWN) @map("risk_level")
+  source         String
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+  route          Route?             @relation(fields: [routeId], references: [id])
+  vessel         Vessel?            @relation(fields: [vesselId], references: [id])
 
   @@index([forecastDate, forecastStatus])
   @@map("sailing_forecast")
@@ -123,6 +158,32 @@ model UserFavorite {
   @@map("user_favorite")
 }
 
+model DeviceUser {
+  id         String      @id @default(cuid())
+  deviceId   String      @unique @map("device_id")
+  platform   Platform
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
+  pushTokens PushToken[]
+
+  @@map("device_user")
+}
+
+model PushToken {
+  id         String       @id @default(cuid())
+  userId     String       @map("user_id")
+  token      String       @unique
+  provider   PushProvider
+  platform   Platform
+  enabled    Boolean      @default(true)
+  createdAt  DateTime     @default(now()) @map("created_at")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
+  deviceUser DeviceUser   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, enabled])
+  @@map("push_token")
+}
+
 model NotificationRule {
   id                           String   @id @default(cuid())
   userId                       String   @map("user_id")
@@ -138,14 +199,14 @@ model NotificationRule {
 }
 
 model NotificationEvent {
-  id        String   @id @default(cuid())
-  userId    String   @map("user_id")
-  eventType String   @map("event_type")
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  eventType String    @map("event_type")
   title     String
   body      String
   payload   Json?
   sentAt    DateTime? @map("sent_at")
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime  @default(now()) @map("created_at")
 
   @@index([userId, eventType])
   @@map("notification_event")
@@ -182,4 +243,17 @@ enum FavoriteType {
   VESSEL
   TERMINAL
   PORT
+}
+
+enum Platform {
+  IOS
+  ANDROID
+  WEB
+  UNKNOWN
+}
+
+enum PushProvider {
+  EXPO
+  FCM
+  APNS
 }
