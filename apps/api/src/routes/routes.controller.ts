@@ -14,6 +14,30 @@ export class RoutesController {
     return this.routesService.getRoutes();
   }
 
+  @Get('options')
+  @ApiOkResponse({ description: 'Route departure and arrival options' })
+  getRouteOptions() {
+    return this.routesService.getRouteOptions();
+  }
+
+  @Get('departures')
+  @ApiOkResponse({ description: 'Distinct departure ports from operation line API' })
+  getDeparturePortOptions() {
+    return this.routesService.getDeparturePortOptions();
+  }
+
+  @Get('arrivals')
+  @ApiOkResponse({ description: 'Distinct arrival ports from operation line API' })
+  getArrivalPortOptions() {
+    return this.routesService.getArrivalPortOptions();
+  }
+
+  @Get('traffic/realtime')
+  @ApiOkResponse({ description: 'Realtime marine traffic density by grid' })
+  getRealtimeTraffic() {
+    return this.routesService.getRealtimeTraffic();
+  }
+
   @Get('search')
   @ApiOkResponse({ description: 'Search routes by departure and arrival', type: RouteSummaryDto, isArray: true })
   searchRoutes(@Query() query: RouteSearchQueryDto) {

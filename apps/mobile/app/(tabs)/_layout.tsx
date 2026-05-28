@@ -1,31 +1,42 @@
 import { Tabs } from 'expo-router';
-import { CalendarDays, Home, Map, Ship, User } from 'lucide-react-native';
-
-const tintColor = '#0b7285';
+import { CalendarDays, Home, Map, MapPin, Ship, User } from 'lucide-react-native';
+import { colors } from '@/theme/colors';
 
 export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: tintColor,
+        tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: '#8a99a6',
         tabBarStyle: {
-          borderTopColor: '#e7edf2',
-          height: 64,
-          paddingBottom: 8,
-          paddingTop: 8
+          borderTopColor: colors.border,
+          backgroundColor: colors.surface,
+          height: 70,
+          paddingBottom: 9,
+          paddingTop: 9,
+          shadowColor: '#12324f',
+          shadowOffset: { height: -8, width: 0 },
+          shadowOpacity: 0.06,
+          shadowRadius: 16,
+          elevation: 8
+        },
+        tabBarItemStyle: {
+          borderRadius: 999,
+          marginHorizontal: 4,
+          marginVertical: 6
         },
         tabBarLabelStyle: {
           fontSize: 12,
-          fontWeight: '600'
+          fontWeight: '700',
+          letterSpacing: 0
         }
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: '홈',
+          title: '바다누리',
           tabBarIcon: ({ color, size }) => <Home color={color} size={size} />
         }}
       />
@@ -44,6 +55,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="islands"
+        options={{
+          title: '섬지도',
+          tabBarIcon: ({ color, size }) => <MapPin color={color} size={size} />
+        }}
+      />
+      <Tabs.Screen
         name="forecast"
         options={{
           title: '예보',
@@ -53,11 +71,10 @@ export default function TabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: '내 정보',
+          title: '내정보',
           tabBarIcon: ({ color, size }) => <User color={color} size={size} />
         }}
       />
     </Tabs>
   );
 }
-

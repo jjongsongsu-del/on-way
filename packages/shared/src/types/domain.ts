@@ -50,6 +50,28 @@ export type Vessel = {
   operatorName: string | null;
 };
 
+export type VesselDetail = {
+  id: string;
+  shipNo: string;
+  vesselName: string;
+  imageUrl: string | null;
+  imageDataUrl: string | null;
+  sourceUrl: string;
+  grossTonnage: string | null;
+  dimensions: string | null;
+  shipType: string | null;
+  shipKind: string | null;
+  maxSpeed: string | null;
+  cruiseSpeed: string | null;
+  engineType: string | null;
+  enginePower: string | null;
+  navigationArea: string | null;
+  passengerCapacity: string | null;
+  routeName: string | null;
+  operatorName: string | null;
+  collectedAt: string;
+};
+
 export type SailingScheduleSummary = {
   id: string;
   sailingDate: string;
@@ -62,6 +84,31 @@ export type SailingScheduleSummary = {
   status: SailingStatus;
   controlReason: string | null;
   passengerCapacity: number | null;
+};
+
+export type RealtimeTrafficSummary = {
+  id: string;
+  gridId: string;
+  vesselTrafficCount: number | null;
+  density: number | null;
+  congestionLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'UNKNOWN';
+  observedAt: string;
+};
+
+export type IslandSummary = {
+  id: string;
+  islandName: string;
+  provinceName: string | null;
+  cityName: string | null;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  areaSquareMeters: number | null;
+  coastlineLengthMeters: number | null;
+  population: number | null;
+  description: string | null;
+  source: 'VWORLD' | 'MOCK';
+  updatedAt: string;
 };
 
 export type TodayStatusSummary = {

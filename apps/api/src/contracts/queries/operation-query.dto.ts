@@ -17,6 +17,21 @@ export class ScheduleQueryDto extends RouteSearchQueryDto {
   @IsDateString()
   date!: string;
 
+  @ApiPropertyOptional({ example: '2026-05-26' })
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
+
+  @ApiPropertyOptional({ example: '2026-06-01' })
+  @IsOptional()
+  @IsDateString()
+  endDate?: string;
+
+  @ApiPropertyOptional({ example: '섬사랑12호' })
+  @IsOptional()
+  @IsString()
+  vesselName?: string;
+
   @ApiPropertyOptional({ enum: SailingStatusCode })
   @IsOptional()
   @IsEnum(SailingStatusCode)
@@ -28,7 +43,58 @@ export class ScheduleQueryDto extends RouteSearchQueryDto {
   onlyDisrupted?: string;
 }
 
+export class ScheduleCandidateQueryDto {
+  @ApiProperty({ example: '2026-05-26' })
+  @IsDateString()
+  date!: string;
+
+  @ApiPropertyOptional({ example: '인천' })
+  @IsOptional()
+  @IsString()
+  departure?: string;
+
+  @ApiPropertyOptional({ example: '백령' })
+  @IsOptional()
+  @IsString()
+  arrival?: string;
+
+  @ApiPropertyOptional({ example: '코리아프라이드' })
+  @IsOptional()
+  @IsString()
+  vesselName?: string;
+}
+
+export class WeeklyScheduleQueryDto {
+  @ApiProperty({ example: '2026-05-26' })
+  @IsDateString()
+  date!: string;
+
+  @ApiPropertyOptional({ example: '2026-05-26' })
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
+
+  @ApiPropertyOptional({ example: '2026-06-01' })
+  @IsOptional()
+  @IsDateString()
+  endDate?: string;
+
+  @ApiPropertyOptional({ example: '인천' })
+  @IsOptional()
+  @IsString()
+  departure?: string;
+
+  @ApiPropertyOptional({ example: '백령' })
+  @IsOptional()
+  @IsString()
+  arrival?: string;
+
+  @ApiPropertyOptional({ example: '코리아프라이드' })
+  @IsOptional()
+  @IsString()
+  vesselName?: string;
+}
+
 export class TodayStatusQueryDto extends RouteSearchQueryDto {}
 
 export class TomorrowForecastQueryDto extends RouteSearchQueryDto {}
-

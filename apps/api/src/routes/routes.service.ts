@@ -20,6 +20,44 @@ export class RoutesService {
     return toApiResponse(cached.value, cached);
   }
 
+  async getRouteOptions() {
+    const cached = await this.cacheService.remember(CACHE_KEYS.routeOptions(), CACHE_TTL_SECONDS.ROUTE_OPTIONS, () =>
+      this.ferryApiClient.getRouteOptions()
+    );
+
+    return toApiResponse(cached.value, cached);
+  }
+
+  async getDeparturePortOptions() {
+    const cached = await this.cacheService.remember(
+      CACHE_KEYS.departurePortOptions(),
+      CACHE_TTL_SECONDS.ROUTE_OPTIONS,
+      () => this.ferryApiClient.getDeparturePortOptions()
+    );
+
+    return toApiResponse(cached.value, cached);
+  }
+
+  async getArrivalPortOptions() {
+    const cached = await this.cacheService.remember(
+      CACHE_KEYS.arrivalPortOptions(),
+      CACHE_TTL_SECONDS.ROUTE_OPTIONS,
+      () => this.ferryApiClient.getArrivalPortOptions()
+    );
+
+    return toApiResponse(cached.value, cached);
+  }
+
+  async getRealtimeTraffic() {
+    const cached = await this.cacheService.remember(
+      CACHE_KEYS.realtimeTraffic(),
+      CACHE_TTL_SECONDS.REALTIME_TRAFFIC,
+      () => this.ferryApiClient.getRealtimeTraffic()
+    );
+
+    return toApiResponse(cached.value, cached);
+  }
+
   async searchRoutes(params: RouteSearchParams) {
     const key = `routes:search:${params.departure}:${params.arrival}`;
     const cached = await this.cacheService.remember(key, CACHE_TTL_SECONDS.ROUTES, () =>

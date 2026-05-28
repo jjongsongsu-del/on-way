@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "바다길",
-    "slug": "badagil",
-    "scheme": "badagil",
+    "name": "바다누리",
+    "slug": "badanuri",
+    "scheme": "badanuri",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -12,7 +12,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#0b7285"
+        "backgroundColor": "#1769e0"
       }
     },
     "plugins": ["expo-router"],
@@ -21,4 +21,3 @@
     }
   }
 }
-

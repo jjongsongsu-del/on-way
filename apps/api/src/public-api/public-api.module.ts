@@ -5,6 +5,7 @@ import { KomsaApiClient } from './clients/komsa-api.client';
 import { PublicApiHttpClient } from './clients/public-api-http.client';
 import { MockFerryApiClient } from './mock/mock-ferry-api.client';
 import { FERRY_API_CLIENT } from './public-api.tokens';
+import { RealFerryApiClient } from './real-ferry-api.client';
 
 @Module({
   providers: [
@@ -12,22 +13,25 @@ import { FERRY_API_CLIENT } from './public-api.tokens';
     KomsaApiClient,
     IncheonPortApiClient,
     MockFerryApiClient,
+    RealFerryApiClient,
     {
       provide: FERRY_API_CLIENT,
-      inject: [ConfigService, MockFerryApiClient],
-      useFactory: (configService: ConfigService, mockClient: MockFerryApiClient) => {
+      inject: [ConfigService, MockFerryApiClient, RealFerryApiClient],
+      useFactory: (
+        configService: ConfigService,
+        mockClient: MockFerryApiClient,
+        realClient: RealFerryApiClient
+      ) => {
         const mode = configService.get<string>('PUBLIC_API_MODE', 'mock');
 
-        if (mode !== 'mock') {
-          // M3 keeps the interface swappable while M4 fills endpoint-specific implementations.
-          return mockClient;
+        if (mode === 'real') {
+          return realClient;
         }
 
         return mockClient;
       }
     }
   ],
-  exports: [FERRY_API_CLIENT, PublicApiHttpClient, KomsaApiClient, IncheonPortApiClient]
+  exports: [FERRY_API_CLIENT, PublicApiHttpClient, KomsaApiClient, IncheonPortApiClient, RealFerryApiClient]
 })
 export class PublicApiModule {}
-

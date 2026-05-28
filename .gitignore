@@ -10,4 +10,8 @@ coverage/
 !.env.example
 *.log
 *.tsbuildinfo
-
+expo-env.d.ts
+ref_2d/
+ref_api/
+ref_doc/
+ref_img/

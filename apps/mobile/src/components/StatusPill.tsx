@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
+import { colors } from '@/theme/colors';
 
 type StatusPillProps = {
   label: string;
@@ -6,10 +7,10 @@ type StatusPillProps = {
 };
 
 const toneStyle = {
-  good: { backgroundColor: '#e3fcef', color: '#087f5b' },
-  warning: { backgroundColor: '#fff4d6', color: '#9a6700' },
-  danger: { backgroundColor: '#ffe3e3', color: '#c92a2a' },
-  neutral: { backgroundColor: '#edf2f7', color: '#52616f' }
+  good: { backgroundColor: '#def8ef', color: colors.good },
+  warning: { backgroundColor: '#fff2d6', color: colors.warning },
+  danger: { backgroundColor: '#ffe2e2', color: colors.danger },
+  neutral: { backgroundColor: '#e8eef5', color: colors.muted }
 };
 
 export function StatusPill({ label, tone = 'neutral' }: StatusPillProps) {
@@ -34,4 +35,3 @@ const styles = StyleSheet.create({
     fontWeight: '800'
   }
 });
-
