@@ -1,4 +1,5 @@
 import type { ApiResponse, RealtimeTrafficSummary } from '@badagil/shared';
+import { requestJson } from './http';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:4000/v1';
 
@@ -32,12 +33,11 @@ export async function fetchRealtimeTraffic() {
 }
 
 async function get<T>(path: string) {
-  const response = await fetch(`${API_BASE_URL}${path}`);
+  const response = await requestJson<ApiResponse<T>>(`${API_BASE_URL}${path}`);
 
   if (!response.ok) {
     throw new Error(`API request failed: ${response.status}`);
   }
 
-  const body = (await response.json()) as ApiResponse<T>;
-  return body.data;
+  return response.body.data;
 }
