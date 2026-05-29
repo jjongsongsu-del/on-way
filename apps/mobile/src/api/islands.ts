@@ -1,7 +1,6 @@
 import type { ApiResponse, IslandSummary } from '@badagil/shared';
+import { API_BASE_URL } from './config';
 import { requestJson } from './http';
-
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:4000/v1';
 
 const PREVIEW_ISLANDS: IslandSummary[] = [
   {
@@ -66,22 +65,71 @@ const PREVIEW_ISLANDS: IslandSummary[] = [
   }
 ];
 
+export type IslandSearchResult = ApiResponse<IslandSummary[]>;
+export type IslandMapBounds = {
+  minLatitude: number;
+  minLongitude: number;
+  maxLatitude: number;
+  maxLongitude: number;
+};
+
 export async function fetchIslands(keyword?: string) {
+  const response = await fetchIslandsResponse(keyword);
+  return response.data;
+}
+
+export async function fetchIslandsResponse(keyword?: string): Promise<IslandSearchResult> {
   const params = keyword ? `?keyword=${encodeURIComponent(keyword)}` : '';
   try {
-    return await get<IslandSummary[]>(`/islands${params}`);
+    return await getResponse<IslandSummary[]>(`/islands${params}`);
   } catch {
     const normalizedKeyword = keyword?.trim().toLowerCase();
-    if (!normalizedKeyword) {
-      return PREVIEW_ISLANDS;
-    }
+    const data = normalizedKeyword
+      ? PREVIEW_ISLANDS.filter((island) =>
+          [island.islandName, island.provinceName, island.cityName, island.address]
+            .filter(Boolean)
+            .some((value) => value!.toLowerCase().includes(normalizedKeyword))
+        )
+      : PREVIEW_ISLANDS;
 
-    return PREVIEW_ISLANDS.filter((island) =>
-      [island.islandName, island.provinceName, island.cityName, island.address]
-        .filter(Boolean)
-        .some((value) => value!.toLowerCase().includes(normalizedKeyword))
-    );
+    return {
+      data,
+      meta: {
+        source: 'preview-island-seed',
+        cached: false,
+        fallback: true,
+        updatedAt: new Date().toISOString()
+      }
+    };
   }
+}
+
+export async function fetchIslandFeatures(bounds: IslandMapBounds): Promise<IslandSearchResult> {
+  const bbox = boundsToBbox(bounds);
+
+  try {
+    return await getResponse<IslandSummary[]>(`/islands/features?bbox=${encodeURIComponent(bbox)}`);
+  } catch {
+    return {
+      data: filterPreviewByBounds(bounds),
+      meta: {
+        source: 'preview-island-seed',
+        cached: false,
+        fallback: true,
+        updatedAt: new Date().toISOString()
+      }
+    };
+  }
+}
+
+export function createIslandWmsUrl(bounds: IslandMapBounds, width = 915, height = 640) {
+  const params = new URLSearchParams({
+    bbox: boundsToBbox(bounds),
+    width: String(width),
+    height: String(height)
+  });
+
+  return `${API_BASE_URL}/islands/wms?${params.toString()}`;
 }
 
 export async function fetchIsland(islandId: string) {
@@ -89,11 +137,35 @@ export async function fetchIsland(islandId: string) {
 }
 
 async function get<T>(path: string) {
+  const response = await getResponse<T>(path);
+  return response.data;
+}
+
+async function getResponse<T>(path: string) {
   const response = await requestJson<ApiResponse<T>>(`${API_BASE_URL}${path}`);
 
   if (!response.ok) {
     throw new Error(`API request failed: ${response.status}`);
   }
 
-  return response.body.data;
+  return response.body;
+}
+
+function boundsToBbox(bounds: IslandMapBounds) {
+  return [bounds.minLongitude, bounds.minLatitude, bounds.maxLongitude, bounds.maxLatitude].join(',');
+}
+
+function filterPreviewByBounds(bounds: IslandMapBounds) {
+  return PREVIEW_ISLANDS.filter((island) => {
+    if (typeof island.latitude !== 'number' || typeof island.longitude !== 'number') {
+      return false;
+    }
+
+    return (
+      island.latitude >= bounds.minLatitude &&
+      island.latitude <= bounds.maxLatitude &&
+      island.longitude >= bounds.minLongitude &&
+      island.longitude <= bounds.maxLongitude
+    );
+  });
 }

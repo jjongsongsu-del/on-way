@@ -408,7 +408,7 @@ export class RealFerryApiClient implements PublicFerryApiClient {
       routeId: route.id,
       vesselId: makeStableId('vessel', [pickString(item, FIELD_KEYS.vesselCode), pickString(item, FIELD_KEYS.vesselName)]),
       vesselName: pickString(item, FIELD_KEYS.vesselName),
-      status: normalizeSailingStatus(pickString(item, FIELD_KEYS.status)),
+      status: normalizeItemSailingStatus(item),
       controlReason: pickString(item, FIELD_KEYS.reason),
       passengerCapacity: pickNumber(item, FIELD_KEYS.passengerCapacity)
     };
@@ -434,7 +434,7 @@ export class RealFerryApiClient implements PublicFerryApiClient {
       routeName,
       licenseRouteName,
       currentPortName,
-      status: normalizeSailingStatus(pickString(item, FIELD_KEYS.status))
+      status: normalizeItemSailingStatus(item)
     };
   }
 
@@ -489,6 +489,7 @@ const FIELD_KEYS = {
   passengerCapacity: ['psngrCpcty', 'passengerCapacity', 'psncap', 'psng_cpcty', 'psngr_cpcty'],
   operatorName: ['cmpnyNm', 'operatorNm', 'companyNm', 'cmpny_nm', 'oprtr_nm'],
   status: ['oprtStts', 'oprtStatus', 'status', 'sailingStatus', 'oprt_stts', 'oprt_stts_nm', 'nvg_stts_nm'],
+  statusCode: ['oprtSttsCd', 'oprt_status_cd', 'oprt_stts_cd', 'nvg_stts_cd', 'nvg_se_cd'],
   forecastStatus: ['oprtPsblYn', 'forecastStatus', 'oprtYn', 'status', 'oprt_psbl_yn', 'oprt_yn'],
   reason: ['ctrlRsn', 'reason', 'rsn', 'remark', 'ctrl_rsn', 'rmrk'],
   weatherSummary: ['weather', 'weatherSummary', 'wthr', 'seaWeather', 'wthr_cn', 'sea_wthr_cn'],
@@ -500,6 +501,31 @@ const FIELD_KEYS = {
 
 function uniqueById<T extends { id: string }>(items: T[]) {
   return [...new Map(items.map((item) => [item.id, item])).values()];
+}
+
+function normalizeItemSailingStatus(item: UnknownRecord) {
+  const status = normalizeSailingStatus(pickString(item, FIELD_KEYS.status));
+  if (status !== SAILING_STATUS.UNKNOWN) {
+    return status;
+  }
+
+  const code = pickString(item, FIELD_KEYS.statusCode);
+  switch (code) {
+    case '1':
+    case '4':
+      return SAILING_STATUS.NORMAL;
+    case '2':
+      return SAILING_STATUS.SCHEDULED;
+    case '3':
+    case '5':
+      return SAILING_STATUS.COMPLETED;
+    case '6':
+      return SAILING_STATUS.CANCELED;
+    case '7':
+      return SAILING_STATUS.CONTROLLED;
+    default:
+      return SAILING_STATUS.UNKNOWN;
+  }
 }
 
 function toPortOptions(portNames: string[]): PortOption[] {

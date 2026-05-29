@@ -2,7 +2,7 @@
   "name": "@badagil/mobile",
   "version": "0.1.0",
   "private": true,
-  "main": "expo-router/entry",
+  "main": "index.js",
   "scripts": {
     "dev": "expo start",
     "android": "expo run:android",
@@ -35,6 +35,7 @@
     "@types/react": "~19.1.10",
     "@typescript-eslint/eslint-plugin": "^8.50.0",
     "@typescript-eslint/parser": "^8.50.0",
+    "babel-preset-expo": "~54.0.10",
     "eslint": "^9.39.2",
     "typescript": "^5.9.3"
   }

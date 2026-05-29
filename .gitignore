@@ -10,8 +10,12 @@ coverage/
 !.env.example
 *.log
 *.tsbuildinfo
+/*.png
+.pnpm-store/
+apps/mobile/android/.gradle-cache/
 expo-env.d.ts
 ref_2d/
 ref_api/
 ref_doc/
 ref_img/
+ref_data/

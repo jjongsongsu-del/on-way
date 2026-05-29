@@ -28,6 +28,18 @@ export class PublicApiHttpClient {
     return this.parseXml<T>(xml);
   }
 
+  async getArrayBuffer(url: string): Promise<{ data: ArrayBuffer; contentType: string }> {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Public API request failed: ${response.status} ${response.statusText}`);
+    }
+
+    return {
+      data: await response.arrayBuffer(),
+      contentType: response.headers.get('content-type') ?? 'image/png'
+    };
+  }
+
   parseXml<T = unknown>(xml: string): T {
     return this.xmlParser.parse(xml) as T;
   }
@@ -44,4 +56,3 @@ export class PublicApiHttpClient {
     return url.toString();
   }
 }
-

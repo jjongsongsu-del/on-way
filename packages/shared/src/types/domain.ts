@@ -111,6 +111,76 @@ export type IslandSummary = {
   updatedAt: string;
 };
 
+export type IslandTravelAttraction = {
+  id: string;
+  title: string;
+  category: string | null;
+  address: string | null;
+  imageUrl: string | null;
+  mapX: number | null;
+  mapY: number | null;
+  source: 'TOUR_API' | 'MOCK';
+};
+
+export type IslandTravelCamp = {
+  id: string;
+  name: string;
+  address: string | null;
+  facilitySummary: string | null;
+  reservation: string | null;
+  restriction: string | null;
+  status: 'AVAILABLE' | 'PARTIAL' | 'CHECK_REQUIRED' | 'RESTRICTED' | 'PROHIBITED';
+  source: 'GOCAMPING' | 'CULTURE_CAMPING' | 'LOCAL_CAMPGROUND' | 'MOCK';
+};
+
+export type IslandTravelSafetyIndex = {
+  id: string;
+  title: string;
+  areaName: string | null;
+  score: string | null;
+  advisory: string;
+  forecastDate: string | null;
+  source: 'KHOA_SEA_TRIP' | 'MOCK';
+};
+
+export type IslandTravelLodging = {
+  id: string;
+  name: string;
+  address: string | null;
+  category: string | null;
+  tel: string | null;
+  status: string | null;
+  source: 'LOCAL_LODGING' | 'MOCK';
+};
+
+export type IslandTravelRestaurant = {
+  id: string;
+  name: string;
+  address: string | null;
+  category: string | null;
+  tel: string | null;
+  representativeMenu: string | null;
+  status: string | null;
+  source: 'TOURIST_RESTAURANT' | 'MOCK';
+};
+
+export type IslandTravelInfo = {
+  islandName: string;
+  attractions: IslandTravelAttraction[];
+  camps: IslandTravelCamp[];
+  lodgings: IslandTravelLodging[];
+  restaurants: IslandTravelRestaurant[];
+  safetyIndexes: IslandTravelSafetyIndex[];
+  sourceSummary: {
+    tourism: string;
+    camping: string;
+    lodging: string;
+    food: string;
+    safety: string;
+  };
+  updatedAt: string;
+};
+
 export type TodayStatusSummary = {
   route: RouteSummary;
   status: SailingStatus;

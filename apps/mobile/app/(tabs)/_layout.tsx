@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { CalendarDays, Home, Map, MapPin, Ship, User } from 'lucide-react-native';
+import { CalendarDays, Compass, Home, Map, MapPin, Ship, User } from 'lucide-react-native';
 import { colors } from '@/theme/colors';
 
 export default function TabLayout() {
@@ -10,16 +10,16 @@ export default function TabLayout() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: '#8a99a6',
         tabBarStyle: {
-          borderTopColor: colors.border,
           backgroundColor: colors.surface,
+          borderTopColor: colors.border,
+          elevation: 8,
           height: 70,
           paddingBottom: 9,
           paddingTop: 9,
           shadowColor: '#12324f',
           shadowOffset: { height: -8, width: 0 },
           shadowOpacity: 0.06,
-          shadowRadius: 16,
-          elevation: 8
+          shadowRadius: 16
         },
         tabBarItemStyle: {
           borderRadius: 999,
@@ -48,10 +48,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="routes"
+        name="island-trip"
         options={{
-          title: '항로',
-          tabBarIcon: ({ color, size }) => <Map color={color} size={size} />
+          title: '섬여행',
+          tabBarIcon: ({ color, size }) => <Compass color={color} size={size} />
         }}
       />
       <Tabs.Screen
@@ -73,6 +73,14 @@ export default function TabLayout() {
         options={{
           title: '내정보',
           tabBarIcon: ({ color, size }) => <User color={color} size={size} />
+        }}
+      />
+      <Tabs.Screen
+        name="routes"
+        options={{
+          href: null,
+          title: '항로',
+          tabBarIcon: ({ color, size }) => <Map color={color} size={size} />
         }}
       />
     </Tabs>

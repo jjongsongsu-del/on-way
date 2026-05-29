@@ -2,6 +2,7 @@
 import { fetchScheduleCandidates, fetchSchedules, fetchWeeklySchedules, type ScheduleCandidate } from '@/api/schedules';
 import { fetchRouteOptions, type RouteOption } from '@/api/routes';
 import { fetchVesselDetail } from '@/api/vessels';
+import { Link } from 'expo-router';
 import { InfoCard } from '@/components/InfoCard';
 import { MascotBanner } from '@/components/MascotBanner';
 import { Screen } from '@/components/Screen';
@@ -864,6 +865,20 @@ export default function ScheduleScreen() {
         imageSource={require('../../assets/mascot/boogi-schedule.png')}
         tone="blue"
       />
+
+      <View style={styles.scheduleSubMenu}>
+        <View style={styles.scheduleSubMenuCopy}>
+          <Text style={styles.scheduleSubMenuEyebrow}>시간표 하위 메뉴</Text>
+          <Text style={styles.scheduleSubMenuTitle}>항로·실시간 교통정보</Text>
+          <Text style={styles.scheduleSubMenuDescription}>현재 운항 중인 배의 교통정보와 해역 혼잡도를 시간표 흐름 안에서 확인합니다.</Text>
+        </View>
+        <Link href="/routes" asChild>
+          <Pressable accessibilityRole="button" style={styles.scheduleSubMenuButton}>
+            <Waves color={colors.surface} size={17} />
+            <Text style={styles.scheduleSubMenuButtonText}>항로 보기</Text>
+          </Pressable>
+        </Link>
+      </View>
 
       <QuickRoutesPanel
         favoriteRoutes={favoriteRoutes}
@@ -2164,6 +2179,54 @@ function RetryNotice({ text, onRetry }: { text: string; onRetry: () => void }) {
 }
 
 const styles = StyleSheet.create({
+  scheduleSubMenu: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'space-between',
+    padding: 14
+  },
+  scheduleSubMenuCopy: {
+    flex: 1,
+    minWidth: 0
+  },
+  scheduleSubMenuEyebrow: {
+    color: colors.primary,
+    fontSize: 11,
+    fontWeight: '900'
+  },
+  scheduleSubMenuTitle: {
+    color: colors.navy,
+    fontSize: 16,
+    fontWeight: '900',
+    marginTop: 3
+  },
+  scheduleSubMenuDescription: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 18,
+    marginTop: 4
+  },
+  scheduleSubMenuButton: {
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    flexDirection: 'row',
+    gap: 6,
+    justifyContent: 'center',
+    minHeight: 40,
+    paddingHorizontal: 12
+  },
+  scheduleSubMenuButtonText: {
+    color: colors.surface,
+    fontSize: 13,
+    fontWeight: '900'
+  },
   searchPanel: {
     backgroundColor: colors.surface,
     borderColor: colors.border,

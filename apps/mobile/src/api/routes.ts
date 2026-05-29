@@ -1,7 +1,6 @@
 import type { ApiResponse, RealtimeTrafficSummary } from '@badagil/shared';
+import { API_BASE_URL } from './config';
 import { requestJson } from './http';
-
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:4000/v1';
 
 export type RouteOption = {
   id: string;

@@ -13,4 +13,3 @@ export const RISK_LEVEL_LABEL: Record<RiskLevel, string> = {
   HIGH: '높음',
   UNKNOWN: '정보 없음'
 };
-

@@ -17,4 +17,3 @@ export const FORECAST_STATUS_LABEL: Record<ForecastStatus, string> = {
   UNAVAILABLE: '운항 어려움',
   UNKNOWN: '정보 없음'
 };
-
