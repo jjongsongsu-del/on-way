@@ -2,14 +2,20 @@ import { useMemo } from 'react';
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { Link, type Href } from 'expo-router';
-import { Bell, CalendarDays, ChevronRight, Clock3, Images, MapPin, Search, Ship, Star } from 'lucide-react-native';
+import { Bell, CalendarDays, ChevronRight, Clock3, Images, MapPin, Ship, Waves } from 'lucide-react-native';
 import { InfoCard } from '@/components/InfoCard';
 import { Screen } from '@/components/Screen';
 import { StatusPill } from '@/components/StatusPill';
 import { fetchIslandTravelInfo } from '@/api/island-trips';
+import { fetchMarineForecast } from '@/api/forecasts';
+import { fetchScheduleCandidates, type ScheduleCandidate } from '@/api/schedules';
+import { useAppSelectionContext } from '@/state/app-selection-context';
+import { buildInterestAlerts, type InterestAlert } from '@/state/interest-alerts';
 import { colors } from '@/theme/colors';
 
 const HOME_RECENTS_KEY = 'badagil:island-trip:recents';
+const HOME_ROUTE_FAVORITES_KEY = 'badagil:schedule:favorites';
+const HOME_ROUTE_RECENTS_KEY = 'badagil:schedule:recents';
 
 type HomeIslandTarget = {
   islandName: string;
@@ -19,7 +25,7 @@ type HomeIslandTarget = {
   contextLabel: string;
   statusLabel: string;
   statusTime: string;
-  source: 'recent' | 'recommended';
+  source: 'context' | 'recent' | 'recommended';
 };
 
 type HomeRecentIslandRaw = {
@@ -35,6 +41,28 @@ type HomePhoto = {
   imageUrl: string;
   meta: string;
   source: string;
+};
+
+type HomeRouteTarget = {
+  departure: string;
+  arrival: string;
+  name?: string;
+  searchDate?: string;
+  source: 'context' | 'favorite' | 'recent' | 'recommended';
+};
+
+type HomeRouteRaw = {
+  departure?: string;
+  arrival?: string;
+  name?: string;
+  searchDate?: string;
+};
+
+type HomeCheckItem = {
+  id: string;
+  title: string;
+  description: string;
+  tone: 'good' | 'warning' | 'danger' | 'neutral';
 };
 
 type HomeSummaryPillProps = {
@@ -55,9 +83,28 @@ const recommendedIsland: HomeIslandTarget = {
   source: 'recommended'
 };
 
+const recommendedRoute: HomeRouteTarget = {
+  departure: '인천',
+  arrival: '백령도',
+  name: '인천 → 백령도',
+  source: 'recommended'
+};
+
 export default function HomeScreen() {
-  const homeIsland = useMemo(() => readHomeRecentIsland() ?? recommendedIsland, []);
+  const appContext = useAppSelectionContext();
+  const interestAlerts = useMemo(() => buildInterestAlerts(appContext), [appContext]);
+  const homeIsland = useMemo(() => contextIslandToHomeTarget(appContext.island) ?? readHomeRecentIsland() ?? recommendedIsland, [appContext.island]);
+  const today = useMemo(() => formatDate(new Date()), []);
+  const homeRoute = useMemo(() => contextRouteToHomeTarget(appContext.route) ?? readHomeRoute() ?? recommendedRoute, [appContext.route]);
   const detailHref = useMemo(() => createIslandTripDetailHref(homeIsland), [homeIsland]);
+  const forecastHref = useMemo(
+    () =>
+      ({
+        pathname: '/forecast',
+        params: { locationName: homeRoute.arrival || homeIsland.islandName }
+      }) as Href,
+    [homeIsland.islandName, homeRoute.arrival]
+  );
 
   const travelInfoQuery = useQuery({
     queryKey: ['home-island-travel-info', homeIsland.islandName, homeIsland.provinceName, homeIsland.cityName],
@@ -68,6 +115,18 @@ export default function HomeScreen() {
         cityName: homeIsland.cityName
       }),
     staleTime: 30 * 60 * 1000
+  });
+  const routeCandidatesQuery = useQuery({
+    queryKey: ['home-route-candidates', today, homeRoute.departure, homeRoute.arrival],
+    queryFn: () => fetchScheduleCandidates({ date: today, departure: homeRoute.departure, arrival: homeRoute.arrival }),
+    retry: false,
+    staleTime: 5 * 60 * 1000
+  });
+  const routeForecastQuery = useQuery({
+    queryKey: ['home-route-forecast', homeRoute.arrival || homeIsland.islandName],
+    queryFn: () => fetchMarineForecast({ locationName: homeRoute.arrival || homeIsland.islandName }),
+    retry: false,
+    staleTime: 10 * 60 * 1000
   });
 
   const galleryItems = useMemo<HomePhoto[]>(() => {
@@ -99,7 +158,11 @@ export default function HomeScreen() {
   }, [homeIsland.islandName, travelInfoQuery.data]);
 
   const heroImage = galleryItems[0]?.imageUrl;
-  const actionItems = createActionItems();
+  const nextCandidate = useMemo(() => pickNextCandidate(routeCandidatesQuery.data ?? []), [routeCandidatesQuery.data]);
+  const checkItems = useMemo(
+    () => buildHomeCheckItems({ route: homeRoute, candidate: nextCandidate, forecastRisk: routeForecastQuery.data?.riskLevel, hasForecastError: routeForecastQuery.isError }),
+    [homeRoute, nextCandidate, routeForecastQuery.data?.riskLevel, routeForecastQuery.isError]
+  );
 
   return (
     <Screen
@@ -121,12 +184,66 @@ export default function HomeScreen() {
         </Pressable>
       </View>
 
-      <Link href="/schedule" asChild>
-        <Pressable style={styles.searchBox}>
-          <Search color={colors.primary} size={21} />
-          <Text style={styles.searchText}>출발지와 도착지를 검색해 보세요</Text>
-        </Pressable>
-      </Link>
+      <InfoCard title="오늘 내 항로" eyebrow={homeRoute.source === 'favorite' ? '즐겨찾기 기준' : homeRoute.source === 'recent' ? '최근 조회 기준' : '추천 항로'}>
+        <View style={styles.routeDashboard}>
+          <View style={styles.routeHeader}>
+            <View style={styles.routeIcon}>
+              <Ship color={colors.primary} size={22} />
+            </View>
+            <View style={styles.routeCopy}>
+              <Text style={styles.routeTitle}>{homeRoute.name ?? `${homeRoute.departure} → ${homeRoute.arrival}`}</Text>
+              <Text style={styles.routeMeta}>
+                {homeRoute.departure} → {homeRoute.arrival}
+              </Text>
+            </View>
+            <StatusPill label={nextCandidate ? statusLabel(nextCandidate.status) : '확인 필요'} tone={nextCandidate ? statusTone(nextCandidate.status) : 'neutral'} />
+          </View>
+          <View style={styles.routeStats}>
+            <View style={styles.routeStat}>
+              <Text style={styles.routeStatLabel}>다음 배</Text>
+              <Text style={styles.routeStatValue}>{routeCandidatesQuery.isFetching ? '조회 중' : nextCandidate?.departureTime ?? '확인 필요'}</Text>
+            </View>
+            <View style={styles.routeStat}>
+              <Text style={styles.routeStatLabel}>예보</Text>
+              <Text style={styles.routeStatValue}>{routeForecastQuery.isFetching ? '조회 중' : forecastRiskLabel(routeForecastQuery.data?.riskLevel)}</Text>
+            </View>
+          </View>
+          <View style={styles.routeActionRow}>
+            <Link href="/schedule" asChild>
+              <Pressable style={styles.routeActionButton}>
+                <CalendarDays color={colors.primary} size={16} />
+                <Text style={styles.routeActionText}>시간표 보기</Text>
+              </Pressable>
+            </Link>
+            <Link href={forecastHref} asChild>
+              <Pressable style={styles.routeActionButton}>
+                <Waves color={colors.primary} size={16} />
+                <Text style={styles.routeActionText}>예보 보기</Text>
+              </Pressable>
+            </Link>
+          </View>
+        </View>
+      </InfoCard>
+
+      <InfoCard title="관심 알림" eyebrow="개인화">
+        <View style={styles.interestAlertList}>
+          {interestAlerts.slice(0, 3).map((alert) => (
+            <View key={alert.id} style={styles.interestAlertItem}>
+              <View style={[styles.interestAlertDot, { backgroundColor: interestToneColor(alert.tone) }]} />
+              <View style={styles.interestAlertCopy}>
+                <Text style={styles.interestAlertTitle}>{alert.title}</Text>
+                <Text style={styles.secondary}>{alert.description}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+        <Link href="/profile" asChild>
+          <Pressable style={styles.linkButton}>
+            <Text style={styles.linkButtonText}>알림 센터에서 관리하기</Text>
+            <ChevronRight color={colors.primary} size={18} />
+          </Pressable>
+        </Link>
+      </InfoCard>
 
       <Link href={detailHref} asChild>
         <Pressable style={styles.hero}>
@@ -163,24 +280,6 @@ export default function HomeScreen() {
         <HomeSummaryPill icon={Clock3} label="다음 행동" value="섬상세" color={colors.coral} />
       </View>
 
-      <View style={styles.actionGrid}>
-        {actionItems.map((action) => {
-          const Icon = action.icon;
-          return (
-            <Link key={action.label} href={action.href} asChild>
-              <Pressable style={styles.actionTile}>
-                <View style={[styles.actionIcon, { backgroundColor: `${action.color}18` }]}>
-                  <Icon color={action.color} size={24} />
-                </View>
-                <View style={styles.actionCopy}>
-                  <Text style={styles.actionLabel}>{action.label}</Text>
-                  <Text style={styles.actionHelper}>{action.helper}</Text>
-                </View>
-              </Pressable>
-            </Link>
-          );
-        })}
-      </View>
 
       <InfoCard title={`${homeIsland.islandName} 관련사진`} eyebrow={homeIsland.source === 'recent' ? '최근 섬 기준' : '추천 섬 기준'}>
         <View style={styles.photoHeader}>
@@ -248,6 +347,20 @@ export default function HomeScreen() {
         </View>
         <Text style={styles.secondary}>풍랑 가능성이 있습니다. 출발 전 운항 공지를 다시 확인하세요.</Text>
       </InfoCard>
+
+      <InfoCard title="지금 확인할 것" eyebrow="개인 체크">
+        <View style={styles.checkList}>
+          {checkItems.map((item) => (
+            <View key={item.id} style={styles.checkItem}>
+              <View style={[styles.checkDot, { backgroundColor: checkToneColor(item.tone) }]} />
+              <View style={styles.checkCopy}>
+                <Text style={styles.checkTitle}>{item.title}</Text>
+                <Text style={styles.secondary}>{item.description}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      </InfoCard>
     </Screen>
   );
 }
@@ -268,13 +381,93 @@ function HomeSummaryPill({ icon: Icon, label, value, color }: HomeSummaryPillPro
   );
 }
 
-function createActionItems() {
-  return [
-    { href: '/schedule' as Href, label: '항로 검색', helper: '출발·도착 선택', icon: Search, color: colors.primary },
-    { href: '/schedule' as Href, label: '시간표', helper: '오늘 출항 보기', icon: CalendarDays, color: colors.mint },
-    { href: '/forecast' as Href, label: '운항 예보', helper: '내일 위험 확인', icon: Ship, color: colors.amber },
-    { href: '/island-trip' as Href, label: '섬여행', helper: '사진과 여행정보', icon: Star, color: colors.coral }
-  ] as const;
+function pickNextCandidate(candidates: ScheduleCandidate[]) {
+  return [...candidates].sort((a, b) => (a.departureTime || '99:99').localeCompare(b.departureTime || '99:99'))[0] ?? null;
+}
+
+function buildHomeCheckItems({
+  route,
+  candidate,
+  forecastRisk,
+  hasForecastError
+}: {
+  route: HomeRouteTarget;
+  candidate: ScheduleCandidate | null;
+  forecastRisk?: string;
+  hasForecastError: boolean;
+}): HomeCheckItem[] {
+  const items: HomeCheckItem[] = [];
+
+  items.push({
+    id: 'route',
+    title: candidate ? `${route.arrival}행 ${candidate.departureTime || '출항시간 확인'} 배편` : `${route.arrival}행 배편 확인 필요`,
+    description: candidate ? `${candidate.vesselName} · ${statusLabel(candidate.status)}` : '즐겨찾기 또는 최근 조회 항로 기준으로 오늘 운항 후보를 확인해 주세요.',
+    tone: candidate ? statusTone(candidate.status) : 'neutral'
+  });
+
+  items.push({
+    id: 'forecast',
+    title: hasForecastError ? '예보 API 재확인 필요' : `예보 상태 ${forecastRiskLabel(forecastRisk)}`,
+    description:
+      forecastRisk === 'HIGH'
+        ? '출항 전 선사 공지와 기상특보를 꼭 확인하세요.'
+        : forecastRisk === 'MEDIUM'
+          ? '파고와 바람 변화가 있을 수 있어 출항 전후 예보를 확인하세요.'
+          : hasForecastError
+            ? '예보 호출이 실패했습니다. 잠시 후 다시 조회하거나 예보 화면에서 권역을 바꿔 보세요.'
+            : '현재 기준 위험 신호가 낮습니다. 그래도 출항 직전 공지는 한 번 더 확인하세요.',
+    tone: hasForecastError ? 'warning' : forecastRisk === 'HIGH' ? 'danger' : forecastRisk === 'MEDIUM' ? 'warning' : 'good'
+  });
+
+  items.push({
+    id: 'return',
+    title: '복귀 배편 먼저 확인',
+    description: '섬여행은 마지막 배 시간이 중요합니다. 당일치기라면 복귀편을 먼저 고정해 주세요.',
+    tone: 'neutral'
+  });
+
+  return items;
+}
+
+function statusLabel(status: ScheduleCandidate['status']) {
+  const labels: Record<ScheduleCandidate['status'], string> = {
+    NORMAL: '정상 운항',
+    SCHEDULED: '운항 예정',
+    DELAYED: '지연',
+    CANCELED: '결항',
+    CONTROLLED: '통제',
+    COMPLETED: '운항 완료',
+    UNKNOWN: '확인 필요'
+  };
+  return labels[status];
+}
+
+function statusTone(status: ScheduleCandidate['status']): HomeCheckItem['tone'] {
+  if (status === 'NORMAL') return 'good';
+  if (status === 'DELAYED' || status === 'UNKNOWN' || status === 'SCHEDULED') return 'warning';
+  if (status === 'CANCELED' || status === 'CONTROLLED') return 'danger';
+  return 'neutral';
+}
+
+function forecastRiskLabel(risk?: string) {
+  if (risk === 'HIGH') return '위험 높음';
+  if (risk === 'MEDIUM') return '주의';
+  if (risk === 'LOW') return '양호';
+  return '확인 필요';
+}
+
+function checkToneColor(tone: HomeCheckItem['tone']) {
+  if (tone === 'danger') return colors.danger;
+  if (tone === 'warning') return colors.warning;
+  if (tone === 'good') return colors.mint;
+  return colors.primary;
+}
+
+function interestToneColor(tone: InterestAlert['tone']) {
+  if (tone === 'danger') return colors.danger;
+  if (tone === 'warning') return colors.warning;
+  if (tone === 'good') return colors.mint;
+  return colors.primary;
 }
 
 function createIslandTripDetailHref(target: HomeIslandTarget): Href {
@@ -304,6 +497,73 @@ function readHomeRecentIsland(): HomeIslandTarget | null {
   } catch {
     return null;
   }
+}
+
+function contextIslandToHomeTarget(island: ReturnType<typeof useAppSelectionContext>['island']): HomeIslandTarget | null {
+  if (!island?.islandName) return null;
+
+  return {
+    islandName: island.islandName,
+    provinceName: island.provinceName ?? null,
+    cityName: island.cityName ?? null,
+    routeLabel: `${island.islandName} 여행정보`,
+    contextLabel: '방금 선택한 섬',
+    statusLabel: '연계 정보',
+    statusTime: '선택 맥락 기준',
+    source: 'context'
+  };
+}
+
+function contextRouteToHomeTarget(route: ReturnType<typeof useAppSelectionContext>['route']): HomeRouteTarget | null {
+  if (!route?.departure || !route.arrival) return null;
+
+  return {
+    departure: route.departure,
+    arrival: route.arrival,
+    name: route.name ?? `${route.departure} → ${route.arrival}`,
+    source: 'context'
+  };
+}
+
+function readHomeRoute(): HomeRouteTarget | null {
+  const favorite = readHomeRoutePreset(HOME_ROUTE_FAVORITES_KEY, 'favorite');
+  if (favorite) return favorite;
+
+  return readHomeRoutePreset(HOME_ROUTE_RECENTS_KEY, 'recent');
+}
+
+function readHomeRoutePreset(key: string, source: HomeRouteTarget['source']): HomeRouteTarget | null {
+  if (typeof globalThis.localStorage === 'undefined') return null;
+
+  try {
+    const value = globalThis.localStorage.getItem(key);
+    const parsed = value ? JSON.parse(value) : null;
+    if (!Array.isArray(parsed)) return null;
+    const item = parsed.find((candidate): candidate is HomeRouteRaw =>
+      Boolean(candidate && typeof candidate === 'object' && typeof candidate.departure === 'string' && typeof candidate.arrival === 'string')
+    );
+    if (!item) return null;
+    const departure = item.departure;
+    const arrival = item.arrival;
+    if (!departure || !arrival) return null;
+
+    return {
+      departure,
+      arrival,
+      name: item.name,
+      searchDate: item.searchDate,
+      source
+    };
+  } catch {
+    return null;
+  }
+}
+
+function formatDate(date: Date) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function normalizeRecentIsland(value: unknown): HomeIslandTarget | null {
@@ -518,6 +778,102 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '900'
   },
+  routeDashboard: {
+    gap: 12
+  },
+  routeHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10
+  },
+  routeIcon: {
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    borderRadius: 8,
+    height: 42,
+    justifyContent: 'center',
+    width: 42
+  },
+  routeCopy: {
+    flex: 1,
+    gap: 3,
+    minWidth: 0
+  },
+  routeTitle: {
+    color: colors.navy,
+    fontSize: 17,
+    fontWeight: '900'
+  },
+  routeMeta: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '800'
+  },
+  routeStats: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8
+  },
+  routeStat: {
+    backgroundColor: colors.backgroundSoft,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexGrow: 1,
+    gap: 4,
+    minWidth: 132,
+    padding: 11
+  },
+  routeStatLabel: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '900'
+  },
+  routeStatValue: {
+    color: colors.navy,
+    fontSize: 16,
+    fontWeight: '900'
+  },
+  routeActionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8
+  },
+  routeActionButton: {
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    borderRadius: 8,
+    flexDirection: 'row',
+    flexGrow: 1,
+    gap: 6,
+    justifyContent: 'center',
+    minHeight: 42,
+    minWidth: 132
+  },
+  routeActionText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '900'
+  },
+  checkList: {
+    gap: 10
+  },
+  checkItem: {
+    alignItems: 'flex-start',
+    backgroundColor: colors.backgroundSoft,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    padding: 11
+  },
+  checkDot: {
+    borderRadius: 6,
+    height: 12,
+    marginTop: 4,
+    width: 12
+  },
   actionGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -655,6 +1011,36 @@ const styles = StyleSheet.create({
     color: colors.navy,
     fontSize: 15,
     fontWeight: '900'
+  },
+  interestAlertList: {
+    gap: 10
+  },
+  interestAlertItem: {
+    alignItems: 'flex-start',
+    backgroundColor: colors.backgroundSoft,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    padding: 11
+  },
+  interestAlertDot: {
+    borderRadius: 6,
+    height: 12,
+    marginTop: 4,
+    width: 12
+  },
+  interestAlertCopy: {
+    flex: 1,
+    gap: 3,
+    minWidth: 0
+  },
+  interestAlertTitle: {
+    color: colors.navy,
+    fontSize: 15,
+    fontWeight: '900',
+    lineHeight: 20
   },
   riskText: {
     color: colors.navy,

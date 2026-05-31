@@ -8,6 +8,7 @@ import { InfoCard } from '@/components/InfoCard';
 import { MascotBanner } from '@/components/MascotBanner';
 import { Screen } from '@/components/Screen';
 import { StatusPill } from '@/components/StatusPill';
+import { setCurrentRoute } from '@/state/app-selection-context';
 import { colors } from '@/theme/colors';
 import type { MarineForecastOverview, SailingScheduleSummary, VesselDetail } from '@badagil/shared';
 import { useQueries, useQuery } from '@tanstack/react-query';
@@ -630,6 +631,18 @@ export default function ScheduleScreen() {
     () => buildDepartureForecastWindow(selectedCandidateForecastQuery.data, selectedCandidate),
     [selectedCandidate, selectedCandidateForecastQuery.data]
   );
+
+  useEffect(() => {
+    if (!selectedCandidate || !selectedCandidateRouteContext.departure || !selectedCandidateRouteContext.arrival) return;
+    setCurrentRoute({
+      departure: selectedCandidateRouteContext.departure,
+      arrival: selectedCandidateRouteContext.arrival,
+      name: selectedCandidate.routeName ?? selectedCandidate.licenseRouteName ?? undefined,
+      departureTime: selectedCandidate.departureTime,
+      vesselName: selectedCandidate.vesselName,
+      source: 'schedule'
+    });
+  }, [selectedCandidate, selectedCandidateRouteContext.arrival, selectedCandidateRouteContext.departure]);
 
   const weeklyScheduleQuery = useQuery({
     queryKey: ['weekly-schedules', weeklySubmittedFilters],
@@ -1854,6 +1867,12 @@ function ScheduleForecastPanel({
             <Pressable accessibilityRole="button" style={styles.scheduleForecastActionButton}>
               <MapPin color={colors.primary} size={16} />
               <Text style={styles.scheduleForecastActionText}>섬 안전정보 보기</Text>
+            </Pressable>
+          </Link>
+          <Link href={{ pathname: '/islands', params: { islandName: locationName } }} asChild>
+            <Pressable accessibilityRole="button" style={styles.scheduleForecastActionButton}>
+              <MapPin color={colors.primary} size={16} />
+              <Text style={styles.scheduleForecastActionText}>섬지도 보기</Text>
             </Pressable>
           </Link>
         </View>

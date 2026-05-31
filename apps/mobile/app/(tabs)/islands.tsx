@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import {
   Anchor,
   Check,
@@ -22,6 +23,7 @@ import { createIslandWmsUrl, fetchIslandFeatures, fetchIslandsResponse, type Isl
 import { MascotBanner } from '@/components/MascotBanner';
 import { Screen } from '@/components/Screen';
 import { VWorldNativeMap } from '@/components/VWorldNativeMap';
+import { setCurrentIsland } from '@/state/app-selection-context';
 import { colors } from '@/theme/colors';
 
 const MAP_BOUNDS: IslandMapBounds = {
@@ -51,6 +53,7 @@ const REGION_FILTERS = [
 type RegionFilter = (typeof REGION_FILTERS)[number]['value'];
 
 export default function IslandsScreen() {
+  const routeParams = useLocalSearchParams();
   const [keyword, setKeyword] = useState('');
   const [debouncedKeyword, setDebouncedKeyword] = useState('');
   const [selectedRegion, setSelectedRegion] = useState<RegionFilter>('ALL');
@@ -64,6 +67,13 @@ export default function IslandsScreen() {
     const timeout = setTimeout(() => setDebouncedKeyword(keyword.trim()), 350);
     return () => clearTimeout(timeout);
   }, [keyword]);
+
+  useEffect(() => {
+    const islandName = getRouteParam(routeParams.islandName);
+    if (!islandName) return;
+    setKeyword(islandName);
+    setDebouncedKeyword(islandName);
+  }, [routeParams.islandName]);
 
   const mapBounds = useMemo(
     () => getZoomedBounds(MAP_VIEW_PRESETS[mapViewIndex].bounds, zoomLevel),
@@ -113,6 +123,15 @@ export default function IslandsScreen() {
   const mapSource = getDataSourceLabel(mapFeaturesQuery.data?.meta.source, visibleMarkers);
   const hasActiveFilter = Boolean(debouncedKeyword) || selectedRegion !== 'ALL';
 
+  useEffect(() => {
+    const islandName = getRouteParam(routeParams.islandName);
+    if (!islandName || focusedIslandId || allIslands.length === 0) return;
+    const matched = allIslands.find((island) => island.islandName.includes(islandName) || islandName.includes(island.islandName));
+    if (!matched) return;
+    setSelectedIsland(matched);
+    focusIslandOnMap(matched);
+  }, [allIslands, focusedIslandId, routeParams.islandName]);
+
   const selectPreset = (index: number) => {
     setMapViewIndex(index);
     setZoomLevel(1);
@@ -121,6 +140,12 @@ export default function IslandsScreen() {
 
   const focusIslandOnMap = (island: IslandSummary) => {
     setFocusedIslandId(island.id);
+    setCurrentIsland({
+      islandName: island.islandName,
+      provinceName: island.provinceName,
+      cityName: island.cityName,
+      source: 'islands'
+    });
     const presetIndex = findPresetIndexForIsland(island);
     if (presetIndex >= 0) {
       setMapViewIndex(presetIndex);
@@ -557,6 +582,10 @@ function getFilterSummary(keyword: string, region: RegionFilter) {
   }
 
   return `${selectedRegion} 지역 기준`;
+}
+
+function getRouteParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
 }
 
 function getDataSourceLabel(source: string | undefined, islands: IslandSummary[]) {

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type LayoutChangeEvent } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
 import type { MarineForecastApiStatus, MarineForecastLocation, MarineForecastOverview, RiskLevel } from '@badagil/shared';
@@ -31,6 +31,8 @@ const fallbackForecastLocations: MarineForecastLocation[] = [
 
 export default function ForecastScreen() {
   const routeParams = useLocalSearchParams();
+  const scrollViewRef = useRef<ScrollView | null>(null);
+  const metricSectionY = useRef(0);
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [submittedKeyword, setSubmittedKeyword] = useState('');
@@ -89,11 +91,22 @@ export default function ForecastScreen() {
     setSubmittedKeyword('');
   };
 
+  const focusMetricSection = () => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({ y: Math.max(0, metricSectionY.current - 12), animated: true });
+    }, 120);
+  };
+
+  const registerMetricSection = (event: LayoutChangeEvent) => {
+    metricSectionY.current = event.nativeEvent.layout.y;
+  };
+
   return (
     <Screen
       title="예보"
       subtitle="날씨, 특보, 조석, 수온, 염분을 함께 보고 출항 전 위험을 확인해요."
       mascotSource={require('../../assets/mascot/boogi_bg4.png')}
+      scrollRef={scrollViewRef}
     >
       <MascotBanner
         eyebrow="통합 해양 예보"
@@ -152,6 +165,7 @@ export default function ForecastScreen() {
                   setSelectedLocationId(location.id);
                   setSubmittedKeyword('');
                   setSearchKeyword('');
+                  focusMetricSection();
                 }}
                 style={[styles.locationButton, selected && styles.locationButtonSelected]}
               >
@@ -191,7 +205,7 @@ export default function ForecastScreen() {
         />
       ) : null}
 
-      <View style={styles.metricGrid}>
+      <View style={styles.metricGrid} onLayout={registerMetricSection}>
         {primaryMetrics.map((metric) => {
           const Icon = metric.icon;
           return (

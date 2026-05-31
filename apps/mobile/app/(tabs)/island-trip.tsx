@@ -35,6 +35,7 @@ import { fetchScheduleCandidates, type ScheduleCandidate } from '@/api/schedules
 import { MascotBanner } from '@/components/MascotBanner';
 import { Screen } from '@/components/Screen';
 import { StatusPill } from '@/components/StatusPill';
+import { setCurrentIsland, setCurrentRoute } from '@/state/app-selection-context';
 import { colors } from '@/theme/colors';
 
 type TripType = 'day' | 'overnight' | 'camping' | 'carcamping' | 'family' | 'leisure' | 'quiet';
@@ -97,6 +98,13 @@ type TravelInfoCardItem = {
   tel?: string | null;
   source?: string | null;
   detailRows?: { label: string; value: string | null | undefined }[];
+};
+
+type PurposeChecklistItem = {
+  id: string;
+  title: string;
+  description: string;
+  tone: 'good' | 'warning' | 'danger' | 'neutral';
 };
 
 const ISLAND_TRIP_FAVORITES_KEY = 'badagil:island-trip:favorites';
@@ -398,6 +406,19 @@ export default function IslandTripScreen() {
     setDetailIslandOverride(null);
     setFocusedTripId(trip.id);
     setActiveDetailTab(nextTab);
+    setCurrentIsland({
+      islandName: trip.islandName,
+      provinceName: trip.island?.provinceName,
+      cityName: trip.island?.cityName,
+      source: 'island-trip'
+    });
+    setCurrentRoute({
+      departure: trip.departurePortName,
+      arrival: trip.islandName,
+      name: trip.routeName,
+      departureTime: trip.firstDeparture,
+      source: 'island-trip'
+    });
     moveToSection('detail');
   };
 
@@ -452,6 +473,12 @@ export default function IslandTripScreen() {
   };
 
   const addRecentIsland = (island: IslandSummary) => {
+    setCurrentIsland({
+      islandName: island.islandName,
+      provinceName: island.provinceName,
+      cityName: island.cityName,
+      source: 'island-trip'
+    });
     const item = toSavedIslandSearch(island, { searchedAt: new Date().toISOString() });
     setRecentIslandSearches((items) => [item, ...items.filter((saved) => saved.id !== item.id)].slice(0, 8));
   };
@@ -781,6 +808,9 @@ export default function IslandTripScreen() {
             <MiniStat label="우선 확인" value={tripTypeText[selectedType]} />
           </View>
 
+          <PurposeRecommendationPanel selectedType={selectedType} trips={typeMatchedTrips} travelInfo={travelInfo} />
+          <PurposeChecklistPanel selectedType={selectedType} trip={primaryTrip} travelInfo={travelInfo} forecast={detailForecastQuery.data} />
+
           <View style={styles.typeGuideGroup}>
             <Text style={styles.typeGuideGroupTitle}>추천 기준</Text>
             <View style={styles.typeGuideChips}>
@@ -942,6 +972,18 @@ export default function IslandTripScreen() {
             <Images color={colors.primary} size={17} />
             <Text style={styles.secondaryActionText}>관련사진</Text>
           </Pressable>
+          <Link href={{ pathname: '/islands', params: { islandName: detailIslandName ?? primaryTrip?.islandName ?? '' } }} asChild>
+            <Pressable accessibilityRole="button" style={styles.secondaryActionButton}>
+              <MapPin color={colors.primary} size={17} />
+              <Text style={styles.secondaryActionText}>섬지도</Text>
+            </Pressable>
+          </Link>
+          <Link href={{ pathname: '/forecast', params: { locationName: detailIslandName ?? primaryTrip?.islandName ?? '' } }} asChild>
+            <Pressable accessibilityRole="button" style={styles.secondaryActionButton}>
+              <Waves color={colors.primary} size={17} />
+              <Text style={styles.secondaryActionText}>예보 보기</Text>
+            </Pressable>
+          </Link>
           <Link href="/schedule" asChild>
             <Pressable accessibilityRole="button" style={styles.primaryActionButton}>
               <CalendarDays color={colors.surface} size={17} />
@@ -2071,6 +2113,92 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function PurposeRecommendationPanel({
+  selectedType,
+  trips,
+  travelInfo
+}: {
+  selectedType: TripType;
+  trips: TripRecommendation[];
+  travelInfo: Awaited<ReturnType<typeof fetchIslandTravelInfo>> | undefined;
+}) {
+  const summaries = buildPurposeRecommendationSummaries(selectedType, trips, travelInfo);
+
+  return (
+    <View style={styles.purposePanel}>
+      <View style={styles.purposeHeader}>
+        <View>
+          <Text style={styles.typeGuideGroupTitle}>목적별 섬 추천</Text>
+          <Text style={styles.purposeHint}>배편, 여행 데이터, 안전 확인 항목을 함께 계산합니다.</Text>
+        </View>
+        <BadgeCheck color={colors.primary} size={20} />
+      </View>
+      <View style={styles.purposeCardList}>
+        {summaries.map((summary) => (
+          <View key={summary.id} style={styles.purposeCard}>
+            <View style={styles.purposeCardTop}>
+              <View style={styles.purposeScoreBadge}>
+                <Text style={styles.purposeScore}>{summary.score}</Text>
+                <Text style={styles.purposeScoreUnit}>점</Text>
+              </View>
+              <View style={styles.purposeCardCopy}>
+                <Text style={styles.purposeTitle} numberOfLines={1}>
+                  {summary.title}
+                </Text>
+                <Text style={styles.purposeDescription}>{summary.description}</Text>
+              </View>
+            </View>
+            <View style={styles.purposeMetricRow}>
+              {summary.metrics.map((metric) => (
+                <Text key={metric} style={styles.purposeMetric} numberOfLines={1}>
+                  {metric}
+                </Text>
+              ))}
+            </View>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function PurposeChecklistPanel({
+  selectedType,
+  trip,
+  travelInfo,
+  forecast
+}: {
+  selectedType: TripType;
+  trip: TripRecommendation | null;
+  travelInfo: Awaited<ReturnType<typeof fetchIslandTravelInfo>> | undefined;
+  forecast: MarineForecastOverview | undefined;
+}) {
+  const checklist = buildPurposeChecklist({ selectedType, trip, travelInfo, forecast });
+
+  return (
+    <View style={styles.purposePanel}>
+      <View style={styles.purposeHeader}>
+        <View>
+          <Text style={styles.typeGuideGroupTitle}>목적별 체크리스트</Text>
+          <Text style={styles.purposeHint}>출발 전에 놓치기 쉬운 확인 항목만 모았습니다.</Text>
+        </View>
+        <ShieldCheck color={colors.primary} size={20} />
+      </View>
+      <View style={styles.purposeChecklistList}>
+        {checklist.map((item) => (
+          <View key={item.id} style={styles.purposeChecklistRow}>
+            <View style={[styles.purposeCheckDot, { backgroundColor: purposeToneColor(item.tone) }]} />
+            <View style={styles.purposeChecklistCopy}>
+              <Text style={styles.purposeChecklistTitle}>{item.title}</Text>
+              <Text style={styles.purposeChecklistText}>{item.description}</Text>
+            </View>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 function FavoriteIslandNameModal({
   visible,
   islandName,
@@ -2122,6 +2250,162 @@ function FavoriteIslandNameModal({
       </View>
     </Modal>
   );
+}
+
+function buildPurposeRecommendationSummaries(
+  selectedType: TripType,
+  trips: TripRecommendation[],
+  travelInfo: Awaited<ReturnType<typeof fetchIslandTravelInfo>> | undefined
+) {
+  const baseTrips = trips.length > 0 ? trips.slice(0, 3) : [];
+  const infoScore = calculateTravelInfoScore(selectedType, travelInfo);
+
+  if (baseTrips.length === 0) {
+    return [
+      {
+        id: `fallback-${selectedType}`,
+        title: `${tripTypeText[selectedType]} 후보 확인 필요`,
+        score: Math.max(45, infoScore),
+        description: '오늘 운항 후보가 없거나 아직 API 결과가 부족합니다. 섬상세에서 목적별 데이터를 먼저 확인해 주세요.',
+        metrics: buildPurposeMetrics(selectedType, travelInfo, null)
+      }
+    ];
+  }
+
+  return baseTrips.map((trip, index) => {
+    const ferryScore = trip.tripTypes.includes(selectedType) ? 32 : 16;
+    const statusScore = trip.status === 'NORMAL' ? 18 : trip.status === 'SCHEDULED' ? 12 : 6;
+    const timeScore = trip.firstDeparture && trip.lastDeparture ? 14 : 7;
+    const score = Math.min(96, ferryScore + statusScore + timeScore + infoScore - index * 4);
+
+    return {
+      id: `${trip.id}-${selectedType}`,
+      title: trip.islandName,
+      score,
+      description: `${trip.departurePortName} 출발 · ${trip.durationLabel} · ${statusLabel[trip.status]}`,
+      metrics: buildPurposeMetrics(selectedType, travelInfo, trip)
+    };
+  });
+}
+
+function buildPurposeMetrics(
+  selectedType: TripType,
+  travelInfo: Awaited<ReturnType<typeof fetchIslandTravelInfo>> | undefined,
+  trip: TripRecommendation | null
+) {
+  const lodgingCount = (travelInfo?.lodgings.length ?? 0) + (travelInfo?.pensions.length ?? 0);
+  const metrics = [
+    trip?.lastDeparture ? `복귀 ${trip.lastDeparture}` : '복귀편 확인',
+    `${travelInfo?.restaurants.length ?? 0} 식당`,
+    `${lodgingCount} 숙박`,
+    `${travelInfo?.camps.length ?? 0} 캠핑`
+  ];
+
+  if (selectedType === 'leisure') metrics.unshift(`${travelInfo?.mudFlats.length ?? 0} 갯벌`);
+  if (selectedType === 'family') metrics.unshift(`${travelInfo?.attractions.length ?? 0} 관광지`);
+  if (selectedType === 'camping' || selectedType === 'carcamping') metrics.unshift(`${travelInfo?.camps.length ?? 0} 야영 후보`);
+
+  return metrics.slice(0, 4);
+}
+
+function calculateTravelInfoScore(selectedType: TripType, travelInfo: Awaited<ReturnType<typeof fetchIslandTravelInfo>> | undefined) {
+  if (!travelInfo) return 18;
+
+  const lodgingCount = travelInfo.lodgings.length + travelInfo.pensions.length;
+  const foodScore = Math.min(12, travelInfo.restaurants.length * 3);
+  const attractionScore = Math.min(12, travelInfo.attractions.length * 2);
+  const safetyScore = Math.min(10, travelInfo.safetyIndexes.length * 5);
+  const campingScore = Math.min(14, travelInfo.camps.length * 4);
+  const lodgingScore = Math.min(14, lodgingCount * 4);
+  const mudFlatScore = Math.min(10, travelInfo.mudFlats.length * 5);
+
+  if (selectedType === 'day') return foodScore + attractionScore + safetyScore;
+  if (selectedType === 'overnight' || selectedType === 'quiet') return lodgingScore + foodScore + safetyScore;
+  if (selectedType === 'camping' || selectedType === 'carcamping') return campingScore + foodScore + safetyScore;
+  if (selectedType === 'family') return foodScore + attractionScore + lodgingScore;
+  if (selectedType === 'leisure') return mudFlatScore + safetyScore + foodScore;
+
+  return foodScore + attractionScore + safetyScore;
+}
+
+function buildPurposeChecklist({
+  selectedType,
+  trip,
+  travelInfo,
+  forecast
+}: {
+  selectedType: TripType;
+  trip: TripRecommendation | null;
+  travelInfo: Awaited<ReturnType<typeof fetchIslandTravelInfo>> | undefined;
+  forecast: MarineForecastOverview | undefined;
+}) {
+  const lodgingCount = (travelInfo?.lodgings.length ?? 0) + (travelInfo?.pensions.length ?? 0);
+  const items: PurposeChecklistItem[] = [
+    {
+      id: 'ferry',
+      title: '배편과 복귀편',
+      description: trip?.lastDeparture ? `마지막 배 ${trip.lastDeparture} 기준으로 체류 시간을 잡으세요.` : '복귀편이 확인되지 않았습니다. 시간표에서 먼저 확인하세요.',
+      tone: trip?.lastDeparture ? 'good' : 'warning'
+    },
+    {
+      id: 'forecast',
+      title: '해양 예보',
+      description: forecast ? `${forecast.summary} · 위험도 ${forecast.riskLevel}` : '예보 데이터가 아직 없으면 예보 화면에서 섬 또는 권역을 조회하세요.',
+      tone: forecast?.riskLevel === 'HIGH' ? 'danger' : forecast?.riskLevel === 'MEDIUM' ? 'warning' : forecast ? 'good' : 'neutral'
+    }
+  ];
+
+  if (selectedType === 'camping' || selectedType === 'carcamping') {
+    items.push({
+      id: 'camping',
+      title: '캠핑·차박 가능성',
+      description:
+        (travelInfo?.camps.length ?? 0) > 0
+          ? `${travelInfo?.camps.length ?? 0}개 후보가 있습니다. 현장 안내문과 지자체 공지를 함께 확인하세요.`
+          : '캠핑/차박정보가 존재하지 않습니다. 야영 가능 여부는 현장 확인이 필요합니다.',
+      tone: (travelInfo?.camps.length ?? 0) > 0 ? 'good' : 'warning'
+    });
+  }
+
+  if (selectedType === 'overnight' || selectedType === 'quiet' || selectedType === 'family') {
+    items.push({
+      id: 'lodging',
+      title: '숙박·펜션',
+      description: lodgingCount > 0 ? `${lodgingCount}개 숙박 후보가 있습니다. 전화번호와 영업상태를 확인하세요.` : '숙박/펜션정보가 존재하지 않습니다. 섬명과 행정구역 기준을 다시 확인하세요.',
+      tone: lodgingCount > 0 ? 'good' : 'warning'
+    });
+  }
+
+  items.push({
+    id: 'food',
+    title: '식당·식사',
+    description:
+      (travelInfo?.restaurants.length ?? 0) > 0
+        ? `${travelInfo?.restaurants.length ?? 0}개 식당 정보가 있습니다. 성수기/비수기 운영 여부를 확인하세요.`
+        : '식당정보가 존재하지 않습니다. 선착장 주변 운영 여부를 출발 전에 확인하세요.',
+    tone: (travelInfo?.restaurants.length ?? 0) > 0 ? 'good' : 'warning'
+  });
+
+  if (selectedType === 'leisure') {
+    items.push({
+      id: 'tide',
+      title: '물때와 출입 제한',
+      description:
+        (travelInfo?.mudFlats.length ?? 0) > 0
+          ? `${travelInfo?.mudFlats.length ?? 0}개 갯벌/체험 정보가 있습니다. 만조·간조와 출입 제한을 확인하세요.`
+          : '갯벌정보가 존재하지 않습니다. 낚시·해루질은 조석과 기상특보를 먼저 확인하세요.',
+      tone: (travelInfo?.mudFlats.length ?? 0) > 0 ? 'good' : 'warning'
+    });
+  }
+
+  return items;
+}
+
+function purposeToneColor(tone: 'good' | 'warning' | 'danger' | 'neutral') {
+  if (tone === 'danger') return colors.danger;
+  if (tone === 'warning') return colors.warning;
+  if (tone === 'good') return colors.mint;
+  return colors.primary;
 }
 
 function buildTravelCourseSteps({
@@ -3282,6 +3566,131 @@ const styles = StyleSheet.create({
   typeChecklistText: {
     color: colors.text,
     flex: 1,
+    fontSize: 12,
+    fontWeight: '800',
+    lineHeight: 17
+  },
+  purposePanel: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 10,
+    padding: 11
+  },
+  purposeHeader: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'space-between'
+  },
+  purposeHint: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+    marginTop: 3
+  },
+  purposeCardList: {
+    gap: 8
+  },
+  purposeCard: {
+    backgroundColor: colors.backgroundSoft,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 9,
+    padding: 10
+  },
+  purposeCardTop: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: 10
+  },
+  purposeScoreBadge: {
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    borderRadius: 8,
+    height: 48,
+    justifyContent: 'center',
+    width: 48
+  },
+  purposeScore: {
+    color: colors.primary,
+    fontSize: 18,
+    fontWeight: '900',
+    lineHeight: 21
+  },
+  purposeScoreUnit: {
+    color: colors.primary,
+    fontSize: 10,
+    fontWeight: '900'
+  },
+  purposeCardCopy: {
+    flex: 1,
+    gap: 3,
+    minWidth: 0
+  },
+  purposeTitle: {
+    color: colors.navy,
+    fontSize: 15,
+    fontWeight: '900'
+  },
+  purposeDescription: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '800',
+    lineHeight: 17
+  },
+  purposeMetricRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6
+  },
+  purposeMetric: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    color: colors.text,
+    fontSize: 11,
+    fontWeight: '900',
+    maxWidth: '100%',
+    paddingHorizontal: 8,
+    paddingVertical: 5
+  },
+  purposeChecklistList: {
+    gap: 8
+  },
+  purposeChecklistRow: {
+    alignItems: 'flex-start',
+    backgroundColor: colors.backgroundSoft,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 9,
+    padding: 10
+  },
+  purposeCheckDot: {
+    borderRadius: 6,
+    height: 12,
+    marginTop: 4,
+    width: 12
+  },
+  purposeChecklistCopy: {
+    flex: 1,
+    gap: 3,
+    minWidth: 0
+  },
+  purposeChecklistTitle: {
+    color: colors.navy,
+    fontSize: 13,
+    fontWeight: '900',
+    lineHeight: 18
+  },
+  purposeChecklistText: {
+    color: colors.muted,
     fontSize: 12,
     fontWeight: '800',
     lineHeight: 17

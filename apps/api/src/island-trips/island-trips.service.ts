@@ -54,9 +54,9 @@ export class IslandTripsService {
       this.safeFetch(() => this.tourismApiClient.getCultureCamping()),
       this.safeFetch(() => this.tourismApiClient.getGeneralCampgrounds()),
       this.safeFetch(() => this.tourismApiClient.getSeaTripIndexes()),
-      this.safeFetch(() => this.tourismApiClient.getLodgings()),
-      this.safeFetch(() => this.tourismApiClient.getTouristRestaurants()),
-      this.safeFetch(() => this.tourismApiClient.getTouristPensions()),
+      this.safeFetch(() => this.tourismApiClient.getLodgings(islandName)),
+      this.safeFetch(() => this.tourismApiClient.getTouristRestaurants(islandName)),
+      this.safeFetch(() => this.tourismApiClient.getTouristPensions(islandName)),
       this.safeFetch(() => this.tourismApiClient.getMudFlatEcInfo()),
       this.safeFetch(() => this.tourismApiClient.getMudFlatExperienceVillages()),
       this.safeFetch(async () => {
@@ -485,14 +485,11 @@ function matchesKeyword(item: IslandTravelCamp, keyword: string) {
 }
 
 function createTravelKeyword(params: TravelInfoParams) {
-  return [params.islandName, params.provinceName, params.cityName].filter(Boolean).join(' ');
+  return createTravelKeywordParts(params).join(' ');
 }
 
 function matchesTravelKeyword(values: Array<string | null | undefined>, keyword: string) {
-  const parts = keyword
-    .replace(/\s+/g, '')
-    .split(/[·,-]/)
-    .filter((part) => part.length >= 2);
+  const parts = createKeywordParts(keyword);
 
   if (parts.length === 0) return true;
 
@@ -500,6 +497,29 @@ function matchesTravelKeyword(values: Array<string | null | undefined>, keyword:
   if (!target) return false;
 
   return parts.some((part) => target.includes(part) || part.includes(target.slice(0, 2)));
+}
+
+function createTravelKeywordParts(params: TravelInfoParams) {
+  const islandName = normalizeIslandName(params.islandName);
+  const islandStem = islandName.replace(/도$/, '');
+  const islandAliases = [
+    islandName,
+    islandStem,
+    islandStem ? `${islandStem}면` : null,
+    islandStem ? `${islandStem}리` : null
+  ];
+
+  return [...new Set([...islandAliases, params.cityName, params.provinceName].filter((value): value is string => Boolean(value && value.trim().length >= 2)))];
+}
+
+function createKeywordParts(keyword: string) {
+  return keyword
+    .replace(/\s+/g, '')
+    .split(/[·,|/-]/)
+    .flatMap((part) => {
+      const stem = part.replace(/도$/, '');
+      return [part, stem, stem ? `${stem}면` : null].filter((value): value is string => Boolean(value && value.length >= 2));
+    });
 }
 
 function createPhotoKeywordParts(islandName: string) {

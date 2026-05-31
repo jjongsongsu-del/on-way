@@ -101,27 +101,30 @@ export class TourismApiClient {
     });
   }
 
-  getLodgings<T = unknown>() {
+  getLodgings<T = unknown>(keyword?: string) {
     return this.getJson<T>(`${this.getLodgingsUrl()}/info`, {
       type: 'json',
-      numOfRows: 30,
-      pageNo: 1
+      numOfRows: keyword ? 100 : 1000,
+      pageNo: 1,
+      ...this.createLocalDataAddressFilter(keyword)
     });
   }
 
-  getTouristRestaurants<T = unknown>() {
+  getTouristRestaurants<T = unknown>(keyword?: string) {
     return this.getJson<T>(`${this.getTouristRestaurantsUrl()}/info`, {
       type: 'json',
-      numOfRows: 30,
-      pageNo: 1
+      numOfRows: keyword ? 100 : 1000,
+      pageNo: 1,
+      ...this.createLocalDataAddressFilter(keyword)
     });
   }
 
-  getTouristPensions<T = unknown>() {
+  getTouristPensions<T = unknown>(keyword?: string) {
     return this.getJson<T>(`${this.getTouristPensionsUrl()}/info`, {
       type: 'json',
-      numOfRows: 30,
-      pageNo: 1
+      numOfRows: keyword ? 100 : 1000,
+      pageNo: 1,
+      ...this.createLocalDataAddressFilter(keyword)
     });
   }
 
@@ -207,6 +210,15 @@ export class TourismApiClient {
 
   private getMudFlatUrl() {
     return this.configService.get<string>('MUD_FLAT_API_URL') ?? DEFAULT_MUD_FLAT_URL;
+  }
+
+  private createLocalDataAddressFilter(keyword?: string) {
+    const normalized = keyword?.trim().replace(/도$/, '');
+    if (!normalized || normalized.length < 2) return {};
+
+    return {
+      'cond[LOTNO_ADDR::LIKE]': normalized
+    };
   }
 
   private getServiceKey() {
