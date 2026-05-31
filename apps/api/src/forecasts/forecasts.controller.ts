@@ -13,5 +13,32 @@ export class ForecastsController {
   getTomorrowForecast(@Query() query: TomorrowForecastQueryDto) {
     return this.forecastsService.getTomorrowForecast(query);
   }
-}
 
+  @Get('marine')
+  @ApiOkResponse({ description: 'Integrated marine weather, warning, tide, water temperature, and salinity forecast' })
+  getMarineForecast(
+    @Query('locationName') locationName?: string,
+    @Query('nx') nx?: string,
+    @Query('ny') ny?: string,
+    @Query('stationCode') stationCode?: string,
+    @Query('salinityStationCode') salinityStationCode?: string,
+    @Query('latitude') latitude?: string,
+    @Query('longitude') longitude?: string
+  ) {
+    return this.forecastsService.getMarineForecast({
+      locationName,
+      nx: nx ? Number(nx) : undefined,
+      ny: ny ? Number(ny) : undefined,
+      stationCode,
+      salinityStationCode,
+      latitude: latitude ? Number(latitude) : undefined,
+      longitude: longitude ? Number(longitude) : undefined
+    });
+  }
+
+  @Get('marine/locations')
+  @ApiOkResponse({ description: 'Marine forecast location mapping table' })
+  getMarineForecastLocations() {
+    return this.forecastsService.getMarineForecastLocations();
+  }
+}

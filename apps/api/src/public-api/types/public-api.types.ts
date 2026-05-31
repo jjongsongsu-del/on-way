@@ -9,7 +9,7 @@ import type {
   Vessel
 } from '@badagil/shared';
 
-export type PublicApiProvider = 'KOMSA' | 'INCHEON_PORT' | 'VWORLD' | 'MOCK';
+export type PublicApiProvider = 'KOMSA' | 'INCHEON_PORT' | 'VWORLD' | 'TOURISM' | 'MOCK';
 
 export type PublicApiMeta = {
   provider: PublicApiProvider;

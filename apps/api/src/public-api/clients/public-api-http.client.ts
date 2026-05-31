@@ -10,7 +10,7 @@ export class PublicApiHttpClient {
   });
 
   async getJson<T>(url: string): Promise<T> {
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: AbortSignal.timeout(12000) });
     if (!response.ok) {
       throw new Error(`Public API request failed: ${response.status} ${response.statusText}`);
     }
@@ -19,7 +19,7 @@ export class PublicApiHttpClient {
   }
 
   async getXml<T = unknown>(url: string): Promise<T> {
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: AbortSignal.timeout(12000) });
     if (!response.ok) {
       throw new Error(`Public API request failed: ${response.status} ${response.statusText}`);
     }
@@ -29,7 +29,7 @@ export class PublicApiHttpClient {
   }
 
   async getArrayBuffer(url: string): Promise<{ data: ArrayBuffer; contentType: string }> {
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: AbortSignal.timeout(12000) });
     if (!response.ok) {
       throw new Error(`Public API request failed: ${response.status} ${response.statusText}`);
     }

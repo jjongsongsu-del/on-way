@@ -22,19 +22,23 @@ allprojects {
 
 subprojects { subproject ->
   subproject.plugins.withId("com.android.library") {
-    subproject.android.defaultConfig.externalNativeBuild.cmake.arguments "-DCMAKE_SUPPRESS_REGENERATION=ON"
+    subproject.android.defaultConfig.externalNativeBuild.cmake.arguments "-DCMAKE_SUPPRESS_REGENERATION=ON", "-DCMAKE_OBJECT_PATH_MAX=128"
   }
 
-  if (subproject.name == "react-native-screens") {
-    subproject.tasks.configureEach { task ->
-      if (task.name.startsWith("buildCMake")) {
-        task.doFirst {
-          def cxxDir = new File(subproject.projectDir, ".cxx")
-          if (cxxDir.exists()) {
-            cxxDir.eachDirRecurse { dir ->
-              if (dir.name == "rnscreens.dir" && dir.parentFile?.name == "CMakeFiles") {
-                new File(dir, "C_/dev/sea-load/node_modules/.pnpm").mkdirs()
-              }
+  subproject.tasks.configureEach { task ->
+    if (task.name.startsWith("buildCMake")) {
+      task.doFirst {
+        def moduleRoot = subproject.projectDir.parentFile?.absolutePath ?: subproject.projectDir.absolutePath
+        def encodedModuleRoot = moduleRoot.replaceFirst(/^([A-Za-z]):/, '$1_').replace('\\', '/')
+        def cxxDir = new File(subproject.projectDir, ".cxx")
+
+        if (cxxDir.exists()) {
+          cxxDir.eachDirRecurse { dir ->
+            if (dir.name.endsWith(".dir") && dir.parentFile?.name == "CMakeFiles") {
+              new File(dir, encodedModuleRoot).mkdirs()
+              new File(dir, "${encodedModuleRoot}/cpp").mkdirs()
+              new File(dir, "${encodedModuleRoot}/common/cpp").mkdirs()
+              new File(dir, "${encodedModuleRoot}/src/main/cpp").mkdirs()
             }
           }
         }

@@ -10,7 +10,8 @@ export const CACHE_TTL_SECONDS = {
   REALTIME_TRAFFIC: 60,
   ISLANDS: 24 * 60 * 60,
   TODAY_STATUS: 60,
-  TOMORROW_FORECAST: 45 * 60
+  TOMORROW_FORECAST: 45 * 60,
+  MARINE_FORECAST: 10 * 60
 } as const;
 
 export const CACHE_KEYS = {
@@ -32,5 +33,7 @@ export const CACHE_KEYS = {
   islands: (keyword?: string) => `islands:all:${keyword ?? ''}`,
   island: (islandId: string) => `islands:${islandId}`,
   todayStatus: (departure: string, arrival: string) => `status:today:${departure}:${arrival}`,
-  tomorrowForecast: (departure: string, arrival: string) => `forecast:tomorrow:${departure}:${arrival}`
+  tomorrowForecast: (departure: string, arrival: string) => `forecast:tomorrow:${departure}:${arrival}`,
+  marineForecast: (locationName: string, nx: number, ny: number, stationCode: string, salinityStationCode: string) =>
+    `forecast:marine:${locationName}:${nx}:${ny}:${stationCode}:${salinityStationCode}`
 };

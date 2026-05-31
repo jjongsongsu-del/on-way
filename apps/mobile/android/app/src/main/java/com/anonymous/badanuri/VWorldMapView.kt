@@ -70,9 +70,6 @@ class VWorldMapView(private val reactContext: ThemedReactContext) : FrameLayout(
 
     map = Map(this, options).also { vworldMap ->
       (reactContext.currentActivity as? Activity)?.let { vworldMap.setActivity(it) }
-      if (BuildConfig.VWORLD_API_KEY.isNotBlank()) {
-        vworldMap.setServiceKey(BuildConfig.VWORLD_API_KEY)
-      }
       PinchZoom(vworldMap)
       vworldMap.mapView.setMultiTouchControls(true)
       mapController = vworldMap.mapView.controller

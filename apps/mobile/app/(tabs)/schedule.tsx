@@ -1,6 +1,7 @@
 ﻿import { fetchArrivalPorts, fetchDeparturePorts, type PortOption } from '@/api/routes';
 import { fetchScheduleCandidates, fetchSchedules, fetchWeeklySchedules, type ScheduleCandidate } from '@/api/schedules';
 import { fetchRouteOptions, type RouteOption } from '@/api/routes';
+import { fetchMarineForecast } from '@/api/forecasts';
 import { fetchVesselDetail } from '@/api/vessels';
 import { Link } from 'expo-router';
 import { InfoCard } from '@/components/InfoCard';
@@ -8,7 +9,7 @@ import { MascotBanner } from '@/components/MascotBanner';
 import { Screen } from '@/components/Screen';
 import { StatusPill } from '@/components/StatusPill';
 import { colors } from '@/theme/colors';
-import type { SailingScheduleSummary, VesselDetail } from '@badagil/shared';
+import type { MarineForecastOverview, SailingScheduleSummary, VesselDetail } from '@badagil/shared';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import {
   Bookmark,
@@ -118,6 +119,17 @@ type ScheduleSavedFilters = {
   vesselName: string;
 };
 
+type DepartureForecastWindowItem = {
+  id: string;
+  timeLabel: string;
+  offsetLabel: string;
+  sky: string;
+  wind: string;
+  wave: string;
+  riskLabel: string;
+  riskTone: 'good' | 'warning' | 'danger';
+};
+
 const SCHEDULE_FAVORITES_KEY = 'badagil:schedule:favorites';
 const SCHEDULE_RECENTS_KEY = 'badagil:schedule:recents';
 const SCHEDULE_FILTERS_KEY = 'badagil:schedule:filters';
@@ -169,6 +181,30 @@ function formatDateTime(value: number | string | Date | undefined) {
 function formatRecentDateTime(value: string | undefined) {
   const formatted = formatDateTime(value);
   return formatted ? `${formatted} 조회` : '최근 조회';
+}
+
+function formatForecastHour(value: string | null) {
+  return value && value.length >= 4 ? `${value.slice(0, 2)}:${value.slice(2, 4)}` : value ?? '시간';
+}
+
+function parseNumber(value: string | null | undefined) {
+  if (!value) return 0;
+  const parsed = Number(String(value).replace(/[^\d.-]/g, ''));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function scheduleForecastRiskLabel(forecast: MarineForecastOverview | undefined) {
+  if (forecast?.riskLevel === 'HIGH') return '위험 높음';
+  if (forecast?.riskLevel === 'MEDIUM') return '주의';
+  if (forecast?.riskLevel === 'LOW') return '양호';
+  return '확인 중';
+}
+
+function scheduleForecastRiskTone(forecast: MarineForecastOverview | undefined): 'good' | 'warning' | 'danger' | 'neutral' {
+  if (forecast?.riskLevel === 'HIGH') return 'danger';
+  if (forecast?.riskLevel === 'MEDIUM') return 'warning';
+  if (forecast?.riskLevel === 'LOW') return 'good';
+  return 'neutral';
 }
 
 function routePresetId(departure: string, arrival: string) {
@@ -295,6 +331,80 @@ function getPossibleDeparturePorts(routeOptions: RouteOption[], arrivalPortName:
       .filter((portName) => !portMatches(portName, arrivalPortName))
       .sort((a, b) => a.localeCompare(b, 'ko'))
   );
+}
+
+function buildCandidateRouteContext(candidate: ScheduleCandidate | null, filters: ScheduleSavedFilters, routeOptions: RouteOption[]) {
+  const routeText = [candidate?.routeName, candidate?.licenseRouteName].filter(Boolean).join(' ');
+  const matchedRoute = routeOptions.find((route) => {
+    if (!routeText) return false;
+    const routeNames = [route.routeName, `${route.departurePortName}-${route.arrivalPortName}`, `${route.departurePortName} → ${route.arrivalPortName}`];
+    return routeNames.some((name) => routeText.includes(name) || name.includes(routeText));
+  });
+  const parsedRoute = parseRouteText(candidate?.licenseRouteName ?? candidate?.routeName ?? '');
+  const departure = filters.departure || matchedRoute?.departurePortName || parsedRoute.departure || '';
+  const arrival = filters.arrival || matchedRoute?.arrivalPortName || parsedRoute.arrival || '';
+
+  return { departure, arrival };
+}
+
+function parseRouteText(value: string) {
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  const separator = ['→', '->', '-', '~', '↔'].find((candidate) => normalized.includes(candidate));
+  if (!separator) return { departure: '', arrival: '' };
+  const [departure, arrival] = normalized.split(separator).map((item) => item.trim()).filter(Boolean);
+  return { departure: departure ?? '', arrival: arrival ?? '' };
+}
+
+function buildDepartureForecastWindow(forecast: MarineForecastOverview | undefined, candidate: ScheduleCandidate | null): DepartureForecastWindowItem[] {
+  if (!forecast?.shortTermForecasts.length || !candidate?.sailingDate || !candidate.departureTime) return [];
+
+  const departureAt = parseScheduleDateTime(candidate.sailingDate, candidate.departureTime);
+  if (!departureAt) return [];
+
+  const groups = new Map<string, Record<string, string | null>>();
+  forecast.shortTermForecasts.forEach((item) => {
+    const forecastAt = parseForecastDateTime(item.forecastDate, item.forecastTime);
+    if (!forecastAt) return;
+    const diffHours = (forecastAt.getTime() - departureAt.getTime()) / (60 * 60 * 1000);
+    if (diffHours < -3 || diffHours > 3) return;
+
+    const key = `${item.forecastDate ?? 'unknown'}-${item.forecastTime ?? 'unknown'}`;
+    const current = groups.get(key) ?? { forecastDate: item.forecastDate, forecastTime: item.forecastTime, diffHours: String(diffHours) };
+    current[item.category] = item.unit ? `${item.value} ${item.unit}` : item.value;
+    groups.set(key, current);
+  });
+
+  return [...groups.entries()]
+    .sort(([, a], [, b]) => Number(a.diffHours ?? 0) - Number(b.diffHours ?? 0))
+    .map(([id, group]) => {
+      const windValue = parseNumber(group.WSD);
+      const waveValue = parseNumber(group.WAV);
+      const riskTone: 'good' | 'warning' | 'danger' = windValue >= 14 || waveValue >= 2 ? 'danger' : windValue >= 9 || waveValue >= 1.5 ? 'warning' : 'good';
+      const diffHours = Math.round(Number(group.diffHours ?? 0));
+
+      return {
+        id,
+        timeLabel: formatForecastHour(group.forecastTime),
+        offsetLabel: diffHours === 0 ? '출항' : diffHours < 0 ? `${Math.abs(diffHours)}시간 전` : `${diffHours}시간 후`,
+        sky: group.SKY ?? group.PTY ?? '하늘 확인',
+        wind: group.WSD ? `풍속 ${group.WSD}` : '풍속 확인',
+        wave: group.WAV ? `파고 ${group.WAV}` : '파고 확인',
+        riskLabel: riskTone === 'danger' ? '위험' : riskTone === 'warning' ? '주의' : '양호',
+        riskTone
+      };
+    });
+}
+
+function parseScheduleDateTime(date: string, time: string) {
+  const [year, month, day] = date.split('-').map(Number);
+  const [hour, minute] = time.split(':').map(Number);
+  if (!year || !month || !day || Number.isNaN(hour)) return null;
+  return new Date(year, month - 1, day, hour, minute || 0);
+}
+
+function parseForecastDateTime(date: string | null, time: string | null) {
+  if (!date || !time || date.length !== 8 || time.length < 4) return null;
+  return new Date(Number(date.slice(0, 4)), Number(date.slice(4, 6)) - 1, Number(date.slice(6, 8)), Number(time.slice(0, 2)), Number(time.slice(2, 4)));
 }
 
 function compareScheduleCandidates(a: ScheduleCandidate, b: ScheduleCandidate) {
@@ -496,6 +606,30 @@ export default function ScheduleScreen() {
     retry: false,
     staleTime: 10 * 60 * 1000
   });
+  const selectedCandidateRouteContext = useMemo(
+    () => buildCandidateRouteContext(selectedCandidate, submittedFilters, routeOptionsQuery.data ?? []),
+    [routeOptionsQuery.data, selectedCandidate, submittedFilters]
+  );
+  const selectedCandidateForecastQuery = useQuery({
+    queryKey: [
+      'schedule-candidate-forecast',
+      selectedCandidate?.id,
+      selectedCandidateRouteContext.arrival,
+      selectedCandidateRouteContext.departure,
+      selectedCandidate?.departureTime
+    ],
+    queryFn: () =>
+      fetchMarineForecast({
+        locationName: selectedCandidateRouteContext.arrival || selectedCandidateRouteContext.departure
+      }),
+    enabled: Boolean(selectedCandidate && (selectedCandidateRouteContext.arrival || selectedCandidateRouteContext.departure)),
+    retry: false,
+    staleTime: 10 * 60 * 1000
+  });
+  const selectedCandidateForecastWindow = useMemo(
+    () => buildDepartureForecastWindow(selectedCandidateForecastQuery.data, selectedCandidate),
+    [selectedCandidate, selectedCandidateForecastQuery.data]
+  );
 
   const weeklyScheduleQuery = useQuery({
     queryKey: ['weekly-schedules', weeklySubmittedFilters],
@@ -982,7 +1116,23 @@ export default function ScheduleScreen() {
         <InfoCard title="운항 후보" eyebrow={`${submittedFilters.date} 기준`}>
           {!hasSearched ? <Message text="날짜와 출발·도착지를 선택해 주세요. 출발지만 선택해도 후보를 찾고, 도착지를 추가하면 더 정확해집니다." /> : null}
           {candidateQuery.isFetching ? <Message text="운항 후보를 불러오는 중입니다." /> : null}
-          {candidateQuery.isError ? <RetryNotice text="운항 후보를 불러오지 못했습니다. 네트워크 또는 API 서버 상태를 확인한 뒤 다시 시도해 주세요." onRetry={() => candidateQuery.refetch()} /> : null}
+          {candidateQuery.isError ? (
+            <View style={styles.failureRecoveryPanel}>
+              <RetryNotice text="운항 후보를 불러오지 못했습니다. 네트워크 또는 API 서버 상태를 확인한 뒤 다시 시도해 주세요." onRetry={() => candidateQuery.refetch()} />
+              <View style={styles.failureRecoveryActions}>
+                {submittedFilters.arrival ? (
+                  <Pressable accessibilityRole="button" onPress={searchWithoutArrival} style={styles.failureRecoveryButton}>
+                    <Search color={colors.primary} size={15} />
+                    <Text style={styles.failureRecoveryText}>도착지 없이 다시 검색</Text>
+                  </Pressable>
+                ) : null}
+                <Pressable accessibilityRole="button" onPress={searchNextDay} style={styles.failureRecoveryButton}>
+                  <CalendarDays color={colors.primary} size={15} />
+                  <Text style={styles.failureRecoveryText}>다음날로 검색</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
           {hasSearched && candidateQuery.dataUpdatedAt ? <DataTimestamp value={candidateQuery.dataUpdatedAt} /> : null}
           {autoSelectedCandidateId ? (
             <View style={styles.candidateHintPanel}>
@@ -1154,6 +1304,25 @@ export default function ScheduleScreen() {
           </View>
         ))}
       </InfoCard>
+
+      {selectedCandidate ? (
+        <InfoCard
+          title="출항 전후 예보"
+          eyebrow={`${selectedCandidateRouteContext.departure || submittedFilters.departure || '출발지'} → ${
+            selectedCandidateRouteContext.arrival || submittedFilters.arrival || '도착지'
+          }`}
+        >
+          <ScheduleForecastPanel
+            candidate={selectedCandidate}
+            forecast={selectedCandidateForecastQuery.data}
+            windowItems={selectedCandidateForecastWindow}
+            isLoading={selectedCandidateForecastQuery.isFetching}
+            isError={selectedCandidateForecastQuery.isError}
+            locationName={selectedCandidateRouteContext.arrival || selectedCandidateRouteContext.departure}
+            onRetry={() => selectedCandidateForecastQuery.refetch()}
+          />
+        </InfoCard>
+      ) : null}
 
       <WeeklyScheduleModal
         visible={isWeeklyModalOpen}
@@ -1611,6 +1780,84 @@ function CandidateResultActions({
           <Text style={styles.resultActionButtonText}>일정 검색으로 보기</Text>
         </Pressable>
       </View>
+    </View>
+  );
+}
+
+function ScheduleForecastPanel({
+  candidate,
+  forecast,
+  windowItems,
+  isLoading,
+  isError,
+  locationName,
+  onRetry
+}: {
+  candidate: ScheduleCandidate;
+  forecast: MarineForecastOverview | undefined;
+  windowItems: DepartureForecastWindowItem[];
+  isLoading: boolean;
+  isError: boolean;
+  locationName: string;
+  onRetry: () => void;
+}) {
+  if (isLoading) return <Message text="선택한 운항 후보의 도착 섬 기준 예보를 불러오는 중입니다." />;
+  if (isError) return <RetryNotice text="출항 전후 예보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요." onRetry={onRetry} />;
+
+  return (
+    <View style={styles.scheduleForecastPanel}>
+      <View style={styles.scheduleForecastSummary}>
+        <View style={styles.scheduleForecastSummaryCopy}>
+          <Text style={styles.scheduleForecastTitle}>{locationName || forecast?.locationName || '도착지'} 기준</Text>
+          <Text style={styles.scheduleForecastDescription}>
+            {candidate.departureTime || '--:--'} 출항 전후 3시간의 바람, 파고, 강수 예보를 먼저 확인합니다.
+          </Text>
+        </View>
+        <StatusPill label={scheduleForecastRiskLabel(forecast)} tone={scheduleForecastRiskTone(forecast)} />
+      </View>
+      {forecast?.summary ? <Text style={styles.scheduleForecastMessage}>{forecast.summary}</Text> : null}
+      {windowItems.length ? (
+        <View style={styles.scheduleForecastWindowList}>
+          {windowItems.map((item) => (
+            <View key={item.id} style={styles.scheduleForecastWindowItem}>
+              <View style={styles.scheduleForecastTimeBox}>
+                <Text style={styles.scheduleForecastTime}>{item.timeLabel}</Text>
+                <Text style={styles.scheduleForecastOffset}>{item.offsetLabel}</Text>
+              </View>
+              <View style={styles.scheduleForecastMetrics}>
+                <Text style={styles.scheduleForecastMetric} numberOfLines={1}>
+                  {item.sky}
+                </Text>
+                <Text style={styles.scheduleForecastMetric} numberOfLines={1}>
+                  {item.wind}
+                </Text>
+                <Text style={styles.scheduleForecastMetric} numberOfLines={1}>
+                  {item.wave}
+                </Text>
+              </View>
+              <StatusPill label={item.riskLabel} tone={item.riskTone} />
+            </View>
+          ))}
+        </View>
+      ) : (
+        <Message text="출항 전후 3시간에 해당하는 단기예보가 아직 없습니다. 예보 메뉴에서 전체 시간대를 확인해 주세요." />
+      )}
+      {locationName ? (
+        <View style={styles.scheduleForecastActionRow}>
+          <Link href={{ pathname: '/forecast', params: { locationName } }} asChild>
+            <Pressable accessibilityRole="button" style={styles.scheduleForecastActionButton}>
+              <Waves color={colors.primary} size={16} />
+              <Text style={styles.scheduleForecastActionText}>전체 예보 보기</Text>
+            </Pressable>
+          </Link>
+          <Link href={{ pathname: '/island-trip', params: { islandName: locationName, section: 'detail', tab: 'safety' } }} asChild>
+            <Pressable accessibilityRole="button" style={styles.scheduleForecastActionButton}>
+              <MapPin color={colors.primary} size={16} />
+              <Text style={styles.scheduleForecastActionText}>섬 안전정보 보기</Text>
+            </Pressable>
+          </Link>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -3023,7 +3270,112 @@ const styles = StyleSheet.create({
   },
   scheduleBody: {
     flex: 1,
-    gap: 4
+    gap: 4,
+    minWidth: 0
+  },
+  scheduleForecastPanel: {
+    gap: 10
+  },
+  scheduleForecastSummary: {
+    alignItems: 'flex-start',
+    backgroundColor: colors.backgroundSoft,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'space-between',
+    padding: 12
+  },
+  scheduleForecastSummaryCopy: {
+    flex: 1,
+    gap: 5,
+    minWidth: 0
+  },
+  scheduleForecastTitle: {
+    color: colors.navy,
+    fontSize: 15,
+    fontWeight: '900'
+  },
+  scheduleForecastDescription: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17
+  },
+  scheduleForecastMessage: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 19
+  },
+  scheduleForecastWindowList: {
+    gap: 8
+  },
+  scheduleForecastWindowItem: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 9,
+    minHeight: 64,
+    padding: 9
+  },
+  scheduleForecastTimeBox: {
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    borderRadius: 8,
+    gap: 2,
+    justifyContent: 'center',
+    minHeight: 44,
+    width: 58
+  },
+  scheduleForecastTime: {
+    color: colors.navy,
+    fontSize: 13,
+    fontWeight: '900'
+  },
+  scheduleForecastOffset: {
+    color: colors.primary,
+    fontSize: 10,
+    fontWeight: '900'
+  },
+  scheduleForecastMetrics: {
+    flex: 1,
+    gap: 4,
+    minWidth: 0
+  },
+  scheduleForecastMetric: {
+    color: colors.text,
+    fontSize: 11,
+    fontWeight: '800'
+  },
+  scheduleForecastActionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8
+  },
+  scheduleForecastActionButton: {
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    flexGrow: 1,
+    gap: 6,
+    justifyContent: 'center',
+    minHeight: 42,
+    minWidth: 132,
+    paddingHorizontal: 10
+  },
+  scheduleForecastActionText: {
+    color: colors.primaryDark,
+    flexShrink: 1,
+    fontSize: 12,
+    fontWeight: '900'
   },
   reason: {
     color: colors.danger,
@@ -3070,6 +3422,34 @@ const styles = StyleSheet.create({
   },
   retryButtonText: {
     color: colors.surface,
+    fontSize: 12,
+    fontWeight: '900'
+  },
+  failureRecoveryPanel: {
+    gap: 8
+  },
+  failureRecoveryActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8
+  },
+  failureRecoveryButton: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    flexGrow: 1,
+    gap: 6,
+    justifyContent: 'center',
+    minHeight: 40,
+    minWidth: 136,
+    paddingHorizontal: 10
+  },
+  failureRecoveryText: {
+    color: colors.primaryDark,
+    flexShrink: 1,
     fontSize: 12,
     fontWeight: '900'
   },

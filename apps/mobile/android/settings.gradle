@@ -31,6 +31,17 @@ extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
 }
 expoAutolinking.useExpoModules()
 
+def shortNodeModules = new File(rootDir, "../node_modules")
+[
+  "expo-modules-core": "expo-modules-core/android",
+  "react-native-screens": "react-native-screens/android"
+].each { projectName, modulePath ->
+  def moduleProject = findProject(":${projectName}")
+  if (moduleProject != null) {
+    moduleProject.projectDir = new File(shortNodeModules, modulePath)
+  }
+}
+
 rootProject.name = '바다누리'
 
 expoAutolinking.useExpoVersionCatalog()
