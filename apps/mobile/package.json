@@ -19,6 +19,7 @@
     "expo": "^54.0.25",
     "expo-constants": "~18.0.10",
     "expo-linking": "~8.0.9",
+    "expo-modules-core": "3.0.30",
     "expo-router": "~6.0.15",
     "expo-status-bar": "~3.0.8",
     "lucide-react-native": "^0.561.0",

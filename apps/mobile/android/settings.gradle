@@ -37,12 +37,13 @@ def shortNodeModules = new File(rootDir, "../node_modules")
   "react-native-screens": "react-native-screens/android"
 ].each { projectName, modulePath ->
   def moduleProject = findProject(":${projectName}")
-  if (moduleProject != null) {
-    moduleProject.projectDir = new File(shortNodeModules, modulePath)
+  def shortProjectDir = new File(shortNodeModules, modulePath)
+  if (moduleProject != null && shortProjectDir.exists()) {
+    moduleProject.projectDir = shortProjectDir
   }
 }
 
-rootProject.name = '섬똑'
+rootProject.name = 'seomttok'
 
 expoAutolinking.useExpoVersionCatalog()
 
