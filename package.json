@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@11.3.0",
+  "dependencies": {
+    "zod": "^4.1.13"
+  },
   "scripts": {
     "dev": "corepack pnpm --parallel --filter @badagil/api --filter @badagil/mobile dev",
     "dev:api": "corepack pnpm --filter @badagil/api dev",

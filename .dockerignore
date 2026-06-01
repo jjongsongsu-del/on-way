@@ -1,0 +1,12 @@
+.git
+.expo
+.pnpm-store
+node_modules
+apps/*/node_modules
+apps/*/dist
+apps/mobile/android
+*.log
+*.png
+window.xml
+travel-info-response.json
+
