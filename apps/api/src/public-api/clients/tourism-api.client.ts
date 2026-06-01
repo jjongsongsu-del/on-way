@@ -12,6 +12,7 @@ const DEFAULT_LODGINGS_URL = 'https://apis.data.go.kr/1741000/lodgings';
 const DEFAULT_TOURIST_RESTAURANTS_URL = 'https://apis.data.go.kr/1741000/tourist_restaurants';
 const DEFAULT_TOURIST_PENSIONS_URL = 'https://apis.data.go.kr/1741000/tourist_pensions';
 const DEFAULT_MUD_FLAT_URL = 'https://apis.data.go.kr/1192000/MudFlatInfoService';
+const DEFAULT_BORYEONG_ISLAND_PHOTO_URL = 'https://apis.data.go.kr/4510000/GetIslandPhotoService/getIslandInfo';
 
 @Injectable()
 export class TourismApiClient {
@@ -62,6 +63,14 @@ export class TourismApiClient {
       MobileApp: 'Badagil',
       _type: 'json',
       arrange: 'A',
+      numOfRows: 100,
+      pageNo: 1
+    });
+  }
+
+  getBoryeongIslandPhotos<T = unknown>() {
+    return this.getJson<T>(this.getBoryeongIslandPhotoUrl(), {
+      type: 'json',
       numOfRows: 100,
       pageNo: 1
     });
@@ -210,6 +219,10 @@ export class TourismApiClient {
 
   private getMudFlatUrl() {
     return this.configService.get<string>('MUD_FLAT_API_URL') ?? DEFAULT_MUD_FLAT_URL;
+  }
+
+  private getBoryeongIslandPhotoUrl() {
+    return this.configService.get<string>('BORYEONG_ISLAND_PHOTO_API_URL') ?? DEFAULT_BORYEONG_ISLAND_PHOTO_URL;
   }
 
   private createLocalDataAddressFilter(keyword?: string) {

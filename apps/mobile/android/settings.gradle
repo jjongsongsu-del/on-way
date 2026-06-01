@@ -42,7 +42,7 @@ def shortNodeModules = new File(rootDir, "../node_modules")
   }
 }
 
-rootProject.name = '바다누리'
+rootProject.name = '섬똑'
 
 expoAutolinking.useExpoVersionCatalog()
 

@@ -23,7 +23,7 @@ export default function ProfileScreen() {
     >
       <MascotBanner
         eyebrow="관심 알림"
-        title="바다누리가 자주 보는 항로를 먼저 챙겨드릴게요"
+        title="섬똑이 자주 보는 항로를 먼저 챙겨드릴게요"
         description="시간표 즐겨찾기와 최근 선택한 섬, 항로를 기준으로 홈과 예보, 섬여행 화면을 이어서 보여줍니다."
         imageSource={require('../../assets/mascot/boogi-profile.png')}
         tone="coral"

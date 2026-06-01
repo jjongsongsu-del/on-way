@@ -36,7 +36,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: '바다누리',
+          title: '섬똑',
           tabBarIcon: ({ color, size }) => <Home color={color} size={size} />
         }}
       />

@@ -1,10 +1,11 @@
 {
   "expo": {
-    "name": "바다누리",
+    "name": "섬똑",
     "slug": "badanuri",
     "scheme": "badanuri",
     "version": "0.1.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
     "ios": {
@@ -12,6 +13,7 @@
     },
     "android": {
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1769e0"
       },
       "package": "com.anonymous.badanuri"

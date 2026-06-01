@@ -43,7 +43,8 @@ export class IslandTripsService {
       pensions,
       mudFlatEcInfo,
       mudFlatVillages,
-      photos
+      photos,
+      boryeongPhotos
     ] = await Promise.all([
       this.safeFetch(() => this.tourismApiClient.searchTourAttractions(islandName)),
       this.safeFetch(async () => {
@@ -63,7 +64,8 @@ export class IslandTripsService {
         const response = await this.tourismApiClient.searchPhotoGallery(islandName);
         const items = extractItems(response);
         return items.length > 0 ? response : this.tourismApiClient.getPhotoGalleryList();
-      })
+      }),
+      this.safeFetch(() => this.tourismApiClient.getBoryeongIslandPhotos())
     ]);
 
     const attractionItems = attractions.ok ? this.toAttractions(attractions.data, islandName) : [];
@@ -73,7 +75,10 @@ export class IslandTripsService {
     const pensionItems = pensions.ok ? this.toPensions(pensions.data, params) : [];
     const mudFlatItems = this.toMudFlats(mudFlatEcInfo.ok ? mudFlatEcInfo.data : null, mudFlatVillages.ok ? mudFlatVillages.data : null, params);
     const safetyItems = safetyIndexes.ok ? this.toSafetyIndexes(safetyIndexes.data, islandName) : [];
-    const photoItems = photos.ok ? this.toPhotos(photos.data, islandName) : [];
+    const photoItems = uniqueById([
+      ...(photos.ok ? this.toPhotos(photos.data, islandName, 'TOUR_PHOTO') : []),
+      ...(boryeongPhotos.ok ? this.toPhotos(boryeongPhotos.data, islandName, 'BORYEONG_ISLAND_PHOTO') : [])
+    ]).slice(0, 12);
     const data: IslandTravelInfo = {
       islandName,
       attractions: attractionItems,
@@ -92,7 +97,7 @@ export class IslandTripsService {
         food: '행정안전부 관광식당',
         mudFlat: '해양수산부 갯벌 정보',
         safety: '국립해양조사원 바다여행지수',
-        photo: '한국관광공사 관광사진'
+        photo: '한국관광공사 관광사진·충청남도 보령시 섬사진'
       },
       apiStatus: {
         tourism: createApiStatus(attractions, attractionItems.length, '관광정보가 존재하지 않습니다.'),
@@ -102,7 +107,7 @@ export class IslandTripsService {
         food: createApiStatus(restaurants, restaurantItems.length, '식당정보가 존재하지 않습니다.'),
         mudFlat: createApiStatus(combineFetchResults([mudFlatEcInfo, mudFlatVillages]), mudFlatItems.length, '갯벌정보가 존재하지 않습니다.'),
         safety: createApiStatus(safetyIndexes, safetyItems.length, '안전정보와 여행지수가 존재하지 않습니다.'),
-        photo: createApiStatus(photos, photoItems.length, '관련 관광사진이 존재하지 않습니다.')
+        photo: createApiStatus(combineFetchResults([photos, boryeongPhotos]), photoItems.length, '관련 관광사진이 존재하지 않습니다.')
       },
       updatedAt: new Date().toISOString()
     };
@@ -261,7 +266,7 @@ export class IslandTripsService {
     return uniqueById(items).slice(0, 6);
   }
 
-  private toPhotos(response: unknown, islandName: string): IslandTravelPhoto[] {
+  private toPhotos(response: unknown, islandName: string, source: IslandTravelPhoto['source']): IslandTravelPhoto[] {
     const keywordParts = createPhotoKeywordParts(islandName);
     const items = extractItems(response)
       .map((item) => ({
@@ -272,7 +277,7 @@ export class IslandTripsService {
         locationName: pickString(item, PHOTO_KEYS.location),
         photographer: pickString(item, PHOTO_KEYS.photographer),
         searchKeywords: pickString(item, PHOTO_KEYS.searchKeywords),
-        source: 'TOUR_PHOTO' as const
+        source
       }))
       .filter((item) => item.imageUrl || item.thumbnailUrl)
       .filter((item) => matchesPhotoKeyword(item, keywordParts));
@@ -364,13 +369,13 @@ const MUD_FLAT_KEYS = {
 } as const;
 
 const PHOTO_KEYS = {
-  id: ['galContentId', 'contentid', 'contentId', 'id'],
-  title: ['galTitle', 'title', 'name'],
-  image: ['galWebImageUrl', 'firstimage', 'imageUrl', 'originimgurl'],
-  thumbnail: ['galWebImageUrl', 'smallimageurl', 'thumbnailUrl', 'thumbUrl'],
-  location: ['galPhotographyLocation', 'addr1', 'addr', 'location'],
-  photographer: ['galPhotographer', 'photographer'],
-  searchKeywords: ['galSearchKeyword', 'searchKeyword', 'keyword']
+  id: ['galContentId', 'contentid', 'contentId', 'id', 'sn', 'photoSn', 'islandPhotoId', '섬사진ID', '사진ID'],
+  title: ['galTitle', 'title', 'name', 'photoTitle', 'photoNm', 'photoSj', 'sj', '섬명', '사진명', '제목'],
+  image: ['galWebImageUrl', 'firstimage', 'imageUrl', 'originimgurl', 'photoUrl', 'imgUrl', 'fileUrl', 'orignlFileUrl', '사진URL', '이미지URL'],
+  thumbnail: ['galWebImageUrl', 'smallimageurl', 'thumbnailUrl', 'thumbUrl', 'thumbImageUrl', 'thumbnail', '썸네일URL'],
+  location: ['galPhotographyLocation', 'addr1', 'addr', 'location', 'islandNm', 'islandName', 'placeNm', '촬영장소', '섬명', '지역명'],
+  photographer: ['galPhotographer', 'photographer', 'copyright', 'author', '저작권자', '촬영자'],
+  searchKeywords: ['galSearchKeyword', 'searchKeyword', 'keyword', 'photoDc', 'description', 'cn', '설명', '키워드']
 } as const;
 
 const ATTRACTION_DETAIL_FIELDS = [

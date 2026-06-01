@@ -203,7 +203,7 @@ export type IslandTravelPhoto = {
   locationName: string | null;
   photographer: string | null;
   searchKeywords?: string | null;
-  source: 'TOUR_PHOTO' | 'MOCK';
+  source: 'TOUR_PHOTO' | 'BORYEONG_ISLAND_PHOTO' | 'MOCK';
 };
 
 export type IslandTravelApiStatus = {

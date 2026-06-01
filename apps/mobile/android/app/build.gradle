@@ -22,8 +22,8 @@ def vworldApiKey = findProperty("VWORLD_API_KEY") ?: System.getenv("VWORLD_API_K
  * By default you don't need to apply any configuration, just uncomment the lines you need.
  */
 react {
-    root = file(projectRoot)
-    entryFile = file("$projectRoot/index.js")
+    root = file(workspaceRoot)
+    entryFile = file("$workspaceRoot/index.js")
     reactNativeDir = new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()).getParentFile().getAbsoluteFile()
     hermesCommand = new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()).getParentFile().getAbsolutePath() + "/sdks/hermesc/%OS-BIN%/hermesc"
     codegenDir = new File(["node", "--print", "require.resolve('@react-native/codegen/package.json', { paths: [require.resolve('react-native/package.json')] })"].execute(null, rootDir).text.trim()).getParentFile().getAbsoluteFile()
@@ -54,7 +54,8 @@ react {
 
     //
     //   The path to the CLI configuration file. Default is empty.
-    // bundleConfig = file(../rn-cli.config.js)
+    // Expo CLI discovers the workspace Metro config from `root`.
+    // Passing --config on Windows can be interpreted as an unsupported ESM URL.
     //
     //   The name of the generated asset file containing your JS bundle
     // bundleAssetName = "MyApplication.android.bundle"

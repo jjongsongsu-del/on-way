@@ -1,6 +1,6 @@
 # Oracle Cloud Deployment
 
-바다누리 운영 배포는 외부 포트 하나만 열고 Nginx가 웹과 API를 나눠주는 구조를 기본으로 한다.
+섬똑 운영 배포는 외부 포트 하나만 열고 Nginx가 웹과 API를 나눠주는 구조를 기본으로 한다.
 
 ## Endpoint
 
@@ -47,4 +47,3 @@ git pull
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
 docker compose -f docker-compose.prod.yml --env-file .env.production exec api npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
 ```
-

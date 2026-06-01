@@ -139,7 +139,7 @@ export default function HomeScreen() {
         title: photo.title,
         imageUrl: photo.imageUrl ?? photo.thumbnailUrl ?? '',
         meta: [photo.locationName, photo.photographer].filter(Boolean).join(' · ') || `${homeIsland.islandName} 관광사진`,
-        source: '한국관광공사 관광사진'
+        source: photo.source === 'BORYEONG_ISLAND_PHOTO' ? '충청남도 보령시 섬사진' : '한국관광공사 관광사진'
       }))
       .filter((photo) => photo.imageUrl);
 
@@ -166,7 +166,7 @@ export default function HomeScreen() {
 
   return (
     <Screen
-      title="바다누리"
+      title="섬똑"
       subtitle="부기가 여객선 운항 정보와 섬여행 정보를 안전하게 챙겨드릴게요."
       mascotSource={require('../../assets/mascot/boogi_bg1.png')}
     >
@@ -285,7 +285,7 @@ export default function HomeScreen() {
         <View style={styles.photoHeader}>
           <View style={styles.photoHeaderCopy}>
             <Text style={styles.photoHeaderTitle}>최근 보거나 검색한 섬의 사진을 먼저 보여줘요</Text>
-            <Text style={styles.secondary}>처음 방문한 경우에는 바다누리가 추천하는 섬 사진과 관광지 이미지를 보여줍니다.</Text>
+            <Text style={styles.secondary}>처음 방문한 경우에는 섬똑이 추천하는 섬 사진과 관광지 이미지를 보여줍니다.</Text>
           </View>
           <Images color={colors.primary} size={22} />
         </View>
