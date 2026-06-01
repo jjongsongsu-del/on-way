@@ -24,7 +24,7 @@ COPY packages/shared packages/shared
 ARG EXPO_PUBLIC_API_BASE_URL=/api/v1
 ENV EXPO_PUBLIC_API_BASE_URL=${EXPO_PUBLIC_API_BASE_URL}
 
-RUN pnpm --filter @badagil/mobile build
+RUN pnpm --filter @badagil/mobile build:web
 
 FROM nginx:1.27-alpine AS runtime
 
