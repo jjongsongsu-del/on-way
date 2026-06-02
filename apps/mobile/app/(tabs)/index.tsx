@@ -533,30 +533,41 @@ function readHomeRoute(): HomeRouteTarget | null {
 }
 
 function readHomeRoutePreset(key: string, source: HomeRouteTarget['source']): HomeRouteTarget | null {
+  const memoryStore = globalThis as typeof globalThis & {
+    __badagilScheduleRoutePresets?: Record<string, HomeRouteRaw[]>;
+  };
+  const memoryRoute = normalizeHomeRoutePreset(memoryStore.__badagilScheduleRoutePresets?.[key], source);
+  if (memoryRoute) return memoryRoute;
+
   if (typeof globalThis.localStorage === 'undefined') return null;
 
   try {
     const value = globalThis.localStorage.getItem(key);
     const parsed = value ? JSON.parse(value) : null;
-    if (!Array.isArray(parsed)) return null;
-    const item = parsed.find((candidate): candidate is HomeRouteRaw =>
-      Boolean(candidate && typeof candidate === 'object' && typeof candidate.departure === 'string' && typeof candidate.arrival === 'string')
-    );
-    if (!item) return null;
-    const departure = item.departure;
-    const arrival = item.arrival;
-    if (!departure || !arrival) return null;
-
-    return {
-      departure,
-      arrival,
-      name: item.name,
-      searchDate: item.searchDate,
-      source
-    };
+    return normalizeHomeRoutePreset(parsed, source);
   } catch {
     return null;
   }
+}
+
+function normalizeHomeRoutePreset(value: unknown, source: HomeRouteTarget['source']): HomeRouteTarget | null {
+  if (!Array.isArray(value)) return null;
+
+  const item = value.find((candidate): candidate is HomeRouteRaw & { departure: string; arrival: string } =>
+    Boolean(candidate && typeof candidate === 'object' && typeof candidate.departure === 'string' && typeof candidate.arrival === 'string')
+  );
+  if (!item) return null;
+  const departure = item.departure.trim();
+  const arrival = item.arrival.trim();
+  if (!departure || !arrival) return null;
+
+  return {
+    departure,
+    arrival,
+    name: item.name,
+    searchDate: item.searchDate,
+    source
+  };
 }
 
 function formatDate(date: Date) {

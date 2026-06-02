@@ -245,7 +245,18 @@ function normalizeRoutePreset(route: Partial<RoutePreset>) {
   });
 }
 
+function getRoutePresetMemoryStore() {
+  const store = globalThis as typeof globalThis & {
+    __badagilScheduleRoutePresets?: Record<string, RoutePreset[]>;
+  };
+  store.__badagilScheduleRoutePresets ??= {};
+  return store.__badagilScheduleRoutePresets;
+}
+
 function readRoutePresets(key: string) {
+  const memoryRoutes = getRoutePresetMemoryStore()[key];
+  if (memoryRoutes?.length) return memoryRoutes.map(normalizeRoutePreset).filter((route): route is RoutePreset => route !== null);
+
   if (typeof globalThis.localStorage === 'undefined') return [];
 
   try {
@@ -260,6 +271,8 @@ function readRoutePresets(key: string) {
 }
 
 function writeRoutePresets(key: string, routes: RoutePreset[]) {
+  getRoutePresetMemoryStore()[key] = routes;
+
   if (typeof globalThis.localStorage === 'undefined') return;
 
   try {
@@ -825,6 +838,12 @@ export default function ScheduleScreen() {
 
     if (searchedRoute) {
       setRecentRoutes((routes) => [searchedRoute, ...routes.filter((route) => route.id !== searchedRoute.id)].slice(0, 5));
+      setCurrentRoute({
+        departure: searchedRoute.departure,
+        arrival: searchedRoute.arrival,
+        name: routePresetTitle(searchedRoute),
+        source: 'schedule'
+      });
     }
   };
 

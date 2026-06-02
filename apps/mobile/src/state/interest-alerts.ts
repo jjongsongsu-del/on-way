@@ -73,18 +73,29 @@ export function buildInterestAlerts(context: AppSelectionContext): InterestAlert
 }
 
 function readFavoriteRoutes(): FavoriteRoute[] {
+  const memoryStore = globalThis as typeof globalThis & {
+    __badagilScheduleRoutePresets?: Record<string, RoutePresetRaw[]>;
+  };
+  const memoryFavorites = normalizeFavoriteRoutes(memoryStore.__badagilScheduleRoutePresets?.[SCHEDULE_FAVORITES_KEY]);
+  if (memoryFavorites.length) return memoryFavorites;
+
   if (typeof globalThis.localStorage === 'undefined') return [];
 
   try {
     const value = globalThis.localStorage.getItem(SCHEDULE_FAVORITES_KEY);
     const parsed = value ? JSON.parse(value) : null;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((route): route is FavoriteRoute =>
-      Boolean(route && typeof route === 'object' && typeof route.departure === 'string' && typeof route.arrival === 'string')
-    );
+    return normalizeFavoriteRoutes(parsed);
   } catch {
     return [];
   }
+}
+
+function normalizeFavoriteRoutes(value: unknown): FavoriteRoute[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.filter((route): route is FavoriteRoute =>
+    Boolean(route && typeof route === 'object' && typeof route.departure === 'string' && typeof route.arrival === 'string')
+  );
 }
 
 function dedupeAlerts(alerts: InterestAlert[]) {
