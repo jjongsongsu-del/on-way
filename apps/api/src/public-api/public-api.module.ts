@@ -28,7 +28,7 @@ import { RealFerryApiClient } from './real-ferry-api.client';
       ) => {
         const mode = configService.get<string>('PUBLIC_API_MODE', 'mock');
 
-        if (mode === 'real') {
+        if (mode === 'real' || mode === 'live') {
           return realClient;
         }
 
