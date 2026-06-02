@@ -1,0 +1,8 @@
+services:
+  web:
+    image: ${REGISTRY_IMAGE_PREFIX:-ghcr.io/jjongsongsu-del}/sea-load-web:${IMAGE_TAG:-latest}
+    build: null
+
+  api:
+    image: ${REGISTRY_IMAGE_PREFIX:-ghcr.io/jjongsongsu-del}/sea-load-api:${IMAGE_TAG:-latest}
+    build: null
