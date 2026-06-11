@@ -3,31 +3,13 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
 import type { MarineForecastApiStatus, MarineForecastLocation, MarineForecastOverview, RiskLevel } from '@badagil/shared';
-import { AlertTriangle, CloudSun, Droplets, RefreshCcw, Search, Thermometer, Waves, Wind, X } from 'lucide-react-native';
+import { AlertTriangle, ChevronDown, ChevronUp, CloudSun, Droplets, MapPin, RefreshCcw, Search, Thermometer, Waves, Wind, X } from 'lucide-react-native';
 import { fetchMarineForecast, fetchMarineForecastLocations } from '@/api/forecasts';
 import { InfoCard } from '@/components/InfoCard';
 import { MascotBanner } from '@/components/MascotBanner';
 import { Screen } from '@/components/Screen';
 import { StatusPill } from '@/components/StatusPill';
 import { colors } from '@/theme/colors';
-
-const fallbackForecastLocations: MarineForecastLocation[] = [
-  {
-    id: 'incheon-coast',
-    label: '인천 연안',
-    helper: '서해 중부',
-    kind: 'SEA_AREA',
-    aliases: ['인천', '백령도', '덕적도'],
-    nx: 55,
-    ny: 124,
-    stationCode: 'DT_0001',
-    stationName: '인천',
-    salinityGridCode: null,
-    latitude: 37.45194,
-    longitude: 126.59222,
-    sourceNote: '기본 예보 기준점입니다.'
-  }
-];
 
 export default function ForecastScreen() {
   const routeParams = useLocalSearchParams();
@@ -36,34 +18,34 @@ export default function ForecastScreen() {
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [submittedKeyword, setSubmittedKeyword] = useState('');
+  const [searchError, setSearchError] = useState('');
+  const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false);
   const locationsQuery = useQuery({
     queryKey: ['marine-forecast-locations'],
     queryFn: fetchMarineForecastLocations,
     staleTime: 24 * 60 * 60 * 1000
   });
-  const forecastLocations = locationsQuery.data?.length ? locationsQuery.data : fallbackForecastLocations;
+  const forecastLocations = locationsQuery.data ?? [];
   const selectedLocation =
-    forecastLocations.find((location) => location.id === selectedLocationId) ?? forecastLocations[0] ?? fallbackForecastLocations[0];
-  const activeLocationName = submittedKeyword || selectedLocation.label;
-  const isSearchMode = submittedKeyword.length > 0;
+    forecastLocations.find((location) => location.id === selectedLocationId) ?? forecastLocations[0] ?? null;
+  const activeLocationName = selectedLocation?.label ?? '';
   const marineForecastQuery = useQuery({
     queryKey: [
       'marine-forecast',
       activeLocationName,
-      isSearchMode ? 'search' : selectedLocation.nx,
-      isSearchMode ? 'search' : selectedLocation.ny,
-      isSearchMode ? 'search' : selectedLocation.stationCode
+      selectedLocation?.nx,
+      selectedLocation?.ny,
+      selectedLocation?.stationCode
     ],
     queryFn: () =>
-      isSearchMode
-        ? fetchMarineForecast({ locationName: activeLocationName })
-        : fetchMarineForecast({
-            locationName: selectedLocation.label,
-            nx: selectedLocation.nx,
-            ny: selectedLocation.ny,
-            stationCode: selectedLocation.stationCode,
-            salinityStationCode: selectedLocation.salinityGridCode ?? ''
-          }),
+      fetchMarineForecast({
+        locationName: selectedLocation?.label,
+        nx: selectedLocation?.nx,
+        ny: selectedLocation?.ny,
+        stationCode: selectedLocation?.stationCode,
+        salinityStationCode: selectedLocation?.salinityGridCode ?? ''
+      }),
+    enabled: Boolean(selectedLocation),
     staleTime: 10 * 60 * 1000
   });
 
@@ -74,21 +56,52 @@ export default function ForecastScreen() {
   const tideTimeline = useMemo(() => buildTideTimeline(forecast), [forecast]);
 
   useEffect(() => {
+    const locationId = getRouteParam(routeParams.locationId);
     const locationName = getRouteParam(routeParams.locationName);
-    if (!locationName) return;
-    setSearchKeyword(locationName);
-    setSubmittedKeyword(locationName);
-  }, [routeParams.locationName]);
+    if (!locationId && !locationName) return;
+
+    const matchedLocation =
+      (locationId ? forecastLocations.find((location) => location.id === locationId) : null) ??
+      findForecastLocationByKeyword(locationName, forecastLocations);
+
+    if (matchedLocation) {
+      const keyword = locationName || matchedLocation.label;
+      setSelectedLocationId(matchedLocation.id);
+      setSearchKeyword(keyword);
+      setSubmittedKeyword(keyword);
+      setSearchError('');
+      focusMetricSection();
+      return;
+    }
+
+    if (!locationsQuery.isFetching && locationName) {
+      setSearchKeyword(locationName);
+      setSubmittedKeyword('');
+      setSearchError('섬 또는 항구의 권역을 찾을 수 없습니다. 권역을 선택하세요.');
+    }
+  }, [forecastLocations, locationsQuery.isFetching, routeParams.locationId, routeParams.locationName]);
 
   const runSearch = () => {
     const keyword = searchKeyword.trim();
     if (!keyword) return;
+    const matchedLocation = findForecastLocationByKeyword(keyword, forecastLocations);
+
+    if (!matchedLocation) {
+      setSubmittedKeyword('');
+      setSearchError('섬 또는 항구의 권역을 찾을 수 없습니다. 권역을 선택하세요.');
+      return;
+    }
+
+    setSelectedLocationId(matchedLocation.id);
     setSubmittedKeyword(keyword);
+    setSearchError('');
+    focusMetricSection();
   };
 
   const clearSearch = () => {
     setSearchKeyword('');
     setSubmittedKeyword('');
+    setSearchError('');
   };
 
   const focusMetricSection = () => {
@@ -137,7 +150,11 @@ export default function ForecastScreen() {
           <Text style={styles.searchButtonText}>검색</Text>
         </Pressable>
         {submittedKeyword ? (
-          <Text style={styles.searchHint}>`{submittedKeyword}` 기준으로 가장 가까운 기상 격자와 해양 관측소를 자동 매칭했습니다.</Text>
+          <Text style={styles.searchHint}>
+            `{submittedKeyword}` 기준으로 {selectedLocation?.label ?? '선택된'} 권역을 자동 선택했습니다.
+          </Text>
+        ) : searchError ? (
+          <Text style={styles.searchError}>{searchError}</Text>
         ) : (
           <Text style={styles.searchHint}>예: 진도, 백령도, 덕적도, 완도항, 울릉도</Text>
         )}
@@ -153,29 +170,50 @@ export default function ForecastScreen() {
             <RefreshCcw color={colors.primary} size={18} />
           </Pressable>
         </View>
-        <View style={styles.locationGrid}>
-          {forecastLocations.map((location) => {
-            const selected = selectedLocation.id === location.id;
+        <Pressable accessibilityRole="button" onPress={() => setIsLocationPickerOpen((current) => !current)} style={styles.locationSummaryCard}>
+          <View style={styles.locationSummaryIcon}>
+            <MapPin color={colors.primary} size={17} />
+          </View>
+          <View style={styles.locationSummaryCopy}>
+            <Text style={styles.locationSummaryLabel}>선택한 조회 권역</Text>
+            <Text style={styles.locationSummaryName}>{selectedLocation?.label ?? '조회 권역을 선택해 주세요'}</Text>
+            {selectedLocation ? <Text style={styles.locationSummaryMeta}>{selectedLocation.helper}</Text> : null}
+          </View>
+          {isLocationPickerOpen ? <ChevronUp color={colors.primary} size={20} /> : <ChevronDown color={colors.primary} size={20} />}
+        </Pressable>
+        {isLocationPickerOpen ? (
+          <View style={styles.locationGrid}>
+            {forecastLocations.map((location) => {
+              const selected = selectedLocation?.id === location.id;
 
-            return (
-              <Pressable
-                key={location.id}
-                accessibilityRole="button"
-                onPress={() => {
-                  setSelectedLocationId(location.id);
-                  setSubmittedKeyword('');
-                  setSearchKeyword('');
-                  focusMetricSection();
-                }}
-                style={[styles.locationButton, selected && styles.locationButtonSelected]}
-              >
-                <Text style={[styles.locationLabel, selected && styles.locationLabelSelected]}>{location.label}</Text>
-                <Text style={[styles.locationHelper, selected && styles.locationHelperSelected]}>{location.helper}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        <Text style={styles.mappingNote}>{selectedLocation.sourceNote}</Text>
+              return (
+                <Pressable
+                  key={location.id}
+                  accessibilityRole="button"
+                  onPress={() => {
+                    setSelectedLocationId(location.id);
+                    setSubmittedKeyword('');
+                    setSearchKeyword('');
+                    setSearchError('');
+                    setIsLocationPickerOpen(false);
+                    focusMetricSection();
+                  }}
+                  style={[styles.locationButton, selected && styles.locationButtonSelected]}
+                >
+                  <Text style={[styles.locationLabel, selected && styles.locationLabelSelected]}>{location.label}</Text>
+                  <Text style={[styles.locationHelper, selected && styles.locationHelperSelected]}>{location.helper}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+        {locationsQuery.isError ? (
+          <Text style={styles.mappingNote}>예보 권역 정보를 불러오지 못했습니다. API 서버 상태를 확인해 주세요.</Text>
+        ) : forecastLocations.length === 0 ? (
+          <Text style={styles.mappingNote}>조회 가능한 예보 권역이 없습니다. 관리자 데이터 설정을 확인해 주세요.</Text>
+        ) : selectedLocation ? (
+          <Text style={styles.mappingNote}>{selectedLocation.sourceNote}</Text>
+        ) : null}
       </View>
 
       <View style={styles.weatherCard}>
@@ -184,7 +222,7 @@ export default function ForecastScreen() {
         </View>
         <View style={styles.weatherCopy}>
           <View style={styles.weatherTitleRow}>
-            <Text style={styles.weatherTitle}>{forecast?.locationName ?? selectedLocation.label}</Text>
+            <Text style={styles.weatherTitle}>{forecast?.locationName ?? selectedLocation?.label ?? '예보 권역 미선택'}</Text>
             <StatusPill label={riskLabel(forecast?.riskLevel)} tone={riskTone(forecast?.riskLevel)} />
           </View>
           <Text style={styles.weatherText}>{forecast?.summary ?? '예보 정보를 불러오는 중입니다.'}</Text>
@@ -707,6 +745,38 @@ function parseNumber(value: string | null | undefined) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function findForecastLocationByKeyword(keyword: string | null | undefined, locations: MarineForecastLocation[]) {
+  const normalizedKeyword = normalizeForecastKeyword(keyword);
+  if (!normalizedKeyword) return null;
+
+  return locations
+    .map((location) => ({
+      location,
+      score: getForecastLocationMatchScore(normalizedKeyword, location)
+    }))
+    .filter((candidate) => candidate.score > 0)
+    .sort((a, b) => b.score - a.score)[0]?.location ?? null;
+}
+
+function getForecastLocationMatchScore(normalizedKeyword: string, location: MarineForecastLocation) {
+  const aliases = [location.label, location.helper, location.stationName, ...location.aliases]
+    .map((value) => normalizeForecastKeyword(value))
+    .filter(Boolean);
+
+  return aliases.reduce((best, alias) => {
+    if (normalizedKeyword.includes(alias) || alias.includes(normalizedKeyword)) {
+      const specificityBonus = location.kind === 'ISLAND' ? 0.5 : location.kind === 'PORT' ? 0.25 : 0;
+      return Math.max(best, alias.length + specificityBonus);
+    }
+
+    return best;
+  }, 0);
+}
+
+function normalizeForecastKeyword(value: string | null | undefined) {
+  return value?.replace(/\s/g, '').replace(/항$/g, '').toLowerCase() ?? '';
+}
+
 const styles = StyleSheet.create({
   searchPanel: {
     backgroundColor: colors.surface,
@@ -759,6 +829,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     lineHeight: 17
   },
+  searchError: {
+    color: colors.danger,
+    fontSize: 12,
+    fontWeight: '900',
+    lineHeight: 17
+  },
   locationPanel: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
@@ -790,6 +866,46 @@ const styles = StyleSheet.create({
     height: 38,
     justifyContent: 'center',
     width: 38
+  },
+  locationSummaryCard: {
+    alignItems: 'center',
+    backgroundColor: colors.backgroundSoft,
+    borderColor: colors.primary,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    minHeight: 72,
+    padding: 12
+  },
+  locationSummaryIcon: {
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    borderRadius: 8,
+    height: 38,
+    justifyContent: 'center',
+    width: 38
+  },
+  locationSummaryCopy: {
+    flex: 1,
+    minWidth: 0
+  },
+  locationSummaryLabel: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '900'
+  },
+  locationSummaryName: {
+    color: colors.navy,
+    fontSize: 15,
+    fontWeight: '900',
+    marginTop: 2
+  },
+  locationSummaryMeta: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '800',
+    marginTop: 3
   },
   locationGrid: {
     flexDirection: 'row',

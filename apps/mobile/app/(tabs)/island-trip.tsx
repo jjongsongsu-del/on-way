@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type LayoutChangeEvent } from 'react-native';
 import {
   Anchor,
@@ -26,9 +26,9 @@ import {
   X
 } from 'lucide-react-native';
 import { Link, useLocalSearchParams } from 'expo-router';
-import type { IslandSummary, MarineForecastLocation, MarineForecastOverview, SailingStatus } from '@badagil/shared';
+import type { IslandSummary, MarineForecastLocation, MarineForecastOverview, RecommendedIsland, SailingStatus, TripRecommendationAsset } from '@badagil/shared';
 import { fetchIslandsResponse } from '@/api/islands';
-import { fetchIslandTravelInfo } from '@/api/island-trips';
+import { fetchIslandTravelInfo, fetchRecommendedIslands, searchTravelAssets } from '@/api/island-trips';
 import { fetchMarineForecast, fetchMarineForecastLocations } from '@/api/forecasts';
 import { fetchRouteOptions, type RouteOption } from '@/api/routes';
 import { fetchScheduleCandidates, type ScheduleCandidate } from '@/api/schedules';
@@ -77,14 +77,39 @@ type SavedIslandSearch = {
 
 type UnifiedSearchResult = {
   id: string;
-  group: '섬' | '관광지' | '캠핑·차박' | '숙박·펜션' | '식당' | '갯벌' | '안전·여행지수' | '사진';
+  group:
+    | '기본정보'
+    | '배편·선착장'
+    | '관광·체험'
+    | '걷기·트레킹'
+    | '해변·해수욕'
+    | '해양레저'
+    | '맛집·시장'
+    | '숙박'
+    | '캠핑·야영'
+    | '갯벌·물때'
+    | '편의시설'
+    | '공원·무장애'
+    | '축제·행사'
+    | '사진·전망'
+    | '안전정보';
   title: string;
   description: string;
   tab: TravelDetailTab;
   island: IslandSummary | null;
+  badge?: string | null;
+  address?: string | null;
+  source?: string | null;
+  detailRows?: { label: string; value: string | null | undefined }[];
 };
 
 type UnifiedSearchFilter = '전체' | UnifiedSearchResult['group'];
+
+type IslandTravelRegionOption = {
+  id: string;
+  name: string;
+  count: number;
+};
 
 type TravelInfoCardItem = {
   id: string;
@@ -109,9 +134,42 @@ type PurposeChecklistItem = {
 
 const ISLAND_TRIP_FAVORITES_KEY = 'badagil:island-trip:favorites';
 const ISLAND_TRIP_RECENTS_KEY = 'badagil:island-trip:recents';
-const unifiedSearchFilters: UnifiedSearchFilter[] = ['전체', '섬', '관광지', '식당', '숙박·펜션', '캠핑·차박', '갯벌', '안전·여행지수', '사진'];
+const unifiedSearchFilters: UnifiedSearchFilter[] = [
+  '전체',
+  '기본정보',
+  '배편·선착장',
+  '관광·체험',
+  '걷기·트레킹',
+  '해변·해수욕',
+  '해양레저',
+  '맛집·시장',
+  '숙박',
+  '캠핑·야영',
+  '갯벌·물때',
+  '편의시설',
+  '공원·무장애',
+  '축제·행사',
+  '사진·전망',
+  '안전정보'
+];
 
 const defaultDeparturePorts = ['인천', '목포', '통영', '여수', '포항', '완도'];
+
+const regionDeparturePortMap: Record<string, string[]> = {
+  'incheon-coast': ['인천'],
+  'daechung-baengnyeong': ['인천'],
+  'deokjeok-guleop': ['인천'],
+  'mokpo-coast': ['목포'],
+  'heuksan-hongdo': ['목포'],
+  'gunsan-coast': ['군산'],
+  'boryeong-coast': ['보령', '대천'],
+  'wando-coast': ['완도'],
+  'yeosu-coast': ['여수'],
+  'tongyeong-coast': ['통영'],
+  'geoje-coast': ['통영'],
+  'pohang-ulleung': ['포항'],
+  'jeju-coast': ['제주']
+};
 
 const tripTypes: { id: TripType; label: string; description: string; icon: typeof Clock3 }[] = [
   { id: 'day', label: '당일치기', description: '첫 배와 마지막 배 기준으로 하루 안에 다녀오기 좋은 섬', icon: Clock3 },
@@ -206,11 +264,8 @@ const tripTypeGuides: Record<TripType, TripTypeGuide> = {
 };
 
 const tripSectionMenu: { key: TripSectionKey; label: string; description: string }[] = [
-  { key: 'available', label: '지금 갈 수 있는 섬', description: '오늘 배편' },
-  { key: 'types', label: '여행 유형 선택', description: '목적별 추천' },
-  { key: 'detail', label: '섬 상세', description: '배편·관광·안전' },
-  { key: 'course', label: '추천 코스', description: '시간표 기반' },
-  { key: 'saved', label: '저장한 여행', description: '다시 보기' }
+  { key: 'detail', label: '섬 상세', description: '검색·이해' },
+  { key: 'saved', label: '저장한 섬', description: '다시 보기' }
 ];
 
 const travelDetailTabs: { key: TravelDetailTab; label: string }[] = [
@@ -235,14 +290,17 @@ export default function IslandTripScreen() {
   }>();
   const today = useMemo(() => formatDate(new Date()), []);
   const scrollViewRef = useRef<ScrollView | null>(null);
-  const [activeSection, setActiveSection] = useState<TripSectionKey>('available');
+  const [activeSection, setActiveSection] = useState<TripSectionKey>('detail');
   const [sectionPositions, setSectionPositions] = useState<Partial<Record<TripSectionKey, number>>>({});
   const [departurePort, setDeparturePort] = useState(defaultDeparturePorts[0]);
+  const [availableDepartureFilter, setAvailableDepartureFilter] = useState('ALL');
+  const [availableTypeFilter, setAvailableTypeFilter] = useState<TripType | 'ALL'>('ALL');
+  const [expandedTripId, setExpandedTripId] = useState<string | null>(null);
+  const [pendingDetailScroll, setPendingDetailScroll] = useState(false);
   const [selectedType, setSelectedType] = useState<TripType>('day');
   const [focusedTripId, setFocusedTripId] = useState<string | null>(null);
   const [activeDetailTab, setActiveDetailTab] = useState<TravelDetailTab>('attractions');
   const [savedTripIds, setSavedTripIds] = useState<string[]>([]);
-  const [detailSearchKeyword, setDetailSearchKeyword] = useState('');
   const [detailIslandOverride, setDetailIslandOverride] = useState<IslandSummary | null>(null);
   const [photoModalVisible, setPhotoModalVisible] = useState(false);
   const [unifiedSearchKeyword, setUnifiedSearchKeyword] = useState('');
@@ -256,12 +314,8 @@ export default function IslandTripScreen() {
   const [pendingFavoriteIsland, setPendingFavoriteIsland] = useState<IslandSummary | null>(null);
   const [selectedTravelItem, setSelectedTravelItem] = useState<TravelInfoCardItem | null>(null);
   const [selectedTravelRegionId, setSelectedTravelRegionId] = useState<string | null>(null);
+  const [selectedRecommendedRegionId, setSelectedRecommendedRegionId] = useState<string | null>(null);
 
-  const schedulesQuery = useQuery({
-    queryKey: ['island-trip-candidates', today, departurePort],
-    queryFn: () => fetchScheduleCandidates({ date: today, departure: departurePort }),
-    staleTime: 3 * 60 * 1000
-  });
   const islandsQuery = useQuery({
     queryKey: ['island-trip-islands'],
     queryFn: () => fetchIslandsResponse(),
@@ -278,34 +332,71 @@ export default function IslandTripScreen() {
     staleTime: 24 * 60 * 60 * 1000
   });
   const travelRegions = forecastLocationsQuery.data ?? [];
+  const islandTravelRegions = useMemo(() => buildIslandTravelRegionOptions(islandsQuery.data?.data ?? []), [islandsQuery.data?.data]);
+  const selectedRecommendedRegion = islandTravelRegions.find((region) => region.id === selectedRecommendedRegionId) ?? islandTravelRegions[0] ?? null;
+  const recommendedIslandsQuery = useQuery({
+    queryKey: ['island-trip-recommended-islands', selectedRecommendedRegion?.id],
+    queryFn: () =>
+      fetchRecommendedIslands(18, {
+        travelRegionId: selectedRecommendedRegion?.id,
+        regionName: selectedRecommendedRegion?.name
+      }),
+    enabled: Boolean(selectedRecommendedRegion?.id),
+    staleTime: 30 * 60 * 1000
+  });
   const selectedTravelRegion = travelRegions.find((region) => region.id === selectedTravelRegionId) ?? null;
+  const regionDeparturePorts = useMemo(() => getRegionDeparturePorts(selectedTravelRegion), [selectedTravelRegion]);
+  const activeDeparturePorts = useMemo(
+    () => (availableDepartureFilter === 'ALL' ? regionDeparturePorts : regionDeparturePorts.filter((port) => port === availableDepartureFilter)),
+    [availableDepartureFilter, regionDeparturePorts]
+  );
+  const scheduleQueries = useQueries({
+    queries: activeDeparturePorts.map((port) => ({
+      queryKey: ['island-trip-candidates', today, port],
+      queryFn: () => fetchScheduleCandidates({ date: today, departure: port }),
+      staleTime: 3 * 60 * 1000
+    }))
+  });
+  const isAvailableLoading = scheduleQueries.some((query) => query.isFetching);
+  const isAvailableError = scheduleQueries.some((query) => query.isError);
 
   const recommendations = useMemo(
     () =>
-      buildTripRecommendations({
-        candidates: schedulesQuery.data ?? [],
-        islands: islandsQuery.data?.data ?? [],
-        routeOptions: routeOptionsQuery.data ?? [],
-        departurePort
-      }),
-    [departurePort, islandsQuery.data?.data, routeOptionsQuery.data, schedulesQuery.data]
+      activeDeparturePorts.flatMap((port, index) =>
+        buildTripRecommendations({
+          candidates: scheduleQueries[index]?.data ?? [],
+          islands: islandsQuery.data?.data ?? [],
+          routeOptions: routeOptionsQuery.data ?? [],
+          departurePort: port
+        })
+      ),
+    [activeDeparturePorts, islandsQuery.data?.data, routeOptionsQuery.data, scheduleQueries]
   );
 
   const filteredRecommendations = useMemo(
     () => recommendations.filter((trip) => trip.tripTypes.includes(selectedType)),
     [recommendations, selectedType]
   );
-  const regionRecommendations = useMemo(
-    () => filterTripsByRegion(filteredRecommendations.length > 0 ? filteredRecommendations : recommendations, selectedTravelRegion),
-    [filteredRecommendations, recommendations, selectedTravelRegion]
+  const availableTypeCounts = useMemo(() => countTripsByType(recommendations), [recommendations]);
+  const availableTypeFilteredRecommendations = useMemo(
+    () => (availableTypeFilter === 'ALL' ? recommendations : recommendations.filter((trip) => trip.tripTypes.includes(availableTypeFilter))),
+    [availableTypeFilter, recommendations]
   );
-  const visibleRecommendations = regionRecommendations.length > 0 ? regionRecommendations : filteredRecommendations.length > 0 ? filteredRecommendations : recommendations;
+  const regionRecommendations = useMemo(
+    () => filterTripsByRegion(availableTypeFilteredRecommendations, selectedTravelRegion),
+    [availableTypeFilteredRecommendations, selectedTravelRegion]
+  );
+  const visibleRecommendations = selectedTravelRegion && regionRecommendations.length > 0 ? regionRecommendations : availableTypeFilteredRecommendations;
   const selectedTypeGuide = tripTypeGuides[selectedType];
   const typeMatchedTrips = filteredRecommendations.length > 0 ? filteredRecommendations : visibleRecommendations.slice(0, 3);
   const primaryTrip = visibleRecommendations.find((trip) => trip.id === focusedTripId) ?? visibleRecommendations[0] ?? null;
   const detailIsland = detailIslandOverride ?? primaryTrip?.island ?? null;
   const detailIslandName = detailIslandOverride?.islandName ?? primaryTrip?.islandName ?? null;
   const detailIslandRegion = [detailIsland?.provinceName, detailIsland?.cityName].filter(Boolean).join(' ');
+  const detailForecastLocation = useMemo(
+    () => travelRegions.find((region) => region.id === detailIsland?.forecastLocationId) ?? findForecastLocationByKeyword(detailIslandName, travelRegions),
+    [detailIsland?.forecastLocationId, detailIslandName, travelRegions]
+  );
   const isPrimaryTripSaved = Boolean(
     detailIsland ? favoriteIslands.some((item) => item.id === toSavedIslandSearch(detailIsland).id) : primaryTrip && savedTripIds.includes(primaryTrip.id)
   );
@@ -328,28 +419,24 @@ export default function IslandTripScreen() {
     enabled: Boolean(detailIslandName),
     staleTime: 10 * 60 * 1000
   });
-  const detailSearchQuery = useQuery({
-    queryKey: ['island-trip-detail-island-search', detailSearchKeyword.trim()],
-    queryFn: () => fetchIslandsResponse(detailSearchKeyword.trim()),
-    enabled: detailSearchKeyword.trim().length >= 2,
-    staleTime: 10 * 60 * 1000
-  });
   const travelInfo = travelInfoQuery.data;
-  const detailSearchResults = detailSearchQuery.data?.data ?? [];
   const unifiedSearchQuery = useQuery({
     queryKey: ['island-trip-unified-search', submittedUnifiedKeyword],
     queryFn: async () => {
       const islandsResponse = await fetchIslandsResponse(submittedUnifiedKeyword);
       const primaryIsland = islandsResponse.data[0];
-      const info = await fetchIslandTravelInfo({
-        islandName: submittedUnifiedKeyword,
-        provinceName: primaryIsland?.provinceName,
-        cityName: primaryIsland?.cityName,
-        latitude: primaryIsland?.latitude,
-        longitude: primaryIsland?.longitude
-      });
+      const [info, travelAssets] = await Promise.all([
+        fetchIslandTravelInfo({
+          islandName: submittedUnifiedKeyword,
+          provinceName: primaryIsland?.provinceName,
+          cityName: primaryIsland?.cityName,
+          latitude: primaryIsland?.latitude,
+          longitude: primaryIsland?.longitude
+        }),
+        searchTravelAssets(submittedUnifiedKeyword, 24)
+      ]);
 
-      return buildUnifiedSearchResults(submittedUnifiedKeyword, islandsResponse.data, info);
+      return buildUnifiedSearchResults(submittedUnifiedKeyword, islandsResponse.data, info, travelAssets);
     },
     enabled: submittedUnifiedKeyword.trim().length >= 2,
     staleTime: 10 * 60 * 1000
@@ -359,6 +446,22 @@ export default function IslandTripScreen() {
   useEffect(() => {
     writeSavedIslandSearches(ISLAND_TRIP_FAVORITES_KEY, favoriteIslands);
   }, [favoriteIslands]);
+
+  useEffect(() => {
+    if (!pendingDetailScroll || sectionPositions.detail === undefined) return;
+
+    scrollViewRef.current?.scrollTo({
+      y: Math.max(sectionPositions.detail - 12, 0),
+      animated: true
+    });
+    setPendingDetailScroll(false);
+  }, [pendingDetailScroll, sectionPositions.detail]);
+
+  useEffect(() => {
+    setAvailableDepartureFilter('ALL');
+    setAvailableTypeFilter('ALL');
+    setExpandedTripId(null);
+  }, [selectedTravelRegionId]);
 
   useEffect(() => {
     writeSavedIslandSearches(ISLAND_TRIP_RECENTS_KEY, recentIslandSearches);
@@ -378,7 +481,6 @@ export default function IslandTripScreen() {
 
       setDetailIslandOverride(island);
       setFocusedTripId(null);
-      setDetailSearchKeyword('');
       setActiveDetailTab(tab);
       setActiveSection('detail');
       addRecentIsland(island);
@@ -406,6 +508,7 @@ export default function IslandTripScreen() {
     setDetailIslandOverride(null);
     setFocusedTripId(trip.id);
     setActiveDetailTab(nextTab);
+    setPendingDetailScroll(true);
     setCurrentIsland({
       islandName: trip.islandName,
       provinceName: trip.island?.provinceName,
@@ -419,25 +522,27 @@ export default function IslandTripScreen() {
       departureTime: trip.firstDeparture,
       source: 'island-trip'
     });
-    moveToSection('detail');
   };
 
   const selectTripType = (type: TripType) => {
     const guide = tripTypeGuides[type];
-    const recommendedTrip = recommendations.find((trip) => trip.tripTypes.includes(type));
 
     setDetailIslandOverride(null);
     setSelectedType(type);
     setActiveDetailTab(guide.nextTab);
-    setFocusedTripId(recommendedTrip?.id ?? null);
+    setFocusedTripId(null);
   };
 
-  const selectDetailIsland = (island: IslandSummary) => {
-    setDetailIslandOverride(island);
+  const selectRecommendedIsland = (island: RecommendedIsland) => {
+    const detailIsland = island.matchedIsland ?? createSearchIsland(island.islandName, {
+      provinceName: island.provinceName,
+      cityName: island.cityName
+    });
+
+    setDetailIslandOverride(detailIsland);
     setFocusedTripId(null);
-    setDetailSearchKeyword('');
     setActiveDetailTab('basic');
-    addRecentIsland(island);
+    addRecentIsland(detailIsland);
     moveToSection('detail');
   };
 
@@ -447,11 +552,12 @@ export default function IslandTripScreen() {
 
     setSubmittedUnifiedKeyword(keyword);
     setUnifiedSearchVisible(true);
+    setActiveSection('detail');
     addRecentKeyword(keyword);
   };
 
   const openUnifiedSearchForDetail = () => {
-    const keyword = (detailIslandName ?? detailSearchKeyword).trim();
+    const keyword = (detailIslandName ?? '').trim();
     if (keyword.length < 2) return;
 
     setUnifiedSearchKeyword(keyword);
@@ -469,7 +575,8 @@ export default function IslandTripScreen() {
     setFocusedTripId(null);
     setActiveDetailTab(result.tab);
     setUnifiedSearchVisible(false);
-    moveToSection('detail');
+    setActiveSection('detail');
+    setPendingDetailScroll(true);
   };
 
   const addRecentIsland = (island: IslandSummary) => {
@@ -559,65 +666,24 @@ export default function IslandTripScreen() {
 
   return (
     <Screen
-      title="섬여행"
-      subtitle="오늘 운항하는 배편을 기준으로 지금 갈 수 있는 섬과 여행 코스를 추천합니다."
+      title="섬찾기"
+      subtitle="섬 하나를 검색하고, 배편·예보·지도·숙박·식당·캠핑·사진 정보를 이어서 확인합니다."
       mascotSource={require('../../assets/mascot/boogi_bg6.png')}
       scrollRef={scrollViewRef}
     >
       <MascotBanner
         eyebrow="ISLAND TRIP"
-        title="배편 기준으로 오늘 갈 섬을 고릅니다"
-        description="가까운 출발항과 운항 후보를 먼저 확인하고, 여행 유형에 맞는 섬·코스·안전 체크를 함께 보여드립니다."
+        title="찾고 싶은 섬을 먼저 이해합니다"
+        description="검색어로 관련 섬을 고르고, 선택한 섬의 기본정보와 배편, 예보, 지도, 숙박, 식당, 캠핑, 사진을 한 화면에서 연결합니다."
         imageSource={require('../../assets/mascot/boogi-routes.png')}
         tone="mint"
       />
 
-      <View style={styles.regionPanel}>
-        <View style={styles.sectionHeader}>
-          <View style={styles.regionTitleCopy}>
-            <Text style={styles.eyebrow}>조회 권역</Text>
-            <Text style={styles.regionPanelTitle}>예보 권역으로 섬여행 추천 좁히기</Text>
-            <Text style={styles.regionPanelText}>예보와 같은 권역을 선택하면 오늘 갈 수 있는 섬과 통합검색 맥락을 맞춰 보여줍니다.</Text>
-          </View>
-          <Waves color={colors.primary} size={22} />
-        </View>
-        <View style={styles.regionChipGrid}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setSelectedTravelRegionId(null)}
-            style={[styles.regionChip, selectedTravelRegionId === null ? styles.regionChipSelected : null]}
-          >
-            <Text style={[styles.regionChipText, selectedTravelRegionId === null ? styles.regionChipTextSelected : null]}>전체</Text>
-          </Pressable>
-          {travelRegions.slice(0, 8).map((region) => {
-            const selected = selectedTravelRegionId === region.id;
-
-            return (
-              <Pressable
-                key={region.id}
-                accessibilityRole="button"
-                onPress={() => {
-                  setSelectedTravelRegionId(region.id);
-                  setUnifiedSearchKeyword(region.label);
-                }}
-                style={[styles.regionChip, selected ? styles.regionChipSelected : null]}
-              >
-                <Text style={[styles.regionChipText, selected ? styles.regionChipTextSelected : null]} numberOfLines={1}>
-                  {region.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        {selectedTravelRegion ? <Text style={styles.regionPanelText}>{selectedTravelRegion.sourceNote}</Text> : null}
-      </View>
-
-      {(activeSection === 'detail' || activeSection === 'saved') ? (
       <View style={styles.unifiedSearchPanel}>
         <View style={styles.sectionHeader}>
           <View>
             <Text style={styles.eyebrow}>통합검색</Text>
-            <Text style={styles.sectionTitle}>섬·관광지·식당·숙소 한 번에 찾기</Text>
+            <Text style={styles.sectionTitle}>섬 이름, 관광지, 식당, 숙소 한 번에 찾기</Text>
           </View>
           <Search color={colors.primary} size={22} />
         </View>
@@ -627,7 +693,7 @@ export default function IslandTripScreen() {
             value={unifiedSearchKeyword}
             onChangeText={setUnifiedSearchKeyword}
             onSubmitEditing={runUnifiedSearch}
-            placeholder="섬 이름, 관광지, 식당, 숙소 검색"
+            placeholder="예: 가거도, 울릉도, 백령도"
             placeholderTextColor={colors.muted}
             returnKeyType="search"
             style={styles.unifiedSearchInput}
@@ -642,9 +708,16 @@ export default function IslandTripScreen() {
           </Pressable>
         </View>
       </View>
-      ) : null}
 
-      {(activeSection === 'detail' || activeSection === 'saved') ? (
+      <RecommendedRegionPanel
+        regions={islandTravelRegions}
+        selectedRegionId={selectedRecommendedRegion?.id ?? null}
+        islands={recommendedIslandsQuery.data ?? []}
+        loading={recommendedIslandsQuery.isLoading || islandsQuery.isLoading}
+        onSelectRegion={setSelectedRecommendedRegionId}
+        onSelectIsland={selectRecommendedIsland}
+      />
+
       <IslandQuickPanel
         expanded={isQuickPanelExpanded}
         favorites={favoriteIslands}
@@ -654,13 +727,12 @@ export default function IslandTripScreen() {
         onRemoveFavorite={removeFavoriteIsland}
         onRemoveRecent={removeRecentIsland}
       />
-      ) : null}
 
       <View style={styles.subMenuPanel}>
         <View style={styles.sectionHeader}>
           <View>
-            <Text style={styles.eyebrow}>섬여행 메뉴</Text>
-            <Text style={styles.subMenuTitle}>원하는 정보를 바로 확인하세요</Text>
+            <Text style={styles.eyebrow}>섬찾기 메뉴</Text>
+            <Text style={styles.subMenuTitle}>검색한 섬을 중심으로 확인하세요</Text>
           </View>
           <Compass color={colors.primary} size={22} />
         </View>
@@ -680,6 +752,23 @@ export default function IslandTripScreen() {
               </Pressable>
             );
           })}
+          <Link
+            href={{
+              pathname: '/islands',
+              params: {
+                mode: 'map',
+                ...(detailIslandName ? { islandName: detailIslandName } : {}),
+                ...(detailIsland?.provinceName ? { provinceName: detailIsland.provinceName } : {}),
+                ...(detailIsland?.cityName ? { cityName: detailIsland.cityName } : {})
+              }
+            }}
+            asChild
+          >
+            <Pressable accessibilityRole="button" style={styles.subMenuItem}>
+              <Text style={styles.subMenuItemLabel}>섬지도</Text>
+              <Text style={styles.subMenuItemDescription}>지도에서 보기</Text>
+            </Pressable>
+          </Link>
         </View>
       </View>
 
@@ -689,74 +778,141 @@ export default function IslandTripScreen() {
         <View style={styles.sectionHeader}>
           <View>
             <Text style={styles.eyebrow}>지금 갈 수 있는 섬</Text>
-            <Text style={styles.sectionTitle}>오늘 {departurePort}항에서 출발 가능</Text>
+            <Text style={styles.sectionTitle}>
+              {selectedTravelRegion ? `${selectedTravelRegion.label} 권역 출발 가능` : '전체 권역 출발 가능'}
+            </Text>
           </View>
           <Text style={styles.todayBadge}>{today}</Text>
         </View>
-        <Text style={styles.sectionDescription}>첫 배와 마지막 배, 운항상태를 기준으로 당일 이동 가능성을 먼저 판단합니다.</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-          {defaultDeparturePorts.map((port) => {
-            const selected = departurePort === port;
+        <Text style={styles.sectionDescription}>
+          {selectedTravelRegion
+            ? `${selectedTravelRegion.label} 권역의 출발 가능한 항구와 오늘 운항 후보를 기준으로 보여줍니다.`
+            : '전체 권역의 출발 가능한 항구와 오늘 운항 후보를 기준으로 보여줍니다.'}
+        </Text>
+        <View style={styles.availableFilterGroup}>
+          <Text style={styles.availableFilterTitle}>출발 가능 항구</Text>
+          <View style={styles.badgeChipGrid}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setAvailableDepartureFilter('ALL')}
+              style={[styles.badgeChip, availableDepartureFilter === 'ALL' ? styles.badgeChipSelected : null]}
+            >
+              <Anchor color={availableDepartureFilter === 'ALL' ? colors.surface : colors.primary} size={14} />
+              <Text style={[styles.badgeChipText, availableDepartureFilter === 'ALL' ? styles.badgeChipTextSelected : null]}>
+                전체 {regionDeparturePorts.length}
+              </Text>
+            </Pressable>
+            {regionDeparturePorts.map((port) => {
+              const selected = availableDepartureFilter === port;
 
-            return (
-              <Pressable
-                key={port}
-                accessibilityRole="button"
-                onPress={() => setDeparturePort(port)}
-                style={[styles.portChip, selected && styles.portChipSelected]}
-              >
-                <Anchor color={selected ? colors.surface : colors.primary} size={15} />
-                <Text style={[styles.portChipText, selected && styles.portChipTextSelected]}>{port}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+              return (
+                <Pressable
+                  key={port}
+                  accessibilityRole="button"
+                  onPress={() => setAvailableDepartureFilter(port)}
+                  style={[styles.badgeChip, selected ? styles.badgeChipSelected : null]}
+                >
+                  <Text style={[styles.badgeChipText, selected ? styles.badgeChipTextSelected : null]}>{port}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+        <View style={styles.availableFilterGroup}>
+          <Text style={styles.availableFilterTitle}>여행 유형별 후보</Text>
+          <View style={styles.badgeChipGrid}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setAvailableTypeFilter('ALL')}
+              style={[styles.badgeChip, availableTypeFilter === 'ALL' ? styles.badgeChipSelected : null]}
+            >
+              <Text style={[styles.badgeChipText, availableTypeFilter === 'ALL' ? styles.badgeChipTextSelected : null]}>
+                전체 {recommendations.length}
+              </Text>
+            </Pressable>
+            {tripTypes.map((type) => {
+              const selected = availableTypeFilter === type.id;
+              const count = availableTypeCounts[type.id] ?? 0;
+
+              return (
+                <Pressable
+                  key={type.id}
+                  accessibilityRole="button"
+                  onPress={() => setAvailableTypeFilter(type.id)}
+                  style={[styles.badgeChip, selected ? styles.badgeChipSelected : null]}
+                >
+                  <Text style={[styles.badgeChipText, selected ? styles.badgeChipTextSelected : null]}>
+                    {type.label} {count}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recommendationStrip}>
-        {visibleRecommendations.length === 0 ? (
+      <View style={styles.availableList}>
+        {isAvailableLoading ? <Text style={styles.travelInfoEmpty}>권역의 운항 후보를 불러오는 중입니다.</Text> : null}
+        {isAvailableError ? <Text style={styles.travelInfoEmpty}>운항 후보를 불러오지 못했습니다. 시간표 API 상태를 확인해 주세요.</Text> : null}
+        {!isAvailableLoading && visibleRecommendations.length === 0 ? (
           <View style={styles.emptyWideCard}>
             <Text style={styles.travelInfoItemTitle}>오늘 조회 가능한 섬 후보가 없습니다.</Text>
-            <Text style={styles.travelInfoItemDescription}>운항 API 결과가 들어오면 실제 운항 후보만 표시됩니다. 다른 출발항을 선택하거나 시간표에서 직접 검색해 주세요.</Text>
+            <Text style={styles.travelInfoItemDescription}>선택한 예보 권역과 출발항 기준으로 운항 후보가 없습니다. 전체 권역 또는 다른 유형을 선택해 주세요.</Text>
           </View>
         ) : null}
         {visibleRecommendations.map((trip) => {
           const focused = primaryTrip?.id === trip.id;
+          const expanded = expandedTripId === trip.id;
 
           return (
-          <Pressable
-            key={trip.id}
-            accessibilityRole="button"
-            onPress={() => focusTrip(trip)}
-            style={[styles.tripCard, focused && styles.tripCardFocused]}
-          >
-            <View style={styles.tripCardHeader}>
-              <View style={styles.tripIconBox}>
-                <Image source={require('../../assets/mascot/boogi_bg6.png')} style={styles.tripIcon} resizeMode="contain" />
+            <View key={trip.id} style={[styles.tripAccordion, focused ? styles.tripAccordionFocused : null]}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  focusTrip(trip);
+                  setExpandedTripId((id) => (id === trip.id ? null : trip.id));
+                }}
+                style={styles.tripAccordionHeader}
+              >
+                <View style={styles.tripIconBox}>
+                  <Image source={require('../../assets/mascot/boogi_bg6.png')} style={styles.tripIcon} resizeMode="contain" />
+                </View>
+                <View style={styles.tripAccordionCopy}>
+                  <Text style={styles.tripName} numberOfLines={1}>{trip.islandName}</Text>
+                  <Text style={styles.tripRoute} numberOfLines={1}>
+                    {trip.departurePortName} 출발 · {trip.routeName}
+                  </Text>
+                </View>
+                <View style={styles.tripAccordionSide}>
+                  <StatusPill label={statusLabel[trip.status]} tone={statusTone[trip.status]} />
+                  <Text style={styles.tripAccordionToggle}>{expanded ? '접기' : '펼치기'}</Text>
+                </View>
+              </Pressable>
+              <View style={styles.tripTags}>
+                {trip.tripTypes.map((type) => (
+                  <Text key={type} style={styles.tripTag}>
+                    {tripTypeText[type]}
+                  </Text>
+                ))}
               </View>
-              <StatusPill label={statusLabel[trip.status]} tone={statusTone[trip.status]} />
+              {expanded ? (
+                <View style={styles.tripAccordionBody}>
+                  <View style={styles.tripMetaGrid}>
+                    <MiniStat label="첫 배" value={trip.firstDeparture ?? '확인'} />
+                    <MiniStat label="막배" value={trip.lastDeparture ?? '확인'} />
+                    <MiniStat label="소요" value={trip.durationLabel} />
+                  </View>
+                  <Text style={styles.tripReason}>{getRecommendationReason(trip)}</Text>
+                  <Pressable accessibilityRole="button" onPress={() => focusTrip(trip)} style={styles.tripDetailButton}>
+                    <Text style={styles.tripDetailButtonText}>섬 상세 보기</Text>
+                    <ChevronRight color={colors.primary} size={16} />
+                  </Pressable>
+                </View>
+              ) : null}
             </View>
-            <Text style={styles.tripName}>{trip.islandName}</Text>
-            <Text style={styles.tripRoute} numberOfLines={1}>
-              {trip.departurePortName} 출발 · {trip.routeName}
-            </Text>
-            <View style={styles.tripMetaGrid}>
-              <MiniStat label="첫 배" value={trip.firstDeparture ?? '확인'} />
-              <MiniStat label="막배" value={trip.lastDeparture ?? '확인'} />
-              <MiniStat label="소요" value={trip.durationLabel} />
-            </View>
-            <View style={styles.tripTags}>
-              {trip.tripTypes.slice(0, 3).map((type) => (
-                <Text key={type} style={styles.tripTag}>
-                  {tripTypeText[type]}
-                </Text>
-              ))}
-            </View>
-            <Text style={styles.tripReason}>{getRecommendationReason(trip)}</Text>
-          </Pressable>
           );
         })}
-      </ScrollView>
+      </View>
       </>
       ) : null}
 
@@ -808,7 +964,12 @@ export default function IslandTripScreen() {
             <MiniStat label="우선 확인" value={tripTypeText[selectedType]} />
           </View>
 
-          <PurposeRecommendationPanel selectedType={selectedType} trips={typeMatchedTrips} travelInfo={travelInfo} />
+          <PurposeRecommendationPanel
+            selectedType={selectedType}
+            trips={typeMatchedTrips}
+            travelInfo={travelInfo}
+            onSelectTrip={(trip) => focusTrip(trip, selectedTypeGuide.nextTab)}
+          />
           <PurposeChecklistPanel selectedType={selectedType} trip={primaryTrip} travelInfo={travelInfo} forecast={detailForecastQuery.data} />
 
           <View style={styles.typeGuideGroup}>
@@ -865,7 +1026,7 @@ export default function IslandTripScreen() {
       </View>
       ) : null}
 
-      {activeSection === 'detail' ? (
+      {(activeSection === 'detail' || ((activeSection === 'available' || activeSection === 'types') && Boolean(focusedTripId || detailIslandOverride))) ? (
       <View style={styles.detailPanel} onLayout={registerSection('detail')}>
         <View style={styles.sectionHeader}>
           <View>
@@ -874,54 +1035,21 @@ export default function IslandTripScreen() {
           </View>
           <MapPin color={colors.primary} size={22} />
         </View>
+        {activeSection === 'available' || activeSection === 'types' ? (
+          <Text style={styles.inlineDetailNotice}>
+            선택한 섬의 상세 정보를 아래에서 바로 확인할 수 있어요.
+          </Text>
+        ) : null}
         <Text style={styles.detailDescription}>
           {detailIslandName
-            ? `${detailIslandName}의 기본정보, 배편, 관광지, 캠핑·차박, 숙박·펜션, 식당, 갯벌, 안전정보와 관광사진을 함께 확인합니다.`
-            : '오늘 운항 후보를 불러오면 섬별 상세 여행 정보를 연결합니다.'}
+            ? `${detailIslandName}의 기본정보, 배편, 관광·체험, 걷기·트레킹, 해양레저, 맛집·시장, 숙박, 캠핑·야영, 갯벌·물때 정보를 함께 확인합니다.`
+            : '통합검색이나 아래 검색창에서 섬을 찾고 관련 섬 목록에서 하나를 선택해 주세요.'}
         </Text>
-        <IslandDetailSummary trip={detailIslandOverride ? null : primaryTrip} island={detailIsland} travelInfo={travelInfo} isLoading={travelInfoQuery.isFetching} />
-        <View style={styles.detailSearchPanel}>
-          <View style={styles.detailSearchBox}>
-            <Search color={colors.muted} size={18} />
-            <TextInput
-              value={detailSearchKeyword}
-              onChangeText={setDetailSearchKeyword}
-              placeholder="다른 섬 검색"
-              placeholderTextColor={colors.muted}
-              returnKeyType="search"
-              style={styles.detailSearchInput}
-            />
-          </View>
-          {detailIslandOverride ? (
-            <Pressable accessibilityRole="button" onPress={() => setDetailIslandOverride(null)} style={styles.detailResetButton}>
-              <Text style={styles.detailResetText}>추천섬으로</Text>
-            </Pressable>
-          ) : null}
-        </View>
-        {detailSearchKeyword.trim().length >= 2 ? (
-          <View style={styles.detailSearchResults}>
-            {detailSearchQuery.isFetching ? <Text style={styles.travelInfoEmpty}>섬 정보를 검색하는 중입니다.</Text> : null}
-            {!detailSearchQuery.isFetching && detailSearchResults.length === 0 ? (
-              <Text style={styles.travelInfoEmpty}>검색된 섬이 없습니다. 다른 이름으로 검색해 주세요.</Text>
-            ) : null}
-            {detailSearchResults.slice(0, 5).map((island) => (
-              <Pressable key={island.id} accessibilityRole="button" onPress={() => selectDetailIsland(island)} style={styles.detailSearchItem}>
-                <View style={styles.detailSearchItemCopy}>
-                  <Text style={styles.detailSearchItemTitle} numberOfLines={1}>
-                    {island.islandName}
-                  </Text>
-                  <Text style={styles.detailSearchItemMeta} numberOfLines={1}>
-                    {[island.provinceName, island.cityName, island.address].filter(Boolean).join(' · ') || '도서 기본정보'}
-                  </Text>
-                </View>
-                <Text style={styles.typeSuggestionAction}>보기</Text>
-              </Pressable>
-            ))}
-          </View>
-        ) : null}
         <View style={styles.detailTabs}>
           {travelDetailTabs.map((tab) => {
             const selected = activeDetailTab === tab.key;
+            const count = getTravelDetailTabCount(tab.key, travelInfo, detailIslandOverride ? null : primaryTrip);
+            const label = count === null ? tab.label : `${tab.label}(${count}건)`;
 
             return (
               <Pressable
@@ -930,19 +1058,10 @@ export default function IslandTripScreen() {
                 onPress={() => setActiveDetailTab(tab.key)}
                 style={[styles.detailTab, selected && styles.detailTabSelected]}
               >
-                <Text style={[styles.detailTabText, selected && styles.detailTabTextSelected]}>{tab.label}</Text>
+                <Text style={[styles.detailTabText, selected && styles.detailTabTextSelected]}>{label}</Text>
               </Pressable>
             );
           })}
-        </View>
-        <View style={styles.travelSourceRow}>
-          <Text style={styles.travelSourceText}>{travelInfoQuery.isFetching ? '여행 API를 불러오는 중' : travelInfo?.sourceSummary.tourism ?? '관광정보 연결 준비'}</Text>
-          <Text style={styles.travelSourceText}>{travelInfo?.sourceSummary.lodging ?? '숙박정보 연결 준비'}</Text>
-          <Text style={styles.travelSourceText}>{travelInfo?.sourceSummary.pension ?? '펜션정보 연결 준비'}</Text>
-          <Text style={styles.travelSourceText}>{travelInfo?.sourceSummary.food ?? '식당정보 연결 준비'}</Text>
-          <Text style={styles.travelSourceText}>{travelInfo?.sourceSummary.mudFlat ?? '갯벌정보 연결 준비'}</Text>
-          <Text style={styles.travelSourceText}>{travelInfo?.sourceSummary.safety ?? '안전정보 연결 준비'}</Text>
-          <Text style={styles.travelSourceText}>{travelInfo?.sourceSummary.photo ?? '사진정보 연결 준비'}</Text>
         </View>
         <View style={styles.travelInfoGrid}>
           <TravelDetailContent
@@ -960,9 +1079,28 @@ export default function IslandTripScreen() {
           />
         </View>
         <View style={styles.nextActionPanel}>
+          {detailIslandName ? (
+            <Link
+              href={{
+                pathname: '/islands',
+                params: {
+                  mode: 'my-trip',
+                  islandName: detailIslandName,
+                  ...(detailIsland?.provinceName ? { provinceName: detailIsland.provinceName } : {}),
+                  ...(detailIsland?.cityName ? { cityName: detailIsland.cityName } : {})
+                }
+              }}
+              asChild
+            >
+              <Pressable accessibilityRole="button" style={styles.primaryActionButton}>
+                <Compass color={colors.surface} size={17} />
+                <Text style={styles.primaryActionText}>섬코스 만들기</Text>
+              </Pressable>
+            </Link>
+          ) : null}
           <Pressable accessibilityRole="button" onPress={toggleSavedTrip} style={styles.secondaryActionButton}>
             <Bookmark color={isPrimaryTripSaved ? colors.warning : colors.primary} size={17} />
-            <Text style={styles.secondaryActionText}>{isPrimaryTripSaved ? '저장 해제' : '여행 저장'}</Text>
+            <Text style={styles.secondaryActionText}>{isPrimaryTripSaved ? '저장 해제' : '섬 저장'}</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
@@ -978,16 +1116,25 @@ export default function IslandTripScreen() {
               <Text style={styles.secondaryActionText}>섬지도</Text>
             </Pressable>
           </Link>
-          <Link href={{ pathname: '/forecast', params: { locationName: detailIslandName ?? primaryTrip?.islandName ?? '' } }} asChild>
+          <Link
+            href={{
+              pathname: '/forecast',
+              params: {
+                locationName: detailIslandName ?? primaryTrip?.islandName ?? '',
+                ...(detailForecastLocation ? { locationId: detailForecastLocation.id } : {})
+              }
+            }}
+            asChild
+          >
             <Pressable accessibilityRole="button" style={styles.secondaryActionButton}>
               <Waves color={colors.primary} size={17} />
               <Text style={styles.secondaryActionText}>예보 보기</Text>
             </Pressable>
           </Link>
           <Link href="/schedule" asChild>
-            <Pressable accessibilityRole="button" style={styles.primaryActionButton}>
-              <CalendarDays color={colors.surface} size={17} />
-              <Text style={styles.primaryActionText}>시간표 보기</Text>
+            <Pressable accessibilityRole="button" style={styles.secondaryActionButton}>
+              <CalendarDays color={colors.primary} size={17} />
+              <Text style={styles.secondaryActionText}>시간표 보기</Text>
             </Pressable>
           </Link>
         </View>
@@ -1114,6 +1261,78 @@ function MiniStat({ label, value }: { label: string; value: string }) {
     <View style={styles.miniStat}>
       <Text style={styles.miniStatLabel}>{label}</Text>
       <Text style={styles.miniStatValue}>{value}</Text>
+    </View>
+  );
+}
+
+function RecommendedRegionPanel({
+  regions,
+  selectedRegionId,
+  islands,
+  loading,
+  onSelectRegion,
+  onSelectIsland
+}: {
+  regions: IslandTravelRegionOption[];
+  selectedRegionId: string | null;
+  islands: RecommendedIsland[];
+  loading: boolean;
+  onSelectRegion: (regionId: string) => void;
+  onSelectIsland: (island: RecommendedIsland) => void;
+}) {
+  const selectedRegion = regions.find((region) => region.id === selectedRegionId) ?? regions[0] ?? null;
+
+  return (
+    <View style={styles.recommendedRegionPanel}>
+      <View style={styles.sectionHeader}>
+        <View>
+          <Text style={styles.eyebrow}>추천권역으로 찾기</Text>
+          <Text style={styles.sectionTitle}>{selectedRegion ? `${selectedRegion.name} 추천섬` : '여행 권역별 추천섬'}</Text>
+        </View>
+        <MapPin color={colors.primary} size={22} />
+      </View>
+      <Text style={styles.sectionDescription}>섬마스터의 여행 권역 기준으로 추천섬 마스터를 묶어 보여줍니다.</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recommendedRegionStrip}>
+        {regions.map((region) => {
+          const selected = region.id === selectedRegion?.id;
+          return (
+            <Pressable
+              key={region.id}
+              accessibilityRole="button"
+              onPress={() => onSelectRegion(region.id)}
+              style={[styles.recommendedRegionChip, selected ? styles.recommendedRegionChipSelected : null]}
+            >
+              <Text style={[styles.recommendedRegionChipText, selected ? styles.recommendedRegionChipTextSelected : null]}>{region.name}</Text>
+              <Text style={[styles.recommendedRegionChipCount, selected ? styles.recommendedRegionChipTextSelected : null]}>{region.count}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+      {loading ? <Text style={styles.travelInfoEmpty}>추천섬 목록을 불러오고 있습니다.</Text> : null}
+      {!loading && islands.length === 0 ? <Text style={styles.travelInfoEmpty}>선택한 권역에 등록된 추천섬이 아직 없습니다.</Text> : null}
+      <View style={styles.recommendedIslandGrid}>
+        {islands.map((island) => (
+          <Pressable key={island.id} accessibilityRole="button" onPress={() => onSelectIsland(island)} style={styles.recommendedIslandCard}>
+            {island.photoUrls[0] ? <Image source={{ uri: island.photoUrls[0] }} style={styles.recommendedIslandImage} /> : null}
+            <View style={styles.recommendedIslandCopy}>
+              <Text style={styles.recommendedIslandTitle}>{island.displayName ?? island.islandName}</Text>
+              <Text style={styles.recommendedIslandMeta} numberOfLines={1}>
+                {[island.matchedIsland?.travelRegionName, island.address, island.contact].filter(Boolean).join(' · ')}
+              </Text>
+              <Text style={styles.recommendedIslandDescription} numberOfLines={3}>
+                {island.description}
+              </Text>
+              <View style={styles.recommendedIslandTags}>
+                {island.highlights.slice(0, 3).map((highlight) => (
+                  <Text key={highlight} style={styles.recommendedIslandTag}>
+                    {highlight}
+                  </Text>
+                ))}
+              </View>
+            </View>
+          </Pressable>
+        ))}
+      </View>
     </View>
   );
 }
@@ -1325,16 +1544,37 @@ function UnifiedSearchModal({
                             <View style={styles.searchDetailPanel}>
                               <View style={styles.searchDetailBadgeRow}>
                                 <Text style={styles.searchDetailBadge}>{item.group}</Text>
+                                {item.badge ? <Text style={styles.searchDetailBadge}>{item.badge}</Text> : null}
                                 <Text style={styles.quickSectionText}>{item.island?.islandName ?? keyword}</Text>
                               </View>
                               <Text style={styles.searchDetailTitle}>{item.title}</Text>
                               <Text style={styles.searchDetailDescription}>{item.description || '상세 설명이 없습니다.'}</Text>
+                              {item.address ? (
+                                <View style={styles.searchDetailMetaBox}>
+                                  <Text style={styles.searchDetailMetaLabel}>주소</Text>
+                                  <Text style={styles.searchDetailMetaValue}>{item.address}</Text>
+                                </View>
+                              ) : null}
+                              {item.source ? (
+                                <View style={styles.searchDetailMetaBox}>
+                                  <Text style={styles.searchDetailMetaLabel}>출처</Text>
+                                  <Text style={styles.searchDetailMetaValue}>{item.source}</Text>
+                                </View>
+                              ) : null}
                               <View style={styles.searchDetailMetaBox}>
                                 <Text style={styles.searchDetailMetaLabel}>연결 섬</Text>
                                 <Text style={styles.searchDetailMetaValue}>
                                   {[item.island?.islandName, item.island?.provinceName, item.island?.cityName].filter(Boolean).join(' · ') || '검색어 기준'}
                                 </Text>
                               </View>
+                              {item.detailRows?.map((row) =>
+                                row.value ? (
+                                  <View key={`${item.id}-${row.label}`} style={styles.searchDetailMetaBox}>
+                                    <Text style={styles.searchDetailMetaLabel}>{row.label}</Text>
+                                    <Text style={styles.searchDetailMetaValue}>{row.value}</Text>
+                                  </View>
+                                ) : null
+                              )}
                               <Pressable accessibilityRole="button" onPress={() => onSelect(item)} style={styles.primaryActionButton}>
                                 <Text style={styles.primaryActionText}>섬상세에서 보기</Text>
                               </Pressable>
@@ -1356,10 +1596,10 @@ function UnifiedSearchModal({
 function UnifiedSearchProgress({ keyword }: { keyword: string }) {
   const steps = [
     { title: '섬 기본정보', description: `${keyword || '검색어'} 도서정보를 조회합니다.` },
-    { title: '관광지·사진', description: '한국관광공사 관광정보와 관광사진을 확인합니다.' },
-    { title: '식당·숙박·펜션', description: '행정안전부 식당, 숙박, 관광펜션 데이터를 대조합니다.' },
-    { title: '캠핑·차박·갯벌', description: '고캠핑, 문화 캠핑, 야영장, 갯벌 정보를 묶어 봅니다.' },
-    { title: '안전·여행지수', description: '바다여행지수와 안전 체크 데이터를 반영합니다.' }
+    { title: '관광·걷기·전망', description: '관광, 걷기, 둘레길, 노을, 등대, 전망 데이터를 나눠 봅니다.' },
+    { title: '맛집·숙박·시장', description: '식당, 숙박, 전통시장, 수산시장, 특산물 데이터를 대조합니다.' },
+    { title: '해변·레저·갯벌', description: '해수욕장, 해양레저, 낚시, 갯벌, 물때 정보를 묶어 봅니다.' },
+    { title: '편의·안전정보', description: '화장실, 샤워장, 주차장, 예보와 안전 체크 데이터를 반영합니다.' }
   ];
 
   return (
@@ -1413,59 +1653,28 @@ function UnifiedSearchFailure({ keyword, onRetry, onClose }: { keyword: string; 
   );
 }
 
+function getTravelDetailTabCount(
+  tab: TravelDetailTab,
+  travelInfo: Awaited<ReturnType<typeof fetchIslandTravelInfo>> | undefined,
+  trip: TripRecommendation | null
+) {
+  if (!travelInfo && tab !== 'ferry') return null;
+  if (tab === 'ferry') return trip ? 1 : 0;
+  if (tab === 'attractions') return travelInfo?.attractions.length ?? 0;
+  if (tab === 'camping') return travelInfo?.camps.length ?? 0;
+  if (tab === 'lodging') return (travelInfo?.lodgings.length ?? 0) + (travelInfo?.pensions.length ?? 0);
+  if (tab === 'food') return travelInfo?.restaurants.length ?? 0;
+  if (tab === 'mudflat') return travelInfo?.mudFlats.length ?? 0;
+  if (tab === 'facilities') return travelInfo?.otherFacilities.length ?? 0;
+  if (tab === 'safety') return travelInfo?.safetyIndexes.length ?? 0;
+  return null;
+}
+
 function CourseStep({ time, title }: { time: string; title: string }) {
   return (
     <View style={styles.courseStep}>
       <Text style={styles.courseTime}>{time}</Text>
       <Text style={styles.courseTitle}>{title}</Text>
-    </View>
-  );
-}
-
-function IslandDetailSummary({
-  trip,
-  island,
-  travelInfo,
-  isLoading
-}: {
-  trip: TripRecommendation | null;
-  island: IslandSummary | null;
-  travelInfo: Awaited<ReturnType<typeof fetchIslandTravelInfo>> | undefined;
-  isLoading: boolean;
-}) {
-  const lodgingCount = (travelInfo?.lodgings.length ?? 0) + (travelInfo?.pensions.length ?? 0);
-  const stats = [
-    { label: '배편', value: trip?.firstDeparture ? `${trip.firstDeparture} 첫 배` : '확인 필요' },
-    { label: '관광지', value: isLoading ? '조회 중' : `${travelInfo?.attractions.length ?? 0}곳` },
-    { label: '숙박·펜션', value: isLoading ? '조회 중' : `${lodgingCount}곳` },
-    { label: '식당', value: isLoading ? '조회 중' : `${travelInfo?.restaurants.length ?? 0}곳` },
-    { label: '캠핑·차박', value: isLoading ? '조회 중' : `${travelInfo?.camps.length ?? 0}곳` },
-    { label: '사진', value: isLoading ? '조회 중' : `${travelInfo?.photos.length ?? 0}장` }
-  ];
-
-  return (
-    <View style={styles.detailSummaryCard}>
-      <View style={styles.detailSummaryHeader}>
-        <View style={styles.detailSummaryIcon}>
-          <Compass color={colors.primary} size={18} />
-        </View>
-        <View style={styles.detailSummaryCopy}>
-          <Text style={styles.detailSummaryTitle} numberOfLines={1}>
-            {island?.islandName ?? trip?.islandName ?? '섬 상세 요약'}
-          </Text>
-          <Text style={styles.detailSummaryMeta} numberOfLines={1}>
-            {[island?.provinceName, island?.cityName, trip?.durationLabel].filter(Boolean).join(' · ') || 'API 결과를 기준으로 요약합니다.'}
-          </Text>
-        </View>
-      </View>
-      <View style={styles.detailSummaryGrid}>
-        {stats.map((item) => (
-          <View key={item.label} style={styles.detailSummaryStat}>
-            <Text style={styles.detailSummaryLabel}>{item.label}</Text>
-            <Text style={styles.detailSummaryValue} numberOfLines={1}>{item.value}</Text>
-          </View>
-        ))}
-      </View>
     </View>
   );
 }
@@ -1669,12 +1878,16 @@ function TravelDetailContent({
             title: trip ? `${trip.departurePortName} 출발 ${trip.islandName}` : detailName,
             badge: trip ? '운항 후보' : '도서정보',
             address: island?.address,
-            source: island?.source === 'VWORLD' ? 'VWorld 도서정보' : null,
+            source: getIslandSourceLabel(island?.source),
             description: trip
               ? `${trip.routeName} · ${trip.durationLabel}`
               : [island?.provinceName, island?.cityName, island?.address].filter(Boolean).join(' · ') || '도서 기본정보를 조회했습니다.',
             detailRows: [
               { label: '지역', value: [island?.provinceName, island?.cityName].filter(Boolean).join(' ') },
+              { label: '도서구분', value: island?.islandTypeName },
+              { label: '연결유형', value: island?.connectionTypeName },
+              { label: '다리/제방', value: island?.bridgeNames },
+              { label: '예보 권역', value: island?.forecastLocationName },
               { label: '항로', value: trip?.routeName },
               { label: '소요시간', value: trip?.durationLabel }
             ]
@@ -1688,7 +1901,9 @@ function TravelDetailContent({
             description: island?.description ?? (trip ? trip.tripTypes.map((type) => tripTypeText[type]).join(', ') : '섬 검색 결과 기준 상세정보'),
             detailRows: [
               { label: '추천 유형', value: trip?.tripTypes.map((type) => tripTypeText[type]).join(', ') },
-              { label: '데이터 출처', value: island?.source === 'VWORLD' ? 'VWorld 도서정보' : '섬 검색 결과' }
+              { label: '법정동코드', value: island?.legalDongCode },
+              { label: '도서고유번호', value: island?.islandUniqueNo },
+              { label: '데이터 출처', value: getIslandSourceLabel(island?.source) ?? '섬 검색 결과' }
             ]
           }
         ]}
@@ -1736,17 +1951,45 @@ function TravelDetailContent({
     );
   }
 
-  if (tab === 'camping' || tab === 'facilities') {
+  if (tab === 'facilities') {
     return (
       <TravelInfoBlock
-        title={tab === 'camping' ? '캠핑·차박' : '편의시설'}
+        title="편의시설"
+        emptyText={getApiStatusMessage(travelInfo, 'facility', '편의시설 정보가 존재하지 않습니다.')}
+        emptyActions={emptyActions}
+        onSelectItem={onSelectItem}
+        items={(travelInfo?.otherFacilities ?? []).slice(0, 6).map((item) => ({
+          id: item.id,
+          tab: 'facilities',
+          group: '편의시설',
+          title: item.name,
+          badge: item.category,
+          address: item.address,
+          tel: item.tel,
+          source: '지자체 인허가 DB',
+          description: [item.category, item.status].filter(Boolean).join(' · ') || '편의시설 정보 확인 필요',
+          detailRows: [
+            { label: '분류', value: item.category },
+            { label: '상태', value: item.status },
+            { label: '전화', value: item.tel },
+            ...(item.detailFields ?? [])
+          ]
+        }))}
+      />
+    );
+  }
+
+  if (tab === 'camping') {
+    return (
+      <TravelInfoBlock
+        title="캠핑·차박"
         emptyText={getApiStatusMessage(travelInfo, 'camping', '캠핑/차박정보가 존재하지 않습니다.')}
         emptyActions={emptyActions}
         onSelectItem={onSelectItem}
         items={(travelInfo?.camps ?? []).slice(0, 4).map((item) => ({
           id: item.id,
           tab,
-          group: tab === 'camping' ? '캠핑·차박' : '편의시설',
+          group: '캠핑·차박',
           title: item.name,
           badge: campStatusLabel(item.status),
           address: item.address,
@@ -2116,11 +2359,13 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 function PurposeRecommendationPanel({
   selectedType,
   trips,
-  travelInfo
+  travelInfo,
+  onSelectTrip
 }: {
   selectedType: TripType;
   trips: TripRecommendation[];
   travelInfo: Awaited<ReturnType<typeof fetchIslandTravelInfo>> | undefined;
+  onSelectTrip?: (trip: TripRecommendation) => void;
 }) {
   const summaries = buildPurposeRecommendationSummaries(selectedType, trips, travelInfo);
 
@@ -2135,7 +2380,15 @@ function PurposeRecommendationPanel({
       </View>
       <View style={styles.purposeCardList}>
         {summaries.map((summary) => (
-          <View key={summary.id} style={styles.purposeCard}>
+          <Pressable
+            key={summary.id}
+            accessibilityRole={summary.trip ? 'button' : undefined}
+            disabled={!summary.trip}
+            onPress={() => {
+              if (summary.trip) onSelectTrip?.(summary.trip);
+            }}
+            style={styles.purposeCard}
+          >
             <View style={styles.purposeCardTop}>
               <View style={styles.purposeScoreBadge}>
                 <Text style={styles.purposeScore}>{summary.score}</Text>
@@ -2155,7 +2408,7 @@ function PurposeRecommendationPanel({
                 </Text>
               ))}
             </View>
-          </View>
+          </Pressable>
         ))}
       </View>
     </View>
@@ -2261,15 +2514,7 @@ function buildPurposeRecommendationSummaries(
   const infoScore = calculateTravelInfoScore(selectedType, travelInfo);
 
   if (baseTrips.length === 0) {
-    return [
-      {
-        id: `fallback-${selectedType}`,
-        title: `${tripTypeText[selectedType]} 후보 확인 필요`,
-        score: Math.max(45, infoScore),
-        description: '오늘 운항 후보가 없거나 아직 API 결과가 부족합니다. 섬상세에서 목적별 데이터를 먼저 확인해 주세요.',
-        metrics: buildPurposeMetrics(selectedType, travelInfo, null)
-      }
-    ];
+    return [];
   }
 
   return baseTrips.map((trip, index) => {
@@ -2283,7 +2528,8 @@ function buildPurposeRecommendationSummaries(
       title: trip.islandName,
       score,
       description: `${trip.departurePortName} 출발 · ${trip.durationLabel} · ${statusLabel[trip.status]}`,
-      metrics: buildPurposeMetrics(selectedType, travelInfo, trip)
+      metrics: buildPurposeMetrics(selectedType, travelInfo, trip),
+      trip
     };
   });
 }
@@ -2480,6 +2726,85 @@ function filterTripsByRegion(trips: TripRecommendation[], region: MarineForecast
   });
 }
 
+function buildIslandTravelRegionOptions(islands: IslandSummary[]): IslandTravelRegionOption[] {
+  const counts = new Map<string, IslandTravelRegionOption>();
+  islands.forEach((island) => {
+    if (!island.travelRegionId || !island.travelRegionName) return;
+    const current = counts.get(island.travelRegionId);
+    counts.set(island.travelRegionId, {
+      id: island.travelRegionId,
+      name: island.travelRegionName,
+      count: (current?.count ?? 0) + 1
+    });
+  });
+
+  return [...counts.values()].sort((left, right) => right.count - left.count || left.name.localeCompare(right.name, 'ko-KR'));
+}
+
+function getRegionDeparturePorts(region: MarineForecastLocation | null) {
+  if (!region) return defaultDeparturePorts;
+
+  const mapped = regionDeparturePortMap[region.id];
+  if (mapped?.length) return mapped;
+
+  const keywords = [region.label, region.helper, region.stationName, ...region.aliases].filter(Boolean).join(' ');
+  const matched = defaultDeparturePorts.filter((port) => keywords.includes(port));
+
+  return matched.length ? matched : defaultDeparturePorts;
+}
+
+function findForecastLocationByKeyword(keyword: string | null | undefined, locations: MarineForecastLocation[]) {
+  const normalizedKeyword = normalizeForecastKeyword(keyword);
+  if (!normalizedKeyword) return null;
+
+  return locations
+    .map((location) => ({
+      location,
+      score: getForecastLocationMatchScore(normalizedKeyword, location)
+    }))
+    .filter((candidate) => candidate.score > 0)
+    .sort((a, b) => b.score - a.score)[0]?.location ?? null;
+}
+
+function getForecastLocationMatchScore(normalizedKeyword: string, location: MarineForecastLocation) {
+  const aliases = [location.label, location.helper, location.stationName, ...location.aliases]
+    .map((value) => normalizeForecastKeyword(value))
+    .filter(Boolean);
+
+  return aliases.reduce((best, alias) => {
+    if (normalizedKeyword.includes(alias) || alias.includes(normalizedKeyword)) {
+      const specificityBonus = location.kind === 'ISLAND' ? 0.5 : location.kind === 'PORT' ? 0.25 : 0;
+      return Math.max(best, alias.length + specificityBonus);
+    }
+
+    return best;
+  }, 0);
+}
+
+function normalizeForecastKeyword(value: string | null | undefined) {
+  return value?.replace(/\s/g, '').replace(/항$/g, '').toLowerCase() ?? '';
+}
+
+function countTripsByType(trips: TripRecommendation[]) {
+  return trips.reduce<Record<TripType, number>>(
+    (counts, trip) => {
+      trip.tripTypes.forEach((type) => {
+        counts[type] = (counts[type] ?? 0) + 1;
+      });
+      return counts;
+    },
+    {
+      day: 0,
+      overnight: 0,
+      camping: 0,
+      carcamping: 0,
+      family: 0,
+      leisure: 0,
+      quiet: 0
+    }
+  );
+}
+
 function buildTripRecommendations({
   candidates,
   islands,
@@ -2587,6 +2912,13 @@ function campSourceLabel(source: 'GOCAMPING' | 'CULTURE_CAMPING' | 'LOCAL_CAMPGR
   return null;
 }
 
+function getIslandSourceLabel(source: IslandSummary['source'] | undefined) {
+  if (source === 'LOCAL_ISLAND_MASTER') return '행정안전부 도서지역 데이터';
+  if (source === 'VWORLD') return 'VWorld 도서정보';
+  if (source === 'MOCK') return '데이터 출처 확인 필요';
+  return null;
+}
+
 function getRecommendationReason(trip: TripRecommendation) {
   if (trip.tripTypes.includes('day')) {
     return '첫 배와 마지막 배가 있어 당일 일정으로 검토하기 좋습니다.';
@@ -2606,13 +2938,14 @@ function getRecommendationReason(trip: TripRecommendation) {
 function buildUnifiedSearchResults(
   keyword: string,
   islands: IslandSummary[],
-  travelInfo: Awaited<ReturnType<typeof fetchIslandTravelInfo>>
+  travelInfo: Awaited<ReturnType<typeof fetchIslandTravelInfo>>,
+  travelAssets: TripRecommendationAsset[] = []
 ): UnifiedSearchResult[] {
   const primaryIsland = islands[0] ?? createSearchIsland(keyword);
   const normalizedKeyword = keyword.trim();
   const results: UnifiedSearchResult[] = islands.slice(0, 8).map((island) => ({
     id: `island-${island.id}`,
-    group: '섬',
+    group: '기본정보',
     title: island.islandName,
     description: [island.provinceName, island.cityName, island.address].filter(Boolean).join(' · ') || '도서 기본정보',
     tab: 'basic',
@@ -2630,18 +2963,85 @@ function buildUnifiedSearchResults(
     results.push({ id, group, title, description, tab, island: primaryIsland });
   };
 
-  travelInfo.attractions.forEach((item) => push('관광지', `attraction-${item.id}`, item.title, item.address ?? item.category ?? '관광지 정보', 'attractions'));
+  travelInfo.attractions.forEach((item) => {
+    const mapped = mapTextToUnifiedSearchGroup([item.title, item.category, item.address].filter(Boolean).join(' '));
+    push(mapped.group, `attraction-${item.id}`, item.title, item.address ?? item.category ?? '관광지 정보', mapped.tab);
+  });
   travelInfo.camps.forEach((item) =>
-    push('캠핑·차박', `camp-${item.id}`, item.name, [campStatusLabel(item.status), item.address, item.facilitySummary].filter(Boolean).join(' · '), 'camping')
+    push('캠핑·야영', `camp-${item.id}`, item.name, [campStatusLabel(item.status), item.address, item.facilitySummary].filter(Boolean).join(' · '), 'camping')
   );
-  travelInfo.lodgings.forEach((item) => push('숙박·펜션', `lodging-${item.id}`, item.name, [item.category, item.address, item.tel].filter(Boolean).join(' · '), 'lodging'));
-  travelInfo.pensions.forEach((item) => push('숙박·펜션', `pension-${item.id}`, item.name, ['관광펜션', item.category, item.address, item.tel].filter(Boolean).join(' · '), 'lodging'));
-  travelInfo.restaurants.forEach((item) => push('식당', `food-${item.id}`, item.name, [item.representativeMenu, item.category, item.address].filter(Boolean).join(' · '), 'food'));
-  travelInfo.mudFlats.forEach((item) => push('갯벌', `mudflat-${item.id}`, item.name, [item.areaName, item.experience, item.address].filter(Boolean).join(' · '), 'mudflat'));
-  travelInfo.safetyIndexes.forEach((item) => push('안전·여행지수', `safety-${item.id}`, item.title, [item.score, item.areaName, item.advisory].filter(Boolean).join(' · '), 'safety'));
-  travelInfo.photos.forEach((item) => push('사진', `photo-${item.id}`, item.title, [item.locationName, item.photographer].filter(Boolean).join(' · ') || '관광사진', 'attractions'));
+  travelInfo.lodgings.forEach((item) => push('숙박', `lodging-${item.id}`, item.name, [item.category, item.address, item.tel].filter(Boolean).join(' · '), 'lodging'));
+  travelInfo.pensions.forEach((item) => push('숙박', `pension-${item.id}`, item.name, ['관광펜션', item.category, item.address, item.tel].filter(Boolean).join(' · '), 'lodging'));
+  travelInfo.restaurants.forEach((item) => push('맛집·시장', `food-${item.id}`, item.name, [item.representativeMenu, item.category, item.address].filter(Boolean).join(' · '), 'food'));
+  travelInfo.mudFlats.forEach((item) => push('갯벌·물때', `mudflat-${item.id}`, item.name, [item.areaName, item.experience, item.address].filter(Boolean).join(' · '), 'mudflat'));
+  travelInfo.safetyIndexes.forEach((item) => push('안전정보', `safety-${item.id}`, item.title, [item.score, item.areaName, item.advisory].filter(Boolean).join(' · '), 'safety'));
+  travelInfo.photos.forEach((item) => push('사진·전망', `photo-${item.id}`, item.title, [item.locationName, item.photographer].filter(Boolean).join(' · ') || '관광사진', 'attractions'));
 
-  return results.slice(0, 40);
+  travelAssets.forEach((asset) => {
+    const mapped = mapTravelAssetToUnifiedSearch(asset);
+    if (!matchesUnifiedKeyword([asset.name, asset.address, asset.sourceTitle, asset.travelRegionName, asset.matchedIslandName, ...(asset.tags ?? [])], normalizedKeyword)) return;
+    results.push({
+      id: `travel-asset-${asset.id}`,
+      group: mapped.group,
+      title: asset.name,
+      description: [asset.address, asset.travelRegionName, asset.matchedIslandName, asset.sourceTitle].filter(Boolean).join(' · ') || '수집 여행 데이터',
+      tab: mapped.tab,
+      island: asset.matchedIslandName
+        ? createSearchIsland(asset.matchedIslandName, {
+            provinceName: null,
+            cityName: null,
+            address: asset.address ?? asset.travelRegionName ?? null
+          })
+        : primaryIsland,
+      badge: mapped.badge,
+      address: asset.address,
+      source: asset.sourceTitle,
+      detailRows: [
+        { label: '데이터 유형', value: mapped.badge },
+        { label: '여행권역', value: asset.travelRegionName },
+        { label: '관련 섬', value: asset.matchedIslandName },
+        { label: '수집 키워드', value: asset.sourceKeywords?.join(', ') },
+        { label: '추천 근거', value: asset.reasons.join(' · ') }
+      ]
+    });
+  });
+
+  return uniqueUnifiedSearchResults(results).slice(0, 60);
+}
+
+function mapTravelAssetToUnifiedSearch(asset: TripRecommendationAsset): { group: UnifiedSearchResult['group']; tab: TravelDetailTab; badge: string } {
+  const mapped = mapTextToUnifiedSearchGroup([asset.category, asset.name, asset.sourceTitle, ...(asset.sourceKeywords ?? []), ...(asset.tags ?? [])].filter(Boolean).join(' '));
+  if (asset.category === 'food') return { group: '맛집·시장', tab: 'food', badge: mapped.badge };
+  if (asset.category === 'accommodation') return { group: '숙박', tab: 'lodging', badge: mapped.badge };
+  if (asset.category === 'facility' || asset.category === 'accessibility') return { group: mapped.group, tab: 'facilities', badge: mapped.badge };
+  return mapped;
+}
+
+function mapTextToUnifiedSearchGroup(text: string): { group: UnifiedSearchResult['group']; tab: TravelDetailTab; badge: string } {
+  if (/(여객선|선착장|어항|항구|항만|배편|터미널)/.test(text)) return { group: '배편·선착장', tab: 'ferry', badge: '배편·선착장' };
+  if (/(걷기|산책|둘레길|올레길|탐방로|트레킹|해파랑길|해안길)/.test(text)) return { group: '걷기·트레킹', tab: 'attractions', badge: '걷기·트레킹' };
+  if (/(해변|해수욕|해수욕장|바다|해안)/.test(text)) return { group: '해변·해수욕', tab: 'attractions', badge: '해변·해수욕' };
+  if (/(낚시|마리나|서핑|수상레저|스노클링|요트|카약|해양레저|해양)/.test(text)) return { group: '해양레저', tab: 'mudflat', badge: '해양레저' };
+  if (/(맛집|식당|카페|수산시장|전통시장|시장|해산물|특산물)/.test(text)) return { group: '맛집·시장', tab: 'food', badge: '맛집·시장' };
+  if (/(숙박|모텔|민박|펜션|호텔)/.test(text)) return { group: '숙박', tab: 'lodging', badge: '숙박' };
+  if (/(캠핑|야영|차박)/.test(text)) return { group: '캠핑·야영', tab: 'camping', badge: '캠핑·야영' };
+  if (/(갯벌|해루질|물때)/.test(text)) return { group: '갯벌·물때', tab: 'mudflat', badge: '갯벌·물때' };
+  if (/(화장실|샤워장|주차장|편의시설)/.test(text)) return { group: '편의시설', tab: 'facilities', badge: '편의시설' };
+  if (/(공원|무장애|반려동물)/.test(text)) return { group: '공원·무장애', tab: 'facilities', badge: '공원·무장애' };
+  if (/(축제|공연|행사)/.test(text)) return { group: '축제·행사', tab: 'attractions', badge: '축제·행사' };
+  if (/(노을|일몰|일출|등대|전망대|포토존|사진|viewpoint)/.test(text)) return { group: '사진·전망', tab: 'attractions', badge: '사진·전망' };
+  if (/(안전|여행지수|예보|기상|파고|풍속)/.test(text)) return { group: '안전정보', tab: 'safety', badge: '안전정보' };
+  return { group: '관광·체험', tab: 'attractions', badge: /(체험|어촌|관광|여행)/.test(text) ? '관광·체험' : '수집 데이터' };
+}
+
+function uniqueUnifiedSearchResults(results: UnifiedSearchResult[]) {
+  const seen = new Set<string>();
+  return results.filter((result) => {
+    const key = [result.group, result.title, result.description].join('|');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function matchesUnifiedKeyword(values: Array<string | null | undefined>, keyword: string) {
@@ -2652,7 +3052,23 @@ function matchesUnifiedKeyword(values: Array<string | null | undefined>, keyword
 }
 
 function groupUnifiedResults(results: UnifiedSearchResult[]) {
-  const order: UnifiedSearchResult['group'][] = ['섬', '관광지', '식당', '숙박·펜션', '캠핑·차박', '갯벌', '안전·여행지수', '사진'];
+  const order: UnifiedSearchResult['group'][] = [
+    '기본정보',
+    '배편·선착장',
+    '관광·체험',
+    '걷기·트레킹',
+    '해변·해수욕',
+    '해양레저',
+    '맛집·시장',
+    '숙박',
+    '캠핑·야영',
+    '갯벌·물때',
+    '편의시설',
+    '공원·무장애',
+    '축제·행사',
+    '사진·전망',
+    '안전정보'
+  ];
   return order
     .map((title) => ({ title, items: results.filter((item) => item.group === title) }))
     .filter((group) => group.items.length > 0);
@@ -2706,13 +3122,16 @@ function findIslandBySaved(item: SavedIslandSearch, islands: IslandSummary[]): I
   );
 }
 
-function createSearchIsland(islandName: string): IslandSummary {
+function createSearchIsland(
+  islandName: string,
+  options: { provinceName?: string | null; cityName?: string | null; address?: string | null } = {}
+): IslandSummary {
   return {
     id: `search-${islandName}`,
     islandName,
-    provinceName: null,
-    cityName: null,
-    address: null,
+    provinceName: options.provinceName ?? null,
+    cityName: options.cityName ?? null,
+    address: options.address ?? null,
     latitude: null,
     longitude: null,
     areaSquareMeters: null,
@@ -2890,6 +3309,101 @@ const styles = StyleSheet.create({
     color: colors.surface,
     fontSize: 12,
     fontWeight: '900'
+  },
+  recommendedRegionPanel: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 11,
+    padding: 14
+  },
+  recommendedRegionStrip: {
+    gap: 8,
+    paddingRight: 4
+  },
+  recommendedRegionChip: {
+    alignItems: 'center',
+    backgroundColor: colors.backgroundSoft,
+    borderColor: colors.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 6,
+    minHeight: 34,
+    paddingHorizontal: 12
+  },
+  recommendedRegionChipSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary
+  },
+  recommendedRegionChipText: {
+    color: colors.primaryDark,
+    fontSize: 12,
+    fontWeight: '900'
+  },
+  recommendedRegionChipTextSelected: {
+    color: colors.surface
+  },
+  recommendedRegionChipCount: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '900'
+  },
+  recommendedIslandGrid: {
+    gap: 9
+  },
+  recommendedIslandCard: {
+    backgroundColor: colors.backgroundSoft,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    minHeight: 118,
+    overflow: 'hidden',
+    padding: 10
+  },
+  recommendedIslandImage: {
+    backgroundColor: colors.border,
+    borderRadius: 8,
+    height: 96,
+    width: 96
+  },
+  recommendedIslandCopy: {
+    flex: 1,
+    gap: 5,
+    minWidth: 0
+  },
+  recommendedIslandTitle: {
+    color: colors.navy,
+    fontSize: 15,
+    fontWeight: '900'
+  },
+  recommendedIslandMeta: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '800'
+  },
+  recommendedIslandDescription: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 18
+  },
+  recommendedIslandTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 5
+  },
+  recommendedIslandTag: {
+    backgroundColor: colors.primarySoft,
+    borderRadius: 999,
+    color: colors.primary,
+    fontSize: 10,
+    fontWeight: '900',
+    paddingHorizontal: 7,
+    paddingVertical: 3
   },
   quickPanel: {
     backgroundColor: colors.surface,
@@ -3297,6 +3811,103 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: 12,
     padding: 14
+  },
+  availableFilterGroup: {
+    gap: 8
+  },
+  availableFilterTitle: {
+    color: colors.navy,
+    fontSize: 13,
+    fontWeight: '900'
+  },
+  badgeChipGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7
+  },
+  badgeChip: {
+    alignItems: 'center',
+    backgroundColor: colors.backgroundSoft,
+    borderColor: colors.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 5,
+    minHeight: 34,
+    paddingHorizontal: 10,
+    paddingVertical: 7
+  },
+  badgeChipSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary
+  },
+  badgeChipText: {
+    color: colors.primaryDark,
+    fontSize: 12,
+    fontWeight: '900'
+  },
+  badgeChipTextSelected: {
+    color: colors.surface
+  },
+  availableList: {
+    gap: 10
+  },
+  tripAccordion: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 10,
+    padding: 12
+  },
+  tripAccordionFocused: {
+    borderColor: colors.primary,
+    shadowColor: colors.primary,
+    shadowOffset: { height: 4, width: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 3
+  },
+  tripAccordionHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+    minHeight: 54
+  },
+  tripAccordionCopy: {
+    flex: 1,
+    gap: 3,
+    minWidth: 0
+  },
+  tripAccordionSide: {
+    alignItems: 'flex-end',
+    gap: 5
+  },
+  tripAccordionToggle: {
+    color: colors.primary,
+    fontSize: 11,
+    fontWeight: '900'
+  },
+  tripAccordionBody: {
+    borderTopColor: colors.border,
+    borderTopWidth: 1,
+    gap: 10,
+    paddingTop: 10
+  },
+  tripDetailButton: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: colors.primarySoft,
+    borderRadius: 8,
+    flexDirection: 'row',
+    gap: 4,
+    minHeight: 36,
+    paddingHorizontal: 11
+  },
+  tripDetailButtonText: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '900'
   },
   sectionHeader: {
     alignItems: 'center',
@@ -3758,6 +4369,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 20
   },
+  inlineDetailNotice: {
+    backgroundColor: colors.primarySoft,
+    borderRadius: 8,
+    color: colors.primaryDark,
+    fontSize: 12,
+    fontWeight: '900',
+    lineHeight: 18,
+    paddingHorizontal: 10,
+    paddingVertical: 8
+  },
   detailSummaryCard: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
@@ -3864,6 +4485,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: 7,
     padding: 9
+  },
+  relatedIslandHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 2
+  },
+  relatedIslandTitle: {
+    color: colors.navy,
+    fontSize: 13,
+    fontWeight: '900'
+  },
+  relatedIslandCount: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '900'
   },
   detailSearchItem: {
     alignItems: 'center',

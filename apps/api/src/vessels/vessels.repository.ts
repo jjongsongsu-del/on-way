@@ -62,16 +62,20 @@ export class VesselsRepository {
   async findByName(vesselName: string) {
     await this.ensureTable();
     const normalized = normalizeVesselName(vesselName);
+    const compactName = vesselName.replace(/\s+/g, '');
     const rows = await this.prisma.$queryRawUnsafe<VesselDetailRow[]>(
       `
         SELECT * FROM vessel_detail
         WHERE REPLACE(REPLACE(vessel_name, ' ', ''), '호', '') = $1
            OR REPLACE(vessel_name, ' ', '') = $2
+           OR REPLACE(REPLACE(vessel_name, ' ', ''), '호', '') LIKE $3
+           OR $1 LIKE CONCAT('%', REPLACE(REPLACE(vessel_name, ' ', ''), '호', ''), '%')
         ORDER BY collected_at DESC
         LIMIT 1
       `,
       normalized,
-      vesselName.replace(/\s+/g, '')
+      compactName,
+      `%${normalized}%`
     );
 
     return rows[0] ? toVesselDetail(rows[0]) : null;
@@ -143,7 +147,11 @@ export class VesselsRepository {
 }
 
 function normalizeVesselName(value: string) {
-  return value.replace(/\s+/g, '').replace(/호$/, '');
+  return value
+    .replace(/\([^)]*\)/g, '')
+    .replace(/\[[^\]]*\]/g, '')
+    .replace(/\s+/g, '')
+    .replace(/호$/, '');
 }
 
 function toVesselDetail(row: VesselDetailRow): VesselDetail {

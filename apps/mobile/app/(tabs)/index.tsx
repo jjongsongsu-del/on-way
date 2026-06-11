@@ -10,7 +10,13 @@ import { fetchIslandTravelInfo } from '@/api/island-trips';
 import { fetchMarineForecast } from '@/api/forecasts';
 import { fetchScheduleCandidates, type ScheduleCandidate } from '@/api/schedules';
 import { useAppSelectionContext } from '@/state/app-selection-context';
-import { buildInterestAlerts, type InterestAlert } from '@/state/interest-alerts';
+import {
+  getUnreadNotificationCount,
+  useAppNotifications,
+  type AppNotification,
+  type AppNotificationCategory,
+  type AppNotificationSeverity
+} from '@/state/app-notifications';
 import { colors } from '@/theme/colors';
 
 const HOME_RECENTS_KEY = 'badagil:island-trip:recents';
@@ -70,6 +76,7 @@ type HomeSummaryPillProps = {
   label: string;
   value: string;
   color: string;
+  isLoading?: boolean;
 };
 
 const recommendedIsland: HomeIslandTarget = {
@@ -92,7 +99,9 @@ const recommendedRoute: HomeRouteTarget = {
 
 export default function HomeScreen() {
   const appContext = useAppSelectionContext();
-  const interestAlerts = useMemo(() => buildInterestAlerts(appContext), [appContext]);
+  const notificationSnapshot = useAppNotifications();
+  const unreadNotificationCount = getUnreadNotificationCount(notificationSnapshot.items);
+  const homeNotifications = useMemo(() => pickHomeNotifications(notificationSnapshot.items), [notificationSnapshot.items]);
   const homeIsland = useMemo(() => contextIslandToHomeTarget(appContext.island) ?? readHomeRecentIsland() ?? recommendedIsland, [appContext.island]);
   const today = useMemo(() => formatDate(new Date()), []);
   const homeRoute = useMemo(() => contextRouteToHomeTarget(appContext.route) ?? readHomeRoute() ?? recommendedRoute, [appContext.route]);
@@ -178,10 +187,16 @@ export default function HomeScreen() {
             <Text style={styles.identityText}>오늘의 바닷길을 확인해요</Text>
           </View>
         </View>
-        <Pressable style={styles.bellButton}>
-          <Bell color={colors.primary} size={21} />
-          <View style={styles.badge} />
-        </Pressable>
+        <Link href="/profile" asChild>
+          <Pressable style={styles.bellButton}>
+            <Bell color={colors.primary} size={21} />
+            {unreadNotificationCount > 0 ? (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}</Text>
+              </View>
+            ) : null}
+          </Pressable>
+        </Link>
       </View>
 
       <InfoCard title="오늘 내 항로" eyebrow={homeRoute.source === 'favorite' ? '즐겨찾기 기준' : homeRoute.source === 'recent' ? '최근 조회 기준' : '추천 항로'}>
@@ -201,11 +216,11 @@ export default function HomeScreen() {
           <View style={styles.routeStats}>
             <View style={styles.routeStat}>
               <Text style={styles.routeStatLabel}>다음 배</Text>
-              <Text style={styles.routeStatValue}>{routeCandidatesQuery.isFetching ? '조회 중' : nextCandidate?.departureTime ?? '확인 필요'}</Text>
+              <LoadingValue value={routeCandidatesQuery.isFetching ? '조회 중' : nextCandidate?.departureTime ?? '확인 필요'} isLoading={routeCandidatesQuery.isFetching} />
             </View>
             <View style={styles.routeStat}>
               <Text style={styles.routeStatLabel}>예보</Text>
-              <Text style={styles.routeStatValue}>{routeForecastQuery.isFetching ? '조회 중' : forecastRiskLabel(routeForecastQuery.data?.riskLevel)}</Text>
+              <LoadingValue value={routeForecastQuery.isFetching ? '조회 중' : forecastRiskLabel(routeForecastQuery.data?.riskLevel)} isLoading={routeForecastQuery.isFetching} />
             </View>
           </View>
           <View style={styles.routeActionRow}>
@@ -225,21 +240,36 @@ export default function HomeScreen() {
         </View>
       </InfoCard>
 
-      <InfoCard title="관심 알림" eyebrow="개인화">
-        <View style={styles.interestAlertList}>
-          {interestAlerts.slice(0, 3).map((alert) => (
-            <View key={alert.id} style={styles.interestAlertItem}>
-              <View style={[styles.interestAlertDot, { backgroundColor: interestToneColor(alert.tone) }]} />
-              <View style={styles.interestAlertCopy}>
-                <Text style={styles.interestAlertTitle}>{alert.title}</Text>
-                <Text style={styles.secondary}>{alert.description}</Text>
+      <InfoCard title="오늘 확인할 알림" eyebrow={`${unreadNotificationCount}개 읽지 않음`}>
+        <View style={styles.notificationSummaryList}>
+          {homeNotifications.map((notification) => (
+            <View key={notification.id} style={styles.notificationSummaryItem}>
+              <View style={[styles.notificationSummaryDot, { backgroundColor: notificationSeverityColor(notification.severity) }]} />
+              <View style={styles.notificationSummaryCopy}>
+                <View style={styles.notificationSummaryTitleRow}>
+                  <Text style={styles.notificationSummaryTitle} numberOfLines={2}>
+                    {notification.title}
+                  </Text>
+                  <Text style={[styles.notificationSummaryCategory, { color: notificationSeverityColor(notification.severity) }]}>
+                    {notificationCategoryLabel(notification.category)}
+                  </Text>
+                </View>
+                <Text style={styles.secondary} numberOfLines={2}>
+                  {notification.message}
+                </Text>
               </View>
             </View>
           ))}
+          {homeNotifications.length === 0 ? (
+            <View style={styles.notificationEmptyPanel}>
+              <Bell color={colors.muted} size={20} />
+              <Text style={styles.secondary}>알림함에서 알림 생성을 누르면 항로와 예보 상태를 홈에서도 바로 확인할 수 있습니다.</Text>
+            </View>
+          ) : null}
         </View>
         <Link href="/profile" asChild>
           <Pressable style={styles.linkButton}>
-            <Text style={styles.linkButtonText}>알림 센터에서 관리하기</Text>
+            <Text style={styles.linkButtonText}>알림함 보기</Text>
             <ChevronRight color={colors.primary} size={18} />
           </Pressable>
         </Link>
@@ -270,12 +300,13 @@ export default function HomeScreen() {
       </Link>
 
       <View style={styles.summaryStrip}>
-        <HomeSummaryPill icon={Images} label="사진" value={travelInfoQuery.isFetching ? '조회 중' : `${galleryItems.length}장`} color={colors.primary} />
+        <HomeSummaryPill icon={Images} label="사진" value={travelInfoQuery.isFetching ? '조회 중' : `${galleryItems.length}장`} color={colors.primary} isLoading={travelInfoQuery.isFetching} />
         <HomeSummaryPill
           icon={MapPin}
           label="관광지"
           value={travelInfoQuery.isFetching ? '조회 중' : `${travelInfoQuery.data?.attractions.length ?? 0}곳`}
           color={colors.mint}
+          isLoading={travelInfoQuery.isFetching}
         />
         <HomeSummaryPill icon={Clock3} label="다음 행동" value="섬상세" color={colors.coral} />
       </View>
@@ -365,7 +396,18 @@ export default function HomeScreen() {
   );
 }
 
-function HomeSummaryPill({ icon: Icon, label, value, color }: HomeSummaryPillProps) {
+function LoadingValue({ value, isLoading }: { value: string; isLoading: boolean }) {
+  return (
+    <View style={styles.loadingValueRow}>
+      <Text style={styles.routeStatValue} numberOfLines={1}>
+        {value}
+      </Text>
+      {isLoading ? <ActivityIndicator color={colors.primary} size="small" /> : null}
+    </View>
+  );
+}
+
+function HomeSummaryPill({ icon: Icon, label, value, color, isLoading = false }: HomeSummaryPillProps) {
   return (
     <View style={styles.summaryPill}>
       <View style={[styles.summaryIcon, { backgroundColor: `${color}16` }]}>
@@ -373,9 +415,12 @@ function HomeSummaryPill({ icon: Icon, label, value, color }: HomeSummaryPillPro
       </View>
       <View style={styles.summaryCopy}>
         <Text style={styles.summaryLabel}>{label}</Text>
-        <Text style={styles.summaryValue} numberOfLines={1}>
-          {value}
-        </Text>
+        <View style={styles.loadingValueRow}>
+          <Text style={styles.summaryValue} numberOfLines={1}>
+            {value}
+          </Text>
+          {isLoading ? <ActivityIndicator color={color} size="small" /> : null}
+        </View>
       </View>
     </View>
   );
@@ -463,11 +508,22 @@ function checkToneColor(tone: HomeCheckItem['tone']) {
   return colors.primary;
 }
 
-function interestToneColor(tone: InterestAlert['tone']) {
-  if (tone === 'danger') return colors.danger;
-  if (tone === 'warning') return colors.warning;
-  if (tone === 'good') return colors.mint;
+function pickHomeNotifications(items: AppNotification[]) {
+  return [...items].sort((a, b) => Number(Boolean(a.readAt)) - Number(Boolean(b.readAt)) || b.createdAt.localeCompare(a.createdAt)).slice(0, 3);
+}
+
+function notificationSeverityColor(severity: AppNotificationSeverity) {
+  if (severity === 'danger') return colors.danger;
+  if (severity === 'warning') return colors.warning;
+  if (severity === 'good') return colors.mint;
   return colors.primary;
+}
+
+function notificationCategoryLabel(category: AppNotificationCategory) {
+  if (category === 'route') return '항로';
+  if (category === 'forecast') return '예보';
+  if (category === 'trip') return '여행';
+  return '안전';
 }
 
 function createIslandTripDetailHref(target: HomeIslandTarget): Href {
@@ -636,13 +692,21 @@ const styles = StyleSheet.create({
     width: 40
   },
   badge: {
+    alignItems: 'center',
     backgroundColor: colors.coral,
-    borderRadius: 5,
-    height: 10,
+    borderRadius: 9,
+    height: 18,
+    justifyContent: 'center',
+    minWidth: 18,
     position: 'absolute',
-    right: 9,
-    top: 8,
-    width: 10
+    right: 4,
+    top: 4
+  },
+  badgeText: {
+    color: colors.surface,
+    fontSize: 10,
+    fontWeight: '900',
+    lineHeight: 13
   },
   searchBox: {
     alignItems: 'center',
@@ -786,8 +850,15 @@ const styles = StyleSheet.create({
   },
   summaryValue: {
     color: colors.navy,
+    flexShrink: 1,
     fontSize: 13,
     fontWeight: '900'
+  },
+  loadingValueRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    minWidth: 0
   },
   routeDashboard: {
     gap: 12
@@ -1023,10 +1094,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '900'
   },
-  interestAlertList: {
+  notificationSummaryList: {
     gap: 10
   },
-  interestAlertItem: {
+  notificationSummaryItem: {
     alignItems: 'flex-start',
     backgroundColor: colors.backgroundSoft,
     borderColor: colors.border,
@@ -1036,22 +1107,42 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 11
   },
-  interestAlertDot: {
+  notificationSummaryDot: {
     borderRadius: 6,
     height: 12,
     marginTop: 4,
     width: 12
   },
-  interestAlertCopy: {
+  notificationSummaryCopy: {
     flex: 1,
     gap: 3,
     minWidth: 0
   },
-  interestAlertTitle: {
+  notificationSummaryTitleRow: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: 8
+  },
+  notificationSummaryTitle: {
     color: colors.navy,
+    flex: 1,
     fontSize: 15,
     fontWeight: '900',
     lineHeight: 20
+  },
+  notificationSummaryCategory: {
+    fontSize: 11,
+    fontWeight: '900',
+    lineHeight: 18
+  },
+  notificationEmptyPanel: {
+    alignItems: 'flex-start',
+    backgroundColor: colors.backgroundSoft,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 8,
+    padding: 12
   },
   riskText: {
     color: colors.navy,

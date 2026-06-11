@@ -1305,7 +1305,7 @@ export default function ScheduleScreen() {
       <InfoCard title="운항 일정 검색" eyebrow="서브 조회">
         <View style={styles.weeklySummaryRow}>
           <CalendarRange color={colors.primary} size={22} />
-          <Text style={styles.weeklySummaryText}>기간과 항구 기준을 선택해 출발 또는 도착 일정을 따로 확인합니다.</Text>
+          <Text style={styles.weeklySummaryText}>DB 항구 마스터에서 기준 항구를 선택하고, 실제 운항 일정은 공공 API로 조회합니다.</Text>
         </View>
         <Pressable accessibilityRole="button" onPress={openWeeklyModal} style={({ pressed }) => [styles.outlineButton, pressed ? styles.secondaryButtonPressed : null]}>
           <Text style={styles.outlineButtonText}>일정 조회하기</Text>
@@ -2048,6 +2048,7 @@ function PortSelectModal({
   onSelect: (port: PortOption) => void;
 }) {
   const isDepartureMode = mode === 'departure' || mode === 'weeklyDeparture';
+  const isWeeklyMode = mode === 'weeklyDeparture' || mode === 'weeklyArrival';
   const title = isDepartureMode ? '출발지 선택' : '도착지 선택';
 
   return (
@@ -2078,7 +2079,7 @@ function PortSelectModal({
               <Text style={styles.possibleToggleTitle}>가능지역만 보기</Text>
               <Text style={styles.possibleToggleDescription}>
                 {canUseOnlyPossible
-                  ? `${possibleBasis} 기준으로 실제 연결 가능한 지역만 표시합니다.`
+                  ? `${possibleBasis} 기준으로 DB 항로 마스터의 연결 가능 지역만 표시합니다.`
                   : isDepartureMode
                     ? '도착지를 먼저 선택하면 가능한 출발지만 볼 수 있습니다.'
                     : '출발지를 먼저 선택하면 가능한 도착지만 볼 수 있습니다.'}
@@ -2092,7 +2093,15 @@ function PortSelectModal({
               <Pressable key={port.id} accessibilityRole="button" onPress={() => onSelect(port)} style={styles.routeOptionRow}>
                 <View style={styles.routeOptionMain}>
                   <Text style={styles.routeOptionTitle}>{port.portName}</Text>
-                  <Text style={styles.routeOptionName}>{isDepartureMode ? '운항항로 출발지' : '운항항로 도착지'}</Text>
+                  <Text style={styles.routeOptionName}>
+                    {isWeeklyMode
+                      ? isDepartureMode
+                        ? '운항일정 출발지 기준'
+                        : '운항일정 도착지 기준'
+                      : isDepartureMode
+                        ? '운항항로 출발지'
+                        : '운항항로 도착지'}
+                  </Text>
                 </View>
                 <Check color={colors.primary} size={19} />
               </Pressable>

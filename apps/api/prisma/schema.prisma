@@ -113,6 +113,417 @@ model VesselDetail {
   @@map("vessel_detail")
 }
 
+model IslandMaster {
+  id                 String   @id @default(cuid())
+  islandKey          String   @unique @map("island_key")
+  legalDongCode      String   @map("legal_dong_code")
+  legalDongName      String   @map("legal_dong_name")
+  islandUniqueNo     String   @map("island_unique_no")
+  islandName         String   @map("island_name")
+  islandTypeCode     String?  @map("island_type_code")
+  islandTypeName     String?  @map("island_type_name")
+  connectionTypeCode String?  @map("connection_type_code")
+  connectionTypeName String?  @map("connection_type_name")
+  bridgeCount        Int?     @map("bridge_count")
+  bridgeNames        String?  @map("bridge_names")
+  referenceDate      DateTime @map("reference_date") @db.Date
+  sourceRegionCode   String?  @map("source_region_code")
+  forecastLocationId String?  @map("forecast_location_id")
+  forecastLocationName String? @map("forecast_location_name")
+  forecastMatchType  String?  @map("forecast_match_type")
+  forecastMatchScore Int?     @map("forecast_match_score")
+  travelRegionId     String?  @map("travel_region_id")
+  travelRegionName   String?  @map("travel_region_name")
+  travelRegionMatchType String? @map("travel_region_match_type")
+  travelRegionMatchScore Int? @map("travel_region_match_score")
+  vworldFeatureId    String?  @map("vworld_feature_id")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@index([islandName])
+  @@index([legalDongName])
+  @@index([islandTypeName])
+  @@index([forecastLocationId])
+  @@index([travelRegionId])
+  @@index([vworldFeatureId])
+  @@map("island_master")
+}
+
+model IslandTravelRegionMaster {
+  id                    String   @id
+  version               String   @default("1.0")
+  name                  String
+  group                 String   @map("region_group")
+  description           String?
+  provinceNames         String[] @map("province_names")
+  cityNames             String[] @map("city_names")
+  mainPortNames         String[] @map("main_port_names")
+  aliases               String[]
+  primaryForecastRegionId String? @map("primary_forecast_region_id")
+  forecastRegionIds     String[] @map("forecast_region_ids")
+  centerLatitude        Decimal? @map("center_latitude") @db.Decimal(10, 7)
+  centerLongitude       Decimal? @map("center_longitude") @db.Decimal(10, 7)
+  sortOrder             Int      @map("sort_order")
+  sourceNote            String   @map("source_note")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@index([name])
+  @@index([group])
+  @@index([primaryForecastRegionId])
+  @@map("island_travel_region")
+}
+
+model MarineForecastLocationMaster {
+  id                 String  @id
+  label              String
+  helper             String
+  kind               String
+  aliases            String[]
+  nx                 Int
+  ny                 Int
+  stationCode        String  @map("station_code")
+  stationName        String  @map("station_name")
+  salinityGridCode   String? @map("salinity_grid_code")
+  latitude           Decimal? @db.Decimal(10, 7)
+  longitude          Decimal? @db.Decimal(10, 7)
+  sourceNote         String  @map("source_note")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@index([label])
+  @@map("marine_forecast_location")
+}
+
+model VworldIslandFeature {
+  id                 String   @id
+  islandUniqueNo     String?  @map("island_unique_no")
+  islandName         String   @map("island_name")
+  legalDongCode      String?  @map("legal_dong_code")
+  legalDongName      String?  @map("legal_dong_name")
+  provinceName       String?  @map("province_name")
+  cityName           String?  @map("city_name")
+  latitude           Decimal? @db.Decimal(10, 7)
+  longitude          Decimal? @db.Decimal(10, 7)
+  areaSquareMeters   Decimal? @map("area_square_meters") @db.Decimal(18, 3)
+  coastlineLengthMeters Decimal? @map("coastline_length_meters") @db.Decimal(18, 3)
+  population         Int?
+  raw                Json
+  fetchedAt          DateTime @map("fetched_at")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@index([islandUniqueNo])
+  @@index([islandName])
+  @@index([legalDongCode])
+  @@map("vworld_island_feature")
+}
+
+model FerryRouteMaster {
+  id                String   @id @default(cuid())
+  routeKey          String   @map("route_key")
+  routePairKey      String   @unique @map("route_pair_key")
+  routeName         String   @map("route_name")
+  normalizedRouteName String @map("normalized_route_name")
+  departurePortName String   @map("departure_port_name")
+  arrivalPortName   String   @map("arrival_port_name")
+  stopPortNames     String[] @map("stop_port_names")
+  vesselNames       String[] @map("vessel_names")
+  operatorNames     String[] @map("operator_names")
+  waypointCount     Int      @default(0) @map("waypoint_count")
+  minLatitude       Decimal? @map("min_latitude") @db.Decimal(10, 7)
+  maxLatitude       Decimal? @map("max_latitude") @db.Decimal(10, 7)
+  minLongitude      Decimal? @map("min_longitude") @db.Decimal(10, 7)
+  maxLongitude      Decimal? @map("max_longitude") @db.Decimal(10, 7)
+  source            String
+  referenceDate     DateTime @map("reference_date") @db.Date
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([routeKey])
+  @@index([departurePortName])
+  @@index([arrivalPortName])
+  @@index([routeName])
+  @@map("ferry_route_master")
+}
+
+model FerryPortMaster {
+  id                  String   @id @default(cuid())
+  portKey             String   @unique @map("port_key")
+  portName            String   @map("port_name")
+  normalizedPortName  String   @map("normalized_port_name")
+  routeCount          Int      @default(0) @map("route_count")
+  departureRouteCount Int      @default(0) @map("departure_route_count")
+  arrivalRouteCount   Int      @default(0) @map("arrival_route_count")
+  islandKey           String?  @map("island_key")
+  islandName          String?  @map("island_name")
+  legalDongName       String?  @map("legal_dong_name")
+  forecastLocationId  String?  @map("forecast_location_id")
+  forecastLocationName String? @map("forecast_location_name")
+  source              String
+  referenceDate       DateTime @map("reference_date") @db.Date
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@index([portName])
+  @@index([normalizedPortName])
+  @@index([islandName])
+  @@map("ferry_port_master")
+}
+
+model LicenseLodging {
+  id             String   @id
+  sourceFile     String   @map("source_file")
+  licenseType    String   @map("license_type")
+  managementNo   String?  @map("management_no")
+  placeName      String   @map("place_name")
+  businessStatus String?  @map("business_status")
+  detailStatus   String?  @map("detail_status")
+  categoryName   String?  @map("category_name")
+  roadAddress    String?  @map("road_address")
+  lotAddress     String?  @map("lot_address")
+  phone          String?
+  permitDate     DateTime? @map("permit_date") @db.Date
+  closeDate      DateTime? @map("close_date") @db.Date
+  roomCount      Int?     @map("room_count")
+  koreanRoomCount Int?    @map("korean_room_count")
+  westernRoomCount Int?   @map("western_room_count")
+  breakfastAvailable String? @map("breakfast_available")
+  toiletCount    Int?     @map("toilet_count")
+  x              Decimal? @db.Decimal(14, 7)
+  y              Decimal? @db.Decimal(14, 7)
+  extra          Json?
+  referenceDate  DateTime @map("reference_date") @db.Date
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([placeName])
+  @@index([roadAddress])
+  @@index([lotAddress])
+  @@map("license_lodging")
+}
+
+model LicenseRestaurant {
+  id             String   @id
+  sourceFile     String   @map("source_file")
+  licenseType    String   @map("license_type")
+  managementNo   String?  @map("management_no")
+  placeName      String   @map("place_name")
+  businessStatus String?  @map("business_status")
+  detailStatus   String?  @map("detail_status")
+  categoryName   String?  @map("category_name")
+  hygieneCategory String? @map("hygiene_category")
+  mainFood       String?  @map("main_food")
+  roadAddress    String?  @map("road_address")
+  lotAddress     String?  @map("lot_address")
+  phone          String?
+  homepage       String?
+  permitDate     DateTime? @map("permit_date") @db.Date
+  closeDate      DateTime? @map("close_date") @db.Date
+  facilityScale  Decimal? @map("facility_scale") @db.Decimal(14, 3)
+  x              Decimal? @db.Decimal(14, 7)
+  y              Decimal? @db.Decimal(14, 7)
+  extra          Json?
+  referenceDate  DateTime @map("reference_date") @db.Date
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([placeName])
+  @@index([roadAddress])
+  @@index([lotAddress])
+  @@map("license_restaurant")
+}
+
+model LicenseCamping {
+  id             String   @id
+  sourceFile     String   @map("source_file")
+  licenseType    String   @map("license_type")
+  managementNo   String?  @map("management_no")
+  placeName      String   @map("place_name")
+  businessStatus String?  @map("business_status")
+  detailStatus   String?  @map("detail_status")
+  categoryName   String?  @map("category_name")
+  roadAddress    String?  @map("road_address")
+  lotAddress     String?  @map("lot_address")
+  phone          String?
+  permitDate     DateTime? @map("permit_date") @db.Date
+  closeDate      DateTime? @map("close_date") @db.Date
+  roomCount      Int?     @map("room_count")
+  facilityScale  Decimal? @map("facility_scale") @db.Decimal(14, 3)
+  facilityArea   Decimal? @map("facility_area") @db.Decimal(14, 3)
+  insuranceOrg   String?  @map("insurance_org")
+  environmentName String? @map("environment_name")
+  x              Decimal? @db.Decimal(14, 7)
+  y              Decimal? @db.Decimal(14, 7)
+  extra          Json?
+  referenceDate  DateTime @map("reference_date") @db.Date
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([placeName])
+  @@index([roadAddress])
+  @@index([lotAddress])
+  @@map("license_camping")
+}
+
+model LicenseFacility {
+  id             String   @id
+  sourceFile     String   @map("source_file")
+  licenseType    String   @map("license_type")
+  managementNo   String?  @map("management_no")
+  placeName      String   @map("place_name")
+  categoryName   String?  @map("category_name")
+  roadAddress    String?  @map("road_address")
+  lotAddress     String?  @map("lot_address")
+  phone          String?
+  managerName    String?  @map("manager_name")
+  openHours      String?  @map("open_hours")
+  fee            String?
+  fishSpecies    String?  @map("fish_species")
+  amenities      String?
+  safetyFacilities String? @map("safety_facilities")
+  nearbyAttractions String? @map("nearby_attractions")
+  latitude       Decimal? @db.Decimal(10, 7)
+  longitude      Decimal? @db.Decimal(10, 7)
+  extra          Json?
+  referenceDate  DateTime @map("reference_date") @db.Date
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([placeName])
+  @@index([roadAddress])
+  @@index([lotAddress])
+  @@map("license_facility")
+}
+
+model LicenseMedical {
+  id             String   @id
+  sourceFile     String   @map("source_file")
+  licenseType    String   @map("license_type")
+  managementNo   String?  @map("management_no")
+  placeName      String   @map("place_name")
+  businessStatus String?  @map("business_status")
+  detailStatus   String?  @map("detail_status")
+  categoryName   String?  @map("category_name")
+  medicalType    String?  @map("medical_type")
+  departments    String?
+  roadAddress    String?  @map("road_address")
+  lotAddress     String?  @map("lot_address")
+  phone          String?
+  permitDate     DateTime? @map("permit_date") @db.Date
+  closeDate      DateTime? @map("close_date") @db.Date
+  bedCount       Int?     @map("bed_count")
+  doctorCount    Int?     @map("doctor_count")
+  roomCount      Int?     @map("room_count")
+  x              Decimal? @db.Decimal(14, 7)
+  y              Decimal? @db.Decimal(14, 7)
+  extra          Json?
+  referenceDate  DateTime @map("reference_date") @db.Date
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([placeName])
+  @@index([roadAddress])
+  @@index([lotAddress])
+  @@map("license_medical")
+}
+
+model IslandLicenseMatch {
+  id                  String   @id
+  islandKey           String   @map("island_key")
+  islandName          String   @map("island_name")
+  legalDongName       String?  @map("legal_dong_name")
+  licenseGroup        String   @map("license_group")
+  licenseTable        String   @map("license_table")
+  licenseId           String   @map("license_id")
+  matchType           String   @map("match_type")
+  matchKeyword        String   @map("match_keyword")
+  matchScore          Int      @map("match_score")
+  verified            Boolean  @default(false)
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  @@unique([islandKey, licenseGroup, licenseId])
+  @@index([islandName, licenseGroup])
+  @@index([licenseGroup, licenseId])
+  @@map("island_license_match")
+}
+
+model IslandLicenseKeyword {
+  id                  String   @id
+  islandKey           String   @map("island_key")
+  islandName          String   @map("island_name")
+  legalDongName       String?  @map("legal_dong_name")
+  matchKeyword        String   @map("match_keyword")
+  normalizedKeyword   String   @map("normalized_keyword")
+  sourceMatchCount    Int      @default(0) @map("source_match_count")
+  verified            Boolean  @default(false)
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@unique([islandKey, matchKeyword])
+  @@index([islandName])
+  @@index([legalDongName])
+  @@index([matchKeyword])
+  @@index([normalizedKeyword])
+  @@map("island_license_keyword")
+}
+
+model AddressMaster {
+  id                    String   @id
+  zipCode               String   @map("zip_code")
+  sido                  String
+  sidoEnglish           String?  @map("sido_english")
+  sigungu               String?  @map("sigungu")
+  sigunguEnglish        String?  @map("sigungu_english")
+  eupmyeon              String?  @map("eupmyeon")
+  eupmyeonEnglish       String?  @map("eupmyeon_english")
+  roadNameCode          String?  @map("road_name_code")
+  roadName              String?  @map("road_name")
+  roadNameEnglish       String?  @map("road_name_english")
+  basementFlag          Boolean  @default(false) @map("basement_flag")
+  buildingMainNo        Int?     @map("building_main_no")
+  buildingSubNo         Int?     @map("building_sub_no")
+  buildingManagementNo  String?  @map("building_management_no")
+  bulkDeliveryName      String?  @map("bulk_delivery_name")
+  buildingName          String?  @map("building_name")
+  legalDongCode         String?  @map("legal_dong_code")
+  legalDongName         String?  @map("legal_dong_name")
+  riName                String?  @map("ri_name")
+  administrativeDongName String? @map("administrative_dong_name")
+  mountainFlag          Boolean  @default(false) @map("mountain_flag")
+  lotMainNo             Int?     @map("lot_main_no")
+  eupmyeondongSerialNo  String?  @map("eupmyeondong_serial_no")
+  lotSubNo              Int?     @map("lot_sub_no")
+  oldZipCode            String?  @map("old_zip_code")
+  zipSerialNo           String?  @map("zip_serial_no")
+  fullRoadAddress       String   @map("full_road_address")
+  fullLotAddress        String   @map("full_lot_address")
+  normalizedAddress     String   @map("normalized_address")
+  marineRegionId        String?  @map("marine_region_id")
+  marineRegionName      String?  @map("marine_region_name")
+  marineRegionMatchType String?  @map("marine_region_match_type")
+  marineRegionMatchScore Int?    @map("marine_region_match_score")
+  travelRegionId        String?  @map("travel_region_id")
+  travelRegionName      String?  @map("travel_region_name")
+  travelRegionMatchType String?  @map("travel_region_match_type")
+  travelRegionMatchScore Int?    @map("travel_region_match_score")
+  sourceFile            String   @map("source_file")
+  referenceDate         DateTime @map("reference_date") @db.Date
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@index([zipCode])
+  @@index([sido, sigungu])
+  @@index([eupmyeon])
+  @@index([legalDongCode])
+  @@index([legalDongName])
+  @@index([roadName])
+  @@index([buildingManagementNo])
+  @@index([marineRegionId])
+  @@index([travelRegionId])
+  @@map("address_master")
+}
+
 model SailingSchedule {
   id                String            @id @default(cuid())
   sailingDate       DateTime          @map("sailing_date") @db.Date
@@ -237,6 +648,175 @@ model NotificationEvent {
 
   @@index([userId, eventType])
   @@map("notification_event")
+}
+
+model PublicDataFileDataset {
+  publicDataPk       String    @id @map("public_data_pk")
+  publicDataDetailPk String?   @map("public_data_detail_pk")
+  title              String
+  description        String?
+  organization       String?
+  category           String?
+  serviceType        String?   @map("service_type")
+  formats            String[]  @default([])
+  keywords           String[]  @default([])
+  license            String?
+  detailUrl          String    @map("detail_url")
+  downloadUrl        String?   @map("download_url")
+  downloadAction     String?   @map("download_action")
+  atchFileId         String?   @map("atch_file_id")
+  fileDetailSn       String?   @map("file_detail_sn")
+  originalFileName   String?   @map("original_file_name")
+  fileExtension      String?   @map("file_extension")
+  fileSizeText       String?   @map("file_size_text")
+  viewCount          Int?      @map("view_count")
+  downloadCount      Int?      @map("download_count")
+  modifiedDate       DateTime? @map("modified_date") @db.Date
+  registeredAtSource DateTime? @map("registered_at_source")
+  updatedAtSource    DateTime? @map("updated_at_source")
+  nextUpdateDate     DateTime? @map("next_update_date") @db.Date
+  updateCycle        String?   @map("update_cycle")
+  suitabilityScore   Int       @default(0) @map("suitability_score")
+  islandRelevance    String?   @map("island_relevance")
+  downloadStatus     String    @default("PENDING") @map("download_status")
+  localFilePath      String?   @map("local_file_path")
+  fileSha256         String?   @map("file_sha256")
+  fileSizeBytes      BigInt?   @map("file_size_bytes")
+  downloadedAt       DateTime? @map("downloaded_at")
+  rawMetadata        Json?     @map("raw_metadata")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@index([organization])
+  @@index([modifiedDate])
+  @@index([suitabilityScore])
+  @@index([downloadStatus])
+  @@map("public_data_file_dataset")
+}
+
+model TravelDataSource {
+  publicDataPk      String   @id @map("public_data_pk")
+  title             String
+  organization      String?
+  sourceKeywords    String[] @default([]) @map("source_keywords")
+  formats           String[] @default([])
+  localFilePath     String?  @map("local_file_path")
+  fileSizeBytes     BigInt?  @map("file_size_bytes")
+  columnCount       Int      @default(0) @map("column_count")
+  sampleHeaders     String[] @default([]) @map("sample_headers")
+  capabilities      Json?
+  categories        String[] @default([])
+  styleScores       Json?    @map("style_scores")
+  usabilityScore    Int      @default(0) @map("usability_score")
+  usabilityGrade    String   @default("D") @map("usability_grade")
+  recommendationUse String   @default("metadata-only") @map("recommendation_use")
+  reasons           String[] @default([])
+  cautions          String[] @default([])
+  rawInventory      Json?    @map("raw_inventory")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  assets            TravelAsset[]
+
+  @@index([recommendationUse])
+  @@index([usabilityScore])
+  @@index([organization])
+  @@map("travel_data_source")
+}
+
+model TravelAsset {
+  id                String   @id
+  sourceDatasetPk   String   @map("source_dataset_pk")
+  sourceTitle       String   @map("source_title")
+  sourceFilePath    String?  @map("source_file_path")
+  sourceRowIndex    Int?     @map("source_row_index")
+  name              String
+  category          String?
+  province          String?
+  city              String?
+  legalDongName     String?  @map("legal_dong_name")
+  address           String?
+  latitude          Float?
+  longitude         Float?
+  matchedIslandId   String?  @map("matched_island_id")
+  matchedIslandName String?  @map("matched_island_name")
+  travelRegionId    String?  @map("travel_region_id")
+  travelRegionName  String?  @map("travel_region_name")
+  matchType         String?  @map("match_type")
+  matchScore        Int      @default(0) @map("match_score")
+  tags              String[] @default([])
+  evidence          Json?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  source            TravelDataSource @relation(fields: [sourceDatasetPk], references: [publicDataPk], onDelete: Cascade)
+  matches           TravelAssetMatch[]
+
+  @@index([sourceDatasetPk])
+  @@index([name])
+  @@index([category])
+  @@index([province, city])
+  @@index([travelRegionId])
+  @@index([matchedIslandId])
+  @@index([matchScore])
+  @@map("travel_asset")
+}
+
+model TravelAssetMatch {
+  id               String   @id
+  travelAssetId    String   @map("travel_asset_id")
+  targetType       String   @map("target_type")
+  targetId         String?  @map("target_id")
+  targetName       String?  @map("target_name")
+  matchType        String   @map("match_type")
+  matchScore       Int      @default(0) @map("match_score")
+  evidence         Json?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  asset            TravelAsset @relation(fields: [travelAssetId], references: [id], onDelete: Cascade)
+
+  @@index([travelAssetId])
+  @@index([targetType, targetId])
+  @@index([matchScore])
+  @@map("travel_asset_match")
+}
+
+model RecommendedIsland {
+  id                String   @id
+  islandName        String   @map("island_name")
+  displayName       String?  @map("display_name")
+  provinceName      String?  @map("province_name")
+  cityName          String?  @map("city_name")
+  islandKey         String?  @map("island_key")
+  description       String
+  address           String?
+  contact           String?
+  photoDescription  String?  @map("photo_description")
+  ferrySummary      String?  @map("ferry_summary")
+  trafficInfo       String?  @map("traffic_info")
+  lodgingInfo       String?  @map("lodging_info")
+  foodInfo          String?  @map("food_info")
+  nearbyAttractions String?  @map("nearby_attractions")
+  photoUrls         String[] @default([]) @map("photo_urls")
+  sourceData        Json?    @map("source_data")
+  highlights        String[]
+  tags              String[]
+  travelStyles      String[] @map("travel_styles")
+  sourceTitle       String   @map("source_title")
+  sourceUrl         String   @map("source_url")
+  sourceType        String   @map("source_type")
+  priority          Int      @default(50)
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([islandName])
+  @@index([provinceName, cityName])
+  @@index([sourceType])
+  @@index([priority])
+  @@index([active])
+  @@map("recommended_island")
 }
 
 enum SailingStatusCode {

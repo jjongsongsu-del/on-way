@@ -107,7 +107,16 @@ export type IslandSummary = {
   coastlineLengthMeters: number | null;
   population: number | null;
   description: string | null;
-  source: 'VWORLD' | 'MOCK';
+  islandTypeName?: string | null;
+  connectionTypeName?: string | null;
+  bridgeNames?: string | null;
+  legalDongCode?: string | null;
+  islandUniqueNo?: string | null;
+  forecastLocationId?: string | null;
+  forecastLocationName?: string | null;
+  travelRegionId?: string | null;
+  travelRegionName?: string | null;
+  source: 'VWORLD' | 'MOCK' | 'LOCAL_ISLAND_MASTER';
   updatedAt: string;
 };
 
@@ -169,7 +178,7 @@ export type IslandTravelPension = {
   tel: string | null;
   status: string | null;
   detailFields?: IslandTravelDetailField[];
-  source: 'TOURIST_PENSION' | 'MOCK';
+  source: 'TOURIST_PENSION' | 'LOCAL_PENSION' | 'MOCK';
 };
 
 export type IslandTravelRestaurant = {
@@ -181,7 +190,18 @@ export type IslandTravelRestaurant = {
   representativeMenu: string | null;
   status: string | null;
   detailFields?: IslandTravelDetailField[];
-  source: 'TOURIST_RESTAURANT' | 'MOCK';
+  source: 'TOURIST_RESTAURANT' | 'LOCAL_RESTAURANT' | 'MOCK';
+};
+
+export type IslandTravelFacility = {
+  id: string;
+  name: string;
+  address: string | null;
+  category: string | null;
+  tel: string | null;
+  status: string | null;
+  detailFields?: IslandTravelDetailField[];
+  source: 'LOCAL_FACILITY' | 'MOCK';
 };
 
 export type IslandTravelMudFlat = {
@@ -218,6 +238,7 @@ export type IslandTravelInfo = {
   lodgings: IslandTravelLodging[];
   pensions: IslandTravelPension[];
   restaurants: IslandTravelRestaurant[];
+  otherFacilities: IslandTravelFacility[];
   mudFlats: IslandTravelMudFlat[];
   safetyIndexes: IslandTravelSafetyIndex[];
   photos: IslandTravelPhoto[];
@@ -227,6 +248,7 @@ export type IslandTravelInfo = {
     lodging: string;
     pension: string;
     food: string;
+    facility: string;
     mudFlat: string;
     safety: string;
     photo: string;
@@ -237,11 +259,109 @@ export type IslandTravelInfo = {
     lodging: IslandTravelApiStatus;
     pension: IslandTravelApiStatus;
     food: IslandTravelApiStatus;
+    facility: IslandTravelApiStatus;
     mudFlat: IslandTravelApiStatus;
     safety: IslandTravelApiStatus;
     photo: IslandTravelApiStatus;
   };
   updatedAt: string;
+};
+
+export type TripRecommendationAsset = {
+  id: string;
+  name: string;
+  category: string | null;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  sourceTitle: string;
+  sourceDatasetPk: string;
+  sourceKeywords?: string[];
+  travelRegionId: string | null;
+  travelRegionName: string | null;
+  matchedIslandId: string | null;
+  matchedIslandName: string | null;
+  matchScore: number;
+  recommendationScore: number;
+  tags: string[];
+  reasons: string[];
+};
+
+export type TripRecommendationCourse = {
+  id: string;
+  title: string;
+  summary: string;
+  regionName: string | null;
+  style: string;
+  duration: string | null;
+  totalDistanceKm: number | null;
+  estimatedTravelMinutes: number | null;
+  distanceSummary: string | null;
+  score: number;
+  assets: TripRecommendationAsset[];
+  stops: string[];
+  tags: string[];
+  reasons: string[];
+};
+
+export type TripRecommendationOverview = {
+  query: {
+    regionKind: 'all' | 'travel' | 'forecast' | 'admin' | null;
+    regionId: string | null;
+    regionName: string | null;
+    keyword: string | null;
+    assetId: string | null;
+    travelRegionId: string | null;
+    islandId: string | null;
+    style: string | null;
+    duration: string | null;
+    companions: string | null;
+    transport: string | null;
+    difficulty: string | null;
+    budget: string | null;
+    stayType: string | null;
+    facilities: string[];
+    activities: string[];
+    limit: number;
+  };
+  assets: TripRecommendationAsset[];
+  courses: TripRecommendationCourse[];
+  summary: {
+    totalAssets: number;
+    totalCourses: number;
+    regionNames: string[];
+    categories: Record<string, number>;
+  };
+  updatedAt: string;
+};
+
+export type RecommendedIsland = {
+  id: string;
+  islandName: string;
+  displayName: string | null;
+  provinceName: string | null;
+  cityName: string | null;
+  islandKey: string | null;
+  description: string;
+  address: string | null;
+  contact: string | null;
+  photoDescription: string | null;
+  ferrySummary: string | null;
+  trafficInfo: string | null;
+  lodgingInfo: string | null;
+  foodInfo: string | null;
+  nearbyAttractions: string | null;
+  photoUrls: string[];
+  sourceData: Record<string, unknown> | null;
+  highlights: string[];
+  tags: string[];
+  travelStyles: string[];
+  sourceTitle: string;
+  sourceUrl: string;
+  sourceType: string;
+  priority: number;
+  matchedIsland: IslandSummary | null;
+  photo: IslandTravelPhoto | null;
 };
 
 export type TodayStatusSummary = {

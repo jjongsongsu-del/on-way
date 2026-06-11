@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { IncheonPortApiClient } from './clients/incheon-port-api.client';
 import { KomsaApiClient } from './clients/komsa-api.client';
 import { PublicApiHttpClient } from './clients/public-api-http.client';
+import { TagoShipApiClient } from './clients/tago-ship-api.client';
 import { TourismApiClient } from './clients/tourism-api.client';
 import { VworldIslandApiClient } from './clients/vworld-island-api.client';
 import { MockFerryApiClient } from './mock/mock-ferry-api.client';
@@ -16,6 +17,7 @@ import { RealFerryApiClient } from './real-ferry-api.client';
     VworldIslandApiClient,
     KomsaApiClient,
     IncheonPortApiClient,
+    TagoShipApiClient,
     MockFerryApiClient,
     RealFerryApiClient,
     {
@@ -26,7 +28,7 @@ import { RealFerryApiClient } from './real-ferry-api.client';
         mockClient: MockFerryApiClient,
         realClient: RealFerryApiClient
       ) => {
-        const mode = configService.get<string>('PUBLIC_API_MODE', 'mock');
+        const mode = configService.get<string>('PUBLIC_API_MODE', 'real');
 
         if (mode === 'real' || mode === 'live') {
           return realClient;
@@ -42,6 +44,7 @@ import { RealFerryApiClient } from './real-ferry-api.client';
     TourismApiClient,
     KomsaApiClient,
     IncheonPortApiClient,
+    TagoShipApiClient,
     VworldIslandApiClient,
     RealFerryApiClient
   ]

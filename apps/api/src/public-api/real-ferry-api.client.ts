@@ -12,6 +12,7 @@ import type {
 } from '@badagil/shared';
 import { IncheonPortApiClient } from './clients/incheon-port-api.client';
 import { KomsaApiClient } from './clients/komsa-api.client';
+import { TagoShipApiClient } from './clients/tago-ship-api.client';
 import { extractItems, makeStableId, pickNumber, pickString } from './public-api-response.util';
 import type {
   PublicApiResult,
@@ -20,6 +21,7 @@ import type {
   RouteOption,
   RouteSearchParams,
   ScheduleCandidateSearchParams,
+  ScheduleRouteContext,
   ScheduleSearchCandidate,
   ScheduleSearchParams,
   WeeklyScheduleSearchParams
@@ -31,11 +33,17 @@ type UnknownRecord = Record<string, unknown>;
 export class RealFerryApiClient implements PublicFerryApiClient {
   constructor(
     private readonly komsaClient: KomsaApiClient,
-    private readonly incheonPortClient: IncheonPortApiClient
+    private readonly incheonPortClient: IncheonPortApiClient,
+    private readonly tagoShipClient: TagoShipApiClient
   ) {}
 
   async getPorts(): Promise<PublicApiResult<Port[]>> {
-    const [routes, lineResponse] = await Promise.all([this.getRoutes(), this.komsaClient.getOperationLines()]);
+    const [routes, lineResponse, tagoPortResponse, tagoTerminalResponse] = await Promise.all([
+      this.getRoutes(),
+      this.komsaClient.getOperationLines(),
+      this.tagoShipClient.getPortList().catch(() => null),
+      this.tagoShipClient.getPassengerShipTerminalList().catch(() => null)
+    ]);
     const names = new Set<string>();
 
     routes.data.forEach((route) => {
@@ -43,6 +51,10 @@ export class RealFerryApiClient implements PublicFerryApiClient {
       if (route.arrivalPortName) names.add(route.arrivalPortName);
     });
     extractItems(lineResponse).forEach((item) => {
+      const portName = pickString(item, FIELD_KEYS.stopPortName);
+      if (portName) names.add(portName);
+    });
+    [...extractItems(tagoPortResponse), ...extractItems(tagoTerminalResponse)].forEach((item) => {
       const portName = pickString(item, FIELD_KEYS.stopPortName);
       if (portName) names.add(portName);
     });
@@ -57,7 +69,7 @@ export class RealFerryApiClient implements PublicFerryApiClient {
         longitude: null
       })),
       'KOMSA',
-      'komsa-derived-ports',
+      'komsa+tago-derived-ports',
       'json'
     );
   }
@@ -191,24 +203,31 @@ export class RealFerryApiClient implements PublicFerryApiClient {
   async getScheduleCandidates(
     params: ScheduleCandidateSearchParams
   ): Promise<PublicApiResult<ScheduleSearchCandidate[]>> {
-    const response = await this.komsaClient.getFerryRouteStatus({
-      rlvtYmd: params.date.replace(/\D/g, ''),
-      numOfRows: 1000,
-      psnshpNm: params.vesselName || undefined
-    });
+    const [response, tagoResponse] = await Promise.all([
+      this.komsaClient.getFerryRouteStatus({
+        rlvtYmd: params.date.replace(/\D/g, ''),
+        numOfRows: 1000,
+        psnshpNm: params.vesselName || undefined
+      }),
+      this.getTagoScheduleCandidates(params).catch(() => [])
+    ]);
     const departure = params.departure?.trim() ?? '';
     const arrival = params.arrival?.trim() ?? '';
     const vesselName = params.vesselName?.trim() ?? '';
-    const candidates = extractItems(response)
-      .map((item) => this.toScheduleCandidate(item))
+    const komsaCandidates = extractItems(response)
+      .map((item) => this.toScheduleCandidate(item));
+    const candidates = [...komsaCandidates, ...tagoResponse]
       .filter(
         (candidate) =>
-          (!departure || candidateMatchesDeparture(candidate, departure)) &&
-          (!arrival || candidateMatchesArrival(candidate, arrival)) &&
+          (params.routeContexts?.length
+            ? candidateMatchesAnyRouteContext(candidate, params.routeContexts)
+            : (!departure || candidateMatchesDeparture(candidate, departure)) &&
+              (!arrival || candidateMatchesArrival(candidate, arrival))) &&
           (!vesselName || candidate.vesselName.includes(vesselName))
-      );
+      )
+      .map((candidate) => enrichCandidateWithRouteContext(candidate, params.routeContexts ?? []));
 
-    return this.result(uniqueById(candidates), 'KOMSA', 'komsa-ferry-route-status:candidates', 'json');
+    return this.result(uniqueById(candidates), 'KOMSA', 'komsa+tago-ferry-route-status:candidates', 'json');
   }
 
   async getSchedules(params: ScheduleSearchParams): Promise<PublicApiResult<SailingScheduleSummary[]>> {
@@ -220,14 +239,18 @@ export class RealFerryApiClient implements PublicFerryApiClient {
       rlvtYmd: params.date ? params.date.replace(/\D/g, '') : undefined,
       psnshpNm: params.vesselName
     });
+    const routeContexts = params.routeContexts ?? [];
     const schedules = extractItems(response)
       .map((item) => this.toSchedule(item))
       .filter(
         (schedule) =>
           (!params.date || schedule.sailingDate === params.date) &&
-          (!params.departure || schedule.departurePortName.includes(params.departure)) &&
-          (!params.arrival || schedule.arrivalPortName.includes(params.arrival))
-      );
+          (routeContexts.length
+            ? scheduleMatchesAnyRouteContext(schedule, routeContexts)
+            : (!params.departure || schedule.departurePortName.includes(params.departure)) &&
+              (!params.arrival || schedule.arrivalPortName.includes(params.arrival)))
+      )
+      .map((schedule) => enrichScheduleWithRouteContext(schedule, routeContexts));
 
     return this.result(schedules, 'KOMSA', 'komsa-operation-schedule', 'json');
   }
@@ -245,16 +268,20 @@ export class RealFerryApiClient implements PublicFerryApiClient {
     );
     const departure = params.departure?.trim() ?? '';
     const arrival = params.arrival?.trim() ?? '';
+    const routeContexts = params.routeContexts ?? [];
 
     const schedules = responses
       .flatMap((response) => extractItems(response))
       .map((item) => this.toSchedule(item))
       .filter(
         (schedule) =>
-          (!departure || schedule.departurePortName.includes(departure)) &&
-          (!arrival || schedule.arrivalPortName.includes(arrival)) &&
+          (routeContexts.length
+            ? scheduleMatchesAnyRouteContext(schedule, routeContexts)
+            : (!departure || schedule.departurePortName.includes(departure)) &&
+              (!arrival || schedule.arrivalPortName.includes(arrival))) &&
           (!params.vesselName || (schedule.vesselName ?? '').includes(params.vesselName))
       )
+      .map((schedule) => enrichScheduleWithRouteContext(schedule, routeContexts))
       .sort((a, b) => `${a.sailingDate} ${a.departureTime}`.localeCompare(`${b.sailingDate} ${b.departureTime}`));
 
     return this.result(uniqueById(schedules), 'KOMSA', 'komsa-operation-schedule:weekly', 'json');
@@ -417,6 +444,8 @@ export class RealFerryApiClient implements PublicFerryApiClient {
   private toScheduleCandidate(item: UnknownRecord): ScheduleSearchCandidate {
     const sailingDate = normalizeDate(pickString(item, FIELD_KEYS.sailingDate));
     const departureTime = normalizeTime(pickString(item, FIELD_KEYS.departureTime));
+    const departurePortName = pickString(item, FIELD_KEYS.departurePortName);
+    const arrivalPortName = pickString(item, FIELD_KEYS.arrivalPortName);
     const vesselCode = pickString(item, FIELD_KEYS.vesselCode);
     const vesselName = pickString(item, FIELD_KEYS.vesselName) ?? '';
     const routeCode = pickString(item, FIELD_KEYS.operationRouteCode);
@@ -428,6 +457,8 @@ export class RealFerryApiClient implements PublicFerryApiClient {
       id: makeStableId('schedule-candidate', [sailingDate, departureTime, vesselCode, vesselName, routeCode]),
       sailingDate,
       departureTime,
+      departurePortName,
+      arrivalPortName,
       vesselCode,
       vesselName,
       routeCode,
@@ -436,6 +467,40 @@ export class RealFerryApiClient implements PublicFerryApiClient {
       currentPortName,
       status: normalizeItemSailingStatus(item)
     };
+  }
+
+  private async getTagoScheduleCandidates(params: ScheduleCandidateSearchParams): Promise<ScheduleSearchCandidate[]> {
+    const [departurePortId, arrivalPortId] = await Promise.all([
+      this.findTagoPortId(params.departure),
+      this.findTagoPortId(params.arrival)
+    ]);
+    const response = await this.tagoShipClient.getShipOperationInfoList({
+      depPlandTime: params.date.replace(/\D/g, ''),
+      depPortId: departurePortId ?? undefined,
+      arrPortId: arrivalPortId ?? undefined,
+      depPortNm: params.departure || undefined,
+      arrPortNm: params.arrival || undefined,
+      numOfRows: 1000
+    });
+
+    return extractItems(response)
+      .map((item) => this.toScheduleCandidate(item))
+      .filter((candidate) => candidate.vesselName || candidate.routeName || candidate.departurePortName || candidate.arrivalPortName);
+  }
+
+  private async findTagoPortId(portName?: string) {
+    const normalizedPortName = portName?.trim();
+    if (!normalizedPortName) {
+      return null;
+    }
+
+    const response = await this.tagoShipClient.getPortList({ numOfRows: 1000 });
+    const item = extractItems(response).find((record) => {
+      const name = pickString(record, FIELD_KEYS.stopPortName);
+      return Boolean(name && (name.includes(normalizedPortName) || normalizedPortName.includes(name)));
+    });
+
+    return item ? pickString(item, FIELD_KEYS.portCode) : null;
   }
 
   private toRealtimeTraffic(item: UnknownRecord, observedAt: string): RealtimeTrafficSummary {
@@ -471,21 +536,21 @@ export class RealFerryApiClient implements PublicFerryApiClient {
 }
 
 const FIELD_KEYS = {
-  operationRouteCode: ['oprtRouteCd', 'oprtRtCd', 'routeCd', 'routeCode', 'nvg_seawy_cd'],
+  operationRouteCode: ['oprtRouteCd', 'oprtRtCd', 'routeCd', 'routeCode', 'shipRouteId', 'routeId', 'nvg_seawy_cd'],
   licenseRouteCode: ['lcns_seawy_cd'],
-  operationRouteName: ['oprtRouteNm', 'oprtRtNm', 'routeNm', 'routeName', 'lineNm', 'nvg_seawy_nm'],
+  operationRouteName: ['oprtRouteNm', 'oprtRtNm', 'routeNm', 'routeName', 'shipRouteNm', 'lineNm', 'nvg_seawy_nm'],
   licenseRouteName: ['licnsRouteNm', 'lcncRouteNm', 'licenseRouteNm', 'lcns_seawy_nm'],
-  departurePortName: ['dptrPortNm', 'dptrePortNm', 'depPortNm', 'startPortNm', 'fromPortNm', 'dep_port_nm', 'oport_nm'],
-  arrivalPortName: ['arvlPortNm', 'arrPortNm', 'arrivalPortNm', 'endPortNm', 'toPortNm', 'arr_port_nm', 'dest_nm'],
-  stopPortName: ['clngPortNm', 'portNm', 'trmnlNm', 'stopPortNm', 'portcl_nm'],
-  portCode: ['portCd', 'trmnlCd', 'terminalCd', 'portcl_cd'],
+  departurePortName: ['dptrPortNm', 'dptrePortNm', 'depPortNm', 'depPlandPortNm', 'depPlaceNm', 'startPortNm', 'fromPortNm', 'dep_port_nm', 'oport_nm'],
+  arrivalPortName: ['arvlPortNm', 'arrPortNm', 'arrPlandPortNm', 'arrPlaceNm', 'arrivalPortNm', 'endPortNm', 'toPortNm', 'arr_port_nm', 'dest_nm'],
+  stopPortName: ['clngPortNm', 'portNm', 'portname', 'trmnlNm', 'terminalNm', 'stopPortNm', 'portcl_nm'],
+  portCode: ['portCd', 'portId', 'portid', 'trmnlCd', 'terminalCd', 'portcl_cd'],
   stopSequence: ['seq', 'clngSeq', 'portSeq', 'stopSeq', 'portcl_sn'],
   latitude: ['lat', 'latitude', 'la'],
   longitude: ['lon', 'lng', 'longitude', 'lo'],
-  sailingDate: ['oprtDe', 'sailingDate', 'date', 'schdDate', 'oprt_ymd', 'sail_ymd', 'base_ymd', 'rlvt_ymd'],
-  departureTime: ['dptrTm', 'dptrTime', 'depTime', 'shipDptrTm', 'dptr_tm', 'dep_tm', 'sail_tm'],
-  vesselCode: ['fshipCd', 'shipCd', 'vsslCd', 'vesselCd', 'fship_cd', 'ship_cd', 'vssl_cd', 'psnshp_cd'],
-  vesselName: ['fshipNm', 'shipNm', 'vsslNm', 'vesselNm', 'fship_nm', 'ship_nm', 'vssl_nm', 'psnshp_nm'],
+  sailingDate: ['oprtDe', 'sailingDate', 'date', 'schdDate', 'depPlandTime', 'depPlandDate', 'oprt_ymd', 'sail_ymd', 'base_ymd', 'rlvt_ymd'],
+  departureTime: ['dptrTm', 'dptrTime', 'depTime', 'depPlandTime', 'depPlandTm', 'shipDptrTm', 'dptr_tm', 'dep_tm', 'sail_tm'],
+  vesselCode: ['fshipCd', 'shipCd', 'shipId', 'vsslCd', 'vesselCd', 'fship_cd', 'ship_cd', 'vssl_cd', 'psnshp_cd'],
+  vesselName: ['fshipNm', 'shipNm', 'shipName', 'vsslNm', 'vesselNm', 'fship_nm', 'ship_nm', 'vssl_nm', 'psnshp_nm'],
   passengerCapacity: ['psngrCpcty', 'passengerCapacity', 'psncap', 'psng_cpcty', 'psngr_cpcty'],
   operatorName: ['cmpnyNm', 'operatorNm', 'companyNm', 'cmpny_nm', 'oprtr_nm'],
   status: ['oprtStts', 'oprtStatus', 'status', 'sailingStatus', 'oprt_stts', 'oprt_stts_nm', 'nvg_stts_nm'],
@@ -539,6 +604,8 @@ function toPortOptions(portNames: string[]): PortOption[] {
 
 function candidateMatches(candidate: ScheduleSearchCandidate, keyword: string) {
   return [
+    candidate.departurePortName,
+    candidate.arrivalPortName,
     candidate.vesselName,
     candidate.routeName,
     candidate.licenseRouteName,
@@ -546,7 +613,144 @@ function candidateMatches(candidate: ScheduleSearchCandidate, keyword: string) {
   ].some((value) => (value ?? '').includes(keyword));
 }
 
+function candidateMatchesAnyRouteContext(candidate: ScheduleSearchCandidate, contexts: ScheduleRouteContext[]) {
+  return contexts.some((context) => candidateMatchesRouteContext(candidate, context));
+}
+
+function candidateMatchesRouteContext(candidate: ScheduleSearchCandidate, context: ScheduleRouteContext) {
+  const candidateDeparture = normalizeRouteText(candidate.departurePortName ?? '');
+  const candidateArrival = normalizeRouteText(candidate.arrivalPortName ?? '');
+  const contextDeparture = normalizeRouteText(context.departurePortName);
+  const contextArrival = normalizeRouteText(context.arrivalPortName);
+  const contextStops = context.stopPortNames.map(normalizeRouteText);
+  const hasCandidatePorts = Boolean(candidateDeparture || candidateArrival);
+
+  if (
+    hasCandidatePorts &&
+    (!candidateDeparture || candidateDeparture === contextDeparture) &&
+    (!candidateArrival || candidateArrival === contextArrival)
+  ) {
+    return true;
+  }
+
+  const routeTexts = [candidate.routeName, candidate.licenseRouteName]
+    .filter((value): value is string => Boolean(value))
+    .map(normalizeRouteText);
+  const contextRouteNames = [context.routeName, context.routeKey, context.stopPortNames.join('-')]
+    .filter(Boolean)
+    .map(normalizeRouteText);
+
+  if (
+    routeTexts.some((routeText) =>
+      contextRouteNames.some((contextText) => routeText.includes(contextText) || contextText.includes(routeText))
+    )
+  ) {
+    return true;
+  }
+
+  const vesselMatched = context.vesselNames.some((vesselName) => vesselName && candidate.vesselName.includes(vesselName));
+  if (!vesselMatched) {
+    return false;
+  }
+
+  const currentPortName = normalizeRouteText(candidate.currentPortName ?? '');
+  if (currentPortName && !contextStops.includes(currentPortName)) {
+    return false;
+  }
+
+  const candidateText = normalizeRouteText([
+    candidate.routeName,
+    candidate.licenseRouteName,
+    candidate.currentPortName,
+    candidate.departurePortName,
+    candidate.arrivalPortName
+  ].filter(Boolean).join('-'));
+
+  if (!candidateText) {
+    return true;
+  }
+
+  return [context.departurePortName, context.arrivalPortName].every((portName) => candidateText.includes(normalizeRouteText(portName)));
+}
+
+function enrichCandidateWithRouteContext(candidate: ScheduleSearchCandidate, contexts: ScheduleRouteContext[]) {
+  const context = contexts.find((item) => candidateMatchesRouteContext(candidate, item));
+  if (!context) {
+    return candidate;
+  }
+
+  return {
+    ...candidate,
+    departurePortName: candidate.departurePortName ?? context.departurePortName,
+    arrivalPortName: candidate.arrivalPortName ?? context.arrivalPortName,
+    routeName: candidate.routeName ?? context.routeName,
+    licenseRouteName: candidate.licenseRouteName ?? context.routeName
+  };
+}
+
+function scheduleMatchesAnyRouteContext(schedule: SailingScheduleSummary, contexts: ScheduleRouteContext[]) {
+  return contexts.some((context) => scheduleMatchesRouteContext(schedule, context));
+}
+
+function scheduleMatchesRouteContext(schedule: SailingScheduleSummary, context: ScheduleRouteContext) {
+  const scheduleDeparture = normalizeRouteText(schedule.departurePortName);
+  const scheduleArrival = normalizeRouteText(schedule.arrivalPortName);
+  const contextDeparture = normalizeRouteText(context.departurePortName);
+  const contextArrival = normalizeRouteText(context.arrivalPortName);
+  const contextStops = context.stopPortNames.map(normalizeRouteText);
+  const directPortMatched =
+    (!scheduleDeparture || contextDeparture.includes(scheduleDeparture) || contextStops.includes(scheduleDeparture)) &&
+    (!scheduleArrival || contextArrival.includes(scheduleArrival) || contextStops.includes(scheduleArrival));
+
+  if (directPortMatched) {
+    return true;
+  }
+
+  const vesselName = schedule.vesselName ?? '';
+  const vesselMatched = context.vesselNames.some((name) => name && vesselName.includes(name));
+  if (!vesselMatched) {
+    return false;
+  }
+
+  const scheduleText = normalizeRouteText([
+    schedule.departurePortName,
+    schedule.arrivalPortName,
+    schedule.vesselName
+  ].filter(Boolean).join('-'));
+
+  if (!scheduleText) {
+    return true;
+  }
+
+  return [contextDeparture, contextArrival].every((portName) => scheduleText.includes(portName));
+}
+
+function enrichScheduleWithRouteContext(schedule: SailingScheduleSummary, contexts: ScheduleRouteContext[]) {
+  const context = contexts.find((item) => scheduleMatchesRouteContext(schedule, item));
+  if (!context) {
+    return schedule;
+  }
+
+  return {
+    ...schedule,
+    departurePortName: schedule.departurePortName || context.departurePortName,
+    arrivalPortName: schedule.arrivalPortName || context.arrivalPortName
+  };
+}
+
+function normalizeRouteText(value: string) {
+  return value
+    .replace(/\([^)]*\)/g, '')
+    .replace(/\[[^\]]*\]/g, '')
+    .replace(/\s/g, '')
+    .toLowerCase();
+}
+
 function candidateMatchesDeparture(candidate: ScheduleSearchCandidate, keyword: string) {
+  if (candidate.departurePortName?.includes(keyword)) {
+    return true;
+  }
+
   const [departure] = splitRouteName(candidate.licenseRouteName ?? '');
   if (departure) {
     return departure.includes(keyword);
@@ -556,6 +760,10 @@ function candidateMatchesDeparture(candidate: ScheduleSearchCandidate, keyword: 
 }
 
 function candidateMatchesArrival(candidate: ScheduleSearchCandidate, keyword: string) {
+  if (candidate.arrivalPortName?.includes(keyword)) {
+    return true;
+  }
+
   const [, arrival] = splitRouteName(candidate.licenseRouteName ?? '');
   if (arrival) {
     return arrival.includes(keyword);
@@ -623,7 +831,7 @@ function normalizeDate(value: string | null) {
   }
 
   const digits = value.replace(/\D/g, '');
-  if (digits.length === 8) {
+  if (digits.length >= 8) {
     return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
   }
 
@@ -636,6 +844,10 @@ function normalizeTime(value: string | null) {
   }
 
   const digits = value.replace(/\D/g, '');
+  if (digits.length >= 12) {
+    return `${digits.slice(8, 10)}:${digits.slice(10, 12)}`;
+  }
+
   if (digits.length === 3) {
     return `0${digits.slice(0, 1)}:${digits.slice(1, 3)}`;
   }

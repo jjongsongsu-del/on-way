@@ -1,76 +1,57 @@
-import { Tabs } from 'expo-router';
-import { CalendarDays, Compass, Home, Map, MapPin, Ship, User } from 'lucide-react-native';
+import { Tabs, usePathname } from 'expo-router';
+import { CalendarDays, Compass, Home, Map, Route, Ship, User } from 'lucide-react-native';
+import type { ComponentType } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
+
+type TabItem = {
+  routeName: string;
+  params?: Record<string, string>;
+  label: string;
+  match: string;
+  Icon: ComponentType<{ color: string; size: number; strokeWidth?: number }>;
+};
+
+const tabItems: TabItem[] = [
+  { routeName: 'index', label: '섬똑', match: '/', Icon: Home },
+  { routeName: 'schedule', label: '시간표', match: '/schedule', Icon: CalendarDays },
+  { routeName: 'islands', params: { mode: 'trip' }, label: '섬찾기', match: '/islands:trip', Icon: Compass },
+  { routeName: 'islands', params: { mode: 'my-trip' }, label: '섬코스', match: '/islands:my-trip', Icon: Route },
+  { routeName: 'forecast', label: '예보', match: '/forecast', Icon: Ship },
+  { routeName: 'profile', label: '내정보', match: '/profile', Icon: User }
+];
+
+type TabNavigation = {
+  navigate: (routeName: string, params?: Record<string, string>) => void;
+};
+
+type TabState = {
+  index: number;
+  routes: Array<{
+    name: string;
+    params?: Readonly<object>;
+  }>;
+};
 
 export default function TabLayout() {
   return (
     <Tabs
+      tabBar={({ navigation, state }) => <SeomttokTabBar navigation={navigation} state={state} />}
       screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: '#8a99a6',
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-          elevation: 8,
-          height: 70,
-          paddingBottom: 9,
-          paddingTop: 9,
-          shadowColor: '#12324f',
-          shadowOffset: { height: -8, width: 0 },
-          shadowOpacity: 0.06,
-          shadowRadius: 16
-        },
-        tabBarItemStyle: {
-          borderRadius: 999,
-          marginHorizontal: 4,
-          marginVertical: 6
-        },
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '700',
-          letterSpacing: 0
-        }
+        headerShown: false
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: '섬똑',
-          tabBarIcon: ({ color, size }) => <Home color={color} size={size} />
-        }}
-      />
-      <Tabs.Screen
-        name="schedule"
-        options={{
-          title: '시간표',
-          tabBarIcon: ({ color, size }) => <CalendarDays color={color} size={size} />
-        }}
-      />
-      <Tabs.Screen
-        name="island-trip"
-        options={{
-          title: '섬여행',
-          tabBarIcon: ({ color, size }) => <Compass color={color} size={size} />
-        }}
-      />
-      <Tabs.Screen
-        name="islands"
-        options={{
-          title: '섬지도',
-          tabBarIcon: ({ color, size }) => <MapPin color={color} size={size} />
-        }}
-      />
-      <Tabs.Screen
-        name="forecast"
-        options={{
-          title: '예보',
-          tabBarIcon: ({ color, size }) => <Ship color={color} size={size} />
-        }}
-      />
+      <Tabs.Screen name="index" options={{ title: '섬똑' }} />
+      <Tabs.Screen name="schedule" options={{ title: '시간표' }} />
+      <Tabs.Screen name="island-trip" options={{ title: '섬찾기' }} />
+      <Tabs.Screen name="trip" options={{ href: null, title: '섬찾기' }} />
+      <Tabs.Screen name="islands" options={{ title: '섬지도' }} />
+      <Tabs.Screen name="forecast" options={{ title: '예보' }} />
       <Tabs.Screen
         name="profile"
         options={{
+          href: null,
           title: '내정보',
           tabBarIcon: ({ color, size }) => <User color={color} size={size} />
         }}
@@ -86,3 +67,76 @@ export default function TabLayout() {
     </Tabs>
   );
 }
+
+function SeomttokTabBar({ navigation, state }: { navigation: TabNavigation; state: TabState }) {
+  const pathname = usePathname();
+  const insets = useSafeAreaInsets();
+  const currentRoute = state.routes[state.index];
+  const currentParams = currentRoute?.params as { mode?: unknown } | undefined;
+  const currentMode = currentParams?.mode;
+
+  return (
+    <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom + 12, 26) }]}>
+      {tabItems.map((item) => {
+        const active =
+          item.match === '/'
+            ? pathname === '/'
+            : item.match === '/islands:trip'
+              ? currentRoute?.name === 'islands' && currentMode === 'trip'
+              : item.match === '/islands:my-trip'
+                ? currentRoute?.name === 'islands' && currentMode === 'my-trip'
+                : pathname.startsWith(item.match);
+        const color = active ? colors.primary : '#8a99a6';
+        const Icon = item.Icon;
+
+        return (
+          <Pressable
+            key={item.label}
+            accessibilityRole="button"
+            accessibilityState={active ? { selected: true } : undefined}
+            accessibilityLabel={item.label}
+            onPress={() => navigation.navigate(item.routeName, item.params)}
+            style={styles.tabItem}
+          >
+            <Icon color={color} size={22} strokeWidth={active ? 2.8 : 2.4} />
+            <Text style={[styles.tabLabel, { color }]} numberOfLines={1}>
+              {item.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  tabBar: {
+    minHeight: 84,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.surface,
+    shadowColor: '#12324f',
+    shadowOffset: { height: -8, width: 0 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 8
+  },
+  tabItem: {
+    flex: 1,
+    minHeight: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    paddingHorizontal: 1
+  },
+  tabLabel: {
+    maxWidth: '100%',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0
+  }
+});

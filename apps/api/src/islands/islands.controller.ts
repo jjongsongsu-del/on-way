@@ -16,8 +16,8 @@ export class IslandsController {
 
   @Get('features')
   @ApiOkResponse({ description: 'Island markers from VWorld WFS filtered by bbox' })
-  getIslandFeatures(@Query('bbox') bbox: string) {
-    return this.islandsService.getIslandFeatures(bbox);
+  getIslandFeatures(@Query('bbox') bbox: string, @Query('ldCpsgCode') ldCpsgCode?: string) {
+    return this.islandsService.getIslandFeatures(bbox, ldCpsgCode);
   }
 
   @Get('wms')

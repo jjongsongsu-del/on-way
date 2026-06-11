@@ -1,0 +1,289 @@
+/searchList(키워드 검색 목록 조회), /imageList (이미지정보 목록 조회), /locationBasedList(위치기반정보 목록 조회) 다음의 3개의 API 모든 결과도 CSV 파일로 만들어 줄래?
+cd C:\dev\sea-load
+corepack pnpm export:gocamping
+
+
+
+공공데이터 "여행" 검색어 관련 데이터 다운로드
+corepack pnpm --filter @badagil/api data:collect:travel-files --pages all --download --delay-ms 180
+
+
+
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 여행 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 축제 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 관광 --pages all --download --delay-ms 180
+
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 섬 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 캠핑 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 해양 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 야영 --pages all --download --delay-ms 180
+
+
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 갯벌 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 체험 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 낚시 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 등대 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 전망대 --pages all --download --delay-ms 180
+
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 노을 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 산책 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 둘레길 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 해안길 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 해수욕 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 화장실 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 주차장 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 맛집 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 해안 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 바다 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 식당 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 공원 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 펜션 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 민박 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 숙박 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 호텔 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 모텔 --pages all --download --delay-ms 180
+
+
+
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 어촌 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 어항 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 항구 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 선착장 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 여객선 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 해수욕장 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 해변 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 해루질 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 물때 --pages all --download --delay-ms 180
+
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 해양레저 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 수상레저 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 서핑 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 스노클링 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 카약 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 요트 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 마리나 --pages all --download --delay-ms 180
+
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 트레킹 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 걷기 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 올레길 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 해파랑길 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 탐방로 --pages all --download --delay-ms 180
+
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 포토존 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 일출 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 일몰 --pages all --download --delay-ms 180
+
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 반려동물 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 무장애 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 샤워장 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 편의시설 --pages all --download --delay-ms 180
+
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 해산물 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 수산시장 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 전통시장 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 특산물 --pages all --download --delay-ms 180
+corepack pnpm --filter @badagil/api data:collect:travel-files --keyword 카페 --pages all --download --delay-ms 180
+
+
+
+
+
+당일치기	짧은 시간 안에 다녀올 수 있는 여행
+1박 2일	숙박 포함 여유로운 섬·해변 여행
+가족여행	아이, 부모님과 함께 가기 좋은 여행
+커플여행	노을, 바다뷰, 감성 숙소 중심 여행
+혼자여행	조용한 섬, 산책, 사색 중심 여행
+친구여행	맛집, 사진, 액티비티 중심 여행
+미식여행	해산물, 특산물, 수산시장 중심 여행
+사진여행	포토스팟, 등대, 노을, 전망대 중심 여행
+힐링여행	조용한 바다, 산책길, 자연경관 중심 여행
+트레킹	섬 둘레길, 해안길, 전망대 중심 여행
+액티비티	낚시, 해루질, 서핑, 스노클링 중심 여행
+캠핑/차박	오토캠핑, 차박, 백패킹 중심 여행
+
+
+3-3. 여행 조건 선택
+
+여행 조건은 추천 정확도를 높이는 필터다.
+
+기본 조건
+조건	선택값 예시
+출발지 : 현재위치, 주소지정
+여행 기간	반나절, 당일치기, 1박 2일, 2박 이상
+동행 유형	혼자, 연인, 친구, 아이와 함께, 부모님과 함께, 반려동물과 함께
+이동 수단	대중교통, 자가용, 차량 선적, 도보 중심
+이동 난이도	쉬움, 보통, 어려움
+선호 분위기	조용한 곳, 활기찬 곳, 자연 중심, 편의시설 많은 곳
+예산	저예산, 보통, 프리미엄
+숙박 여부	숙박 안 함, 숙소 이용, 캠핑, 차박
+편의시설	화장실, 샤워장, 편의점, 식당, 주차장
+관심 활동	물놀이, 낚시, 해루질, 트레킹, 사진, 맛집, 카페
+
+
+C:\dev\sea-load\ref_data\여행추천\data-go-kr의 여행관련 공공데이터의 다운로드 데이터, 메타데이터와 현재 우리가 DB에 확보한 데이터를 기초로 섬과 연계해서 주변도시를 포함한 여행유형, 여행조건별 실제 사용가능한 데이터와 항목등을 정리하고 추천 알고리즘 및 추천규칙을 만들어 보고 싶어. 어떻게 하는게 좋을까?
+
+
+
+지금까지 수집한 C:\dev\sea-load\ref_data\여행추천\data-go-kr의 json에서 데이터의 detailUrl에 있는 "데이터 항목(컬럼) 정보"를 수집해서 갖고 있어야 항목을 분석할 때 용이할것 같아.
+이제 카탈로그 JSON 파일명을 파라미터로 주면, 각 detailUrl의 데이터 항목(컬럼) 정보를 읽어서 별도 JSON으로 저장합니다.
+
+추가한 명령:
+전체 실행도 완료했습니다. 현재 pages 기준으로:
+
+columns-catalog-*.json 29개 생성
+총 3,087건 처리
+상세 HTML 누락 6건
+출력 위치: C:\dev\sea-load\ref_data\여행추천\data-go-kr\columns-catalog-*.json
+
+PowerShell 실행 명령은 이겁니다:
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -NoFetchMissing
+
+특정 키워드만 다시 만들려면:
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "여행" -NoFetchMissing
+
+참고로 pages\여행은 현재 1페이지뿐이라 columns-catalog-여행.json은 40건 기준입니다. 619건 전체로 만들려면 여행 키워드의 pages를 다시 전체 수집해야 합니다.
+
+
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "갯벌" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "공원" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "낚시" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "노을" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "둘레길" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "등대" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "맛집" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "모텔" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "민박" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "바다" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "산책" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "섬" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "숙박" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "식당" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "야영" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "여행" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "전망대" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "주차장" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "체험" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "축제" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "캠핑" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "펜션" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "해수욕" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "해안" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "해안길" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "해양" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "호텔" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "화장실" -NoFetchMissing
+
+
+
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "관광" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "어촌" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "어항" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "항구" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "선착장" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "여객선" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "해수욕장" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "해변" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "해루질" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "물때" -NoFetchMissing
+
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "해양레저" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "수상레저" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "서핑" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "스노클링" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "카약" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "요트" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "마리나" -NoFetchMissing
+
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "트레킹" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "걷기" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "올레길" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "해파랑길" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "탐방로" -NoFetchMissing
+
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "포토존" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "일출" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "일몰" -NoFetchMissing
+
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "반려동물" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "무장애" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "샤워장" -NoFetchMissing
+
+
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "해산물" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "수산시장" -NoFetchMissing
+
+
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "특산물" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "카페" -NoFetchMissing
+
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "전통시장" -NoFetchMissing
+powershell -ExecutionPolicy Bypass -File "C:\dev\sea-load\scripts\extract-travel-columns-from-pages.ps1" -Keyword "편의시설" -NoFetchMissing
+
+
+
+
+
+
+
+
+1부터 5까지 1차 파이프라인으로 구현하고 실행까지 완료했습니다.
+추가한 스크립트:
+analyze-travel-recommendation-data.cjs
+package.json에 data:analyze:travel-recommendation 추가
+생성된 산출물:
+travel-data-inventory.json
+travel-data-column-profile.json
+travel-asset-candidates.json
+travel-source-usage-candidates.json
+이번 실행 결과:
+통합 분석 데이터셋: 2,676개
+추천 핵심 소스: 199개
+보조 소스: 588개
+여행 자원 후보: 30,000개
+섬 직접 매칭 후보: 1,072개
+여행권역 매칭 후보: 23,694개
+DB 기준 섬: 3,935개
+DB 기준 여행권역: 18개
+
+
+corepack pnpm --filter @badagil/api data:analyze:travel-recommendation -- --max-rows-per-dataset 300 --max-assets 30000
+
+
+corepack pnpm --filter @badagil/api data:analyze:travel-recommendation -- --max-rows-per-dataset 300 --max-assets 30000
+corepack pnpm --filter @badagil/api db:seed:travel-recommendation
+corepack pnpm --filter @badagil/api db:seed:travel-recommendation -- --summary
+
+
+참고로 prisma generate는 현재 실행 중인 Node/서버 프로세스가 Prisma DLL을 잡고 있어서 EPERM rename으로 실패했습니다. 마이그레이션과 DB 적재는 정상 완료됐고, 새 Prisma 모델을 API 코드에서 타입으로 쓰기 전에는 서버/Node 프로세스를 잠깐 내린 뒤 아래만 다시 실행하면 됩니다.
+
+corepack pnpm --filter @badagil/api db:generate
+
+
+
+자주 검색했던 연결된 검색정보의 누적치를 거리기준으로 추천할 수 있는 알고리즘도 추가하고 싶어
+
+수집된 정보를 관광검색엔진에서 검색하면 검색상세 데이터로 만들어서 데이터 유형을 다양한 관점에서 분류하고 서비스해주고 싶은데 어떤 구조로 만들어야 빠른검색과 상세 제공이 용이할까? 검색엔진을 어떻게 써야할까? C:\dev\sea-load\ref_data\여행추천\data-go-kr에 수집한 실데이터와 메타데이터를 활용하기 좋게 정리하는게 필요할까?
+
+
+이제 규칙 추천뿐만 아니라 현재 예보와 배편의 시간표, 출발지 위치등을 포함해서 고도화된 추천 알고리즘으로 발전해 볼까?
+
+
+
+
+
+
+C:\dev\sea-load\ref_data\여행추천\data-go-kr에 수집한 실데이터와 메타데이터를 
+
+
+나만의 조건으로 여행 검색하기를 현재로 보고 통합검색으로 나만의 여행 검색하기를 추가해서 검색어를 넣으면 여행추천의 데이터에 포함되어 있는 여행추천목록을 보여주는건 어때?
+
+
+
+
+
+
+
+
+1. "통합검색으로 여행 검색하기"와 "나만의 조건으로 여행 검색하기" 두개중에 하나를 처음에 선택하고 시작하게 하고 싶어.
+2. "통합검색으로 여행 검색하기" 에서 통합 검색어를 누르고 검색하면 통합검색어를 기준으로 적재된 여행관련 데이터를 조회하고 조회 결과에서 특정 항목을 선택하면 이를 바탕으로 관련 여행을 추천해주게 하는건 어떨까?
+3. 나만의 조건으로 여행 검색하기를 누르면 권역 선택부터 기존의 나만의 조건으로 여행 검색하기가 나오는거야.

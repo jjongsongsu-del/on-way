@@ -9,7 +9,7 @@ import type {
   Vessel
 } from '@badagil/shared';
 
-export type PublicApiProvider = 'KOMSA' | 'INCHEON_PORT' | 'VWORLD' | 'TOURISM' | 'MOCK';
+export type PublicApiProvider = 'KOMSA' | 'INCHEON_PORT' | 'VWORLD' | 'TOURISM' | 'TAGO' | 'LOCAL' | 'MOCK';
 
 export type PublicApiMeta = {
   provider: PublicApiProvider;
@@ -31,6 +31,7 @@ export type RouteSearchParams = {
 export type ScheduleSearchParams = RouteSearchParams & {
   date: string;
   vesselName?: string;
+  routeContexts?: ScheduleRouteContext[];
 };
 
 export type WeeklyScheduleSearchParams = {
@@ -40,6 +41,7 @@ export type WeeklyScheduleSearchParams = {
   departure?: string;
   arrival?: string;
   vesselName?: string;
+  routeContexts?: ScheduleRouteContext[];
 };
 
 export type ScheduleCandidateSearchParams = {
@@ -47,12 +49,25 @@ export type ScheduleCandidateSearchParams = {
   departure?: string;
   arrival?: string;
   vesselName?: string;
+  routeContexts?: ScheduleRouteContext[];
+};
+
+export type ScheduleRouteContext = {
+  routeKey: string;
+  routePairKey: string;
+  routeName: string;
+  departurePortName: string;
+  arrivalPortName: string;
+  stopPortNames: string[];
+  vesselNames: string[];
 };
 
 export type ScheduleSearchCandidate = {
   id: string;
   sailingDate: string;
   departureTime: string | null;
+  departurePortName?: string | null;
+  arrivalPortName?: string | null;
   vesselCode: string | null;
   vesselName: string;
   routeCode: string | null;

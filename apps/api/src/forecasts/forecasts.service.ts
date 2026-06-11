@@ -12,6 +12,7 @@ import type {
 } from '@badagil/shared';
 import { CACHE_KEYS, CACHE_TTL_SECONDS } from '../cache/cache-policy';
 import { CacheService } from '../cache/cache.service';
+import { PrismaService } from '../database/prisma.service';
 import { toApiResponse } from '../normalizer/public-api.normalizer';
 import { PublicApiHttpClient } from '../public-api/clients/public-api-http.client';
 import { FERRY_API_CLIENT } from '../public-api/public-api.tokens';
@@ -45,7 +46,8 @@ export class ForecastsService {
     @Inject(FERRY_API_CLIENT) private readonly ferryApiClient: PublicFerryApiClient,
     private readonly cacheService: CacheService,
     private readonly configService: ConfigService,
-    private readonly httpClient: PublicApiHttpClient
+    private readonly httpClient: PublicApiHttpClient,
+    private readonly prismaService: PrismaService
   ) {}
 
   async getTomorrowForecast(params: RouteSearchParams) {
@@ -69,14 +71,54 @@ export class ForecastsService {
     return toApiResponse(cached.value, cached);
   }
 
-  getMarineForecastLocations() {
+  async getMarineForecastLocations() {
     const now = new Date().toISOString();
+    const rows = await this.prismaService.$queryRawUnsafe<
+      Array<{
+        id: string;
+        label: string;
+        helper: string;
+        kind: 'PORT' | 'ISLAND' | 'SEA_AREA';
+        aliases: string[];
+        nx: number;
+        ny: number;
+        station_code: string;
+        station_name: string;
+        salinity_grid_code: string | null;
+        latitude: unknown;
+        longitude: unknown;
+        source_note: string;
+      }>
+    >(
+      `
+        SELECT id, label, helper, kind, aliases, nx, ny, station_code, station_name,
+               salinity_grid_code, latitude, longitude, source_note
+        FROM marine_forecast_location
+        ORDER BY label ASC
+      `
+    );
+    const locations = rows.length > 0 ? rows.map((row) => ({
+      id: row.id,
+      label: row.label,
+      helper: row.helper,
+      kind: row.kind,
+      aliases: row.aliases ?? [],
+      nx: row.nx,
+      ny: row.ny,
+      stationCode: row.station_code,
+      stationName: row.station_name,
+      salinityGridCode: row.salinity_grid_code,
+      latitude: row.latitude === null ? null : Number(row.latitude),
+      longitude: row.longitude === null ? null : Number(row.longitude),
+      sourceNote: row.source_note
+    })) : getMarineForecastLocations();
+
     return {
-      data: getMarineForecastLocations(),
+      data: locations,
       meta: {
-        source: 'marine-forecast-location-map',
+        source: rows.length > 0 ? 'marine-forecast-location-db' : 'marine-forecast-location-map',
         cached: false,
-        fallback: false,
+        fallback: rows.length === 0,
         updatedAt: now
       }
     };

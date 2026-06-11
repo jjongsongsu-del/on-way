@@ -7,11 +7,12 @@ export type HttpResponse<T> = {
 export async function requestJson<T>(url: string): Promise<HttpResponse<T>> {
   if (typeof globalThis.fetch === 'function') {
     const response = await globalThis.fetch(url);
+    const text = await response.text();
 
     return {
       status: response.status,
       ok: response.ok,
-      body: (await response.json()) as T
+      body: (text ? JSON.parse(text) : null) as T
     };
   }
 
@@ -34,7 +35,7 @@ function requestJsonWithXhr<T>(url: string): Promise<HttpResponse<T>> {
         resolve({
           status: xhr.status,
           ok: xhr.status >= 200 && xhr.status < 300,
-          body: JSON.parse(xhr.responseText) as T
+          body: (xhr.responseText ? JSON.parse(xhr.responseText) : null) as T
         });
       } catch (error) {
         reject(error);

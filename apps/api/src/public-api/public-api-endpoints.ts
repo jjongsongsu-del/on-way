@@ -2,7 +2,7 @@ export type PublicDataFormat = 'json' | 'xml' | 'json+xml';
 
 export type PublicDataEndpoint = {
   id: string;
-  provider: 'KOMSA' | 'INCHEON_PORT';
+  provider: 'KOMSA' | 'INCHEON_PORT' | 'TAGO';
   name: string;
   dataGoKrUrl: string;
   baseUrl: string;
@@ -99,7 +99,51 @@ export const INCHEON_PORT_ENDPOINTS = {
   }
 } satisfies Record<string, PublicDataEndpoint>;
 
+export const TAGO_SHIP_ENDPOINTS = {
+  portList: {
+    id: 'tago-domestic-ship-port-list',
+    provider: 'TAGO',
+    name: 'TAGO domestic ship port list',
+    dataGoKrUrl: 'https://www.data.go.kr/data/15098572/openapi.do',
+    baseUrl: 'https://apis.data.go.kr/1613000/DmstcShipNvgInfo',
+    operationPath: '/GetPortList',
+    format: 'json',
+    defaultParams: { pageNo: 1, numOfRows: 1000, _type: 'json' }
+  },
+  operationInfo: {
+    id: 'tago-domestic-ship-operation-info',
+    provider: 'TAGO',
+    name: 'TAGO domestic ship operation info',
+    dataGoKrUrl: 'https://www.data.go.kr/data/15098572/openapi.do',
+    baseUrl: 'https://apis.data.go.kr/1613000/DmstcShipNvgInfo',
+    operationPath: '/GetShipOpratInfoList',
+    format: 'json',
+    defaultParams: { pageNo: 1, numOfRows: 1000, _type: 'json' }
+  },
+  terminalList: {
+    id: 'tago-passenger-ship-terminal-list',
+    provider: 'TAGO',
+    name: 'TAGO passenger ship terminal list',
+    dataGoKrUrl: 'https://www.data.go.kr/data/15098572/openapi.do',
+    baseUrl: 'https://apis.data.go.kr/1613000/DmstcShipNvgInfo',
+    operationPath: '/GetPsnshipTrmnlList',
+    format: 'json',
+    defaultParams: { pageNo: 1, numOfRows: 1000, _type: 'json' }
+  },
+  shipKindList: {
+    id: 'tago-ship-kind-list',
+    provider: 'TAGO',
+    name: 'TAGO ship kind list',
+    dataGoKrUrl: 'https://www.data.go.kr/data/15098572/openapi.do',
+    baseUrl: 'https://apis.data.go.kr/1613000/DmstcShipNvgInfo',
+    operationPath: '/GetShipKndList',
+    format: 'json',
+    defaultParams: { pageNo: 1, numOfRows: 1000, _type: 'json' }
+  }
+} satisfies Record<string, PublicDataEndpoint>;
+
 export const PUBLIC_DATA_ENDPOINTS = {
   ...KOMSA_ENDPOINTS,
-  ...INCHEON_PORT_ENDPOINTS
+  ...INCHEON_PORT_ENDPOINTS,
+  ...TAGO_SHIP_ENDPOINTS
 } as const;

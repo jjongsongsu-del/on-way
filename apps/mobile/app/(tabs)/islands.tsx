@@ -25,6 +25,8 @@ import { Screen } from '@/components/Screen';
 import { VWorldNativeMap } from '@/components/VWorldNativeMap';
 import { setCurrentIsland } from '@/state/app-selection-context';
 import { colors } from '@/theme/colors';
+import IslandTripScreen from './island-trip';
+import MyTripScreen from './my-trip';
 
 const MAP_BOUNDS: IslandMapBounds = {
   minLatitude: 33,
@@ -34,7 +36,7 @@ const MAP_BOUNDS: IslandMapBounds = {
 };
 
 const MAP_VIEW_PRESETS = [
-  { label: '전국', description: '전체 도서', bounds: MAP_BOUNDS },
+  { label: '전국', description: '전국 도서', bounds: MAP_BOUNDS },
   { label: '서해', description: '인천, 충남, 전북', bounds: { minLatitude: 35.5, maxLatitude: 38.6, minLongitude: 124.1, maxLongitude: 127.2 } },
   { label: '남해', description: '전남, 경남', bounds: { minLatitude: 33.5, maxLatitude: 35.8, minLongitude: 126, maxLongitude: 129.7 } },
   { label: '동해', description: '울릉, 독도 권역', bounds: { minLatitude: 36.8, maxLatitude: 38.4, minLongitude: 129.8, maxLongitude: 131.4 } },
@@ -42,7 +44,6 @@ const MAP_VIEW_PRESETS = [
 ] as const;
 
 const REGION_FILTERS = [
-  { label: '전체', value: 'ALL' },
   { label: '인천', value: '인천' },
   { label: '전남', value: '전라남도' },
   { label: '경북', value: '경상북도' },
@@ -50,17 +51,75 @@ const REGION_FILTERS = [
   { label: '기타', value: 'OTHER' }
 ] as const;
 
-type RegionFilter = (typeof REGION_FILTERS)[number]['value'];
+type RegionFilter = 'ALL' | (typeof REGION_FILTERS)[number]['value'];
+
+const KOREAN_INITIALS = [
+  '\u3131',
+  '\u3134',
+  '\u3137',
+  '\u3139',
+  '\u3141',
+  '\u3142',
+  '\u3145',
+  '\u3147',
+  '\u3148',
+  '\u314a',
+  '\u314b',
+  '\u314c',
+  '\u314d',
+  '\u314e'
+] as const;
+const KOREAN_CHOSEONGS = [
+  '\u3131',
+  '\u3132',
+  '\u3134',
+  '\u3137',
+  '\u3138',
+  '\u3139',
+  '\u3141',
+  '\u3142',
+  '\u3143',
+  '\u3145',
+  '\u3146',
+  '\u3147',
+  '\u3148',
+  '\u3149',
+  '\u314a',
+  '\u314b',
+  '\u314c',
+  '\u314d',
+  '\u314e'
+] as const;
+type InitialFilter = 'ALL' | (typeof KOREAN_INITIALS)[number];
+const INITIAL_FILTERS: { label: string; value: (typeof KOREAN_INITIALS)[number] }[] = KOREAN_INITIALS.map((initial) => ({
+  label: initial,
+  value: initial
+}));
 
 export default function IslandsScreen() {
   const routeParams = useLocalSearchParams();
+
+  if (routeParams.mode === 'trip') {
+    return <IslandTripScreen />;
+  }
+
+  if (routeParams.mode === 'my-trip') {
+    return <MyTripScreen />;
+  }
+
+  return <IslandMapScreen routeParams={routeParams} />;
+}
+
+function IslandMapScreen({ routeParams }: { routeParams: ReturnType<typeof useLocalSearchParams> }) {
   const [keyword, setKeyword] = useState('');
   const [debouncedKeyword, setDebouncedKeyword] = useState('');
   const [selectedRegion, setSelectedRegion] = useState<RegionFilter>('ALL');
+  const [selectedInitial, setSelectedInitial] = useState<InitialFilter | null>(null);
   const [selectedIsland, setSelectedIsland] = useState<IslandSummary | null>(null);
   const [focusedIslandId, setFocusedIslandId] = useState<string | null>(null);
   const [mapViewIndex, setMapViewIndex] = useState(0);
   const [zoomLevel, setZoomLevel] = useState(1);
+  const [visibleListCount, setVisibleListCount] = useState(30);
   const usesNativeMap = Platform.OS === 'android';
 
   useEffect(() => {
@@ -99,17 +158,25 @@ export default function IslandsScreen() {
   });
 
   const allIslands = islandsQuery.data?.data ?? [];
-  const islands = useMemo(
+  const regionFilteredIslands = useMemo(
     () => allIslands.filter((island) => matchesRegion(island, selectedRegion)),
     [allIslands, selectedRegion]
   );
-  const mapIslands = mapFeaturesQuery.data?.data.length ? mapFeaturesQuery.data.data : islands;
+  const initialBaseIslands = selectedRegion === 'ALL' ? [] : regionFilteredIslands;
+  const initialCounts = useMemo(() => getInitialCounts(initialBaseIslands), [initialBaseIslands]);
+  const islands = useMemo(() => {
+    if (!selectedInitial || selectedRegion === 'ALL') return [];
+    return regionFilteredIslands.filter((island) => matchesInitial(island, selectedInitial));
+  }, [regionFilteredIslands, selectedInitial, selectedRegion]);
+  const visibleListIslands = islands.slice(0, visibleListCount);
+  const mapIslands = selectedInitial ? islands : [];
   const visibleMarkers = useMemo(
     () =>
       mapIslands
         .filter((island) => typeof island.latitude === 'number' && typeof island.longitude === 'number')
-        .filter((island) => matchesRegion(island, selectedRegion)),
-    [mapIslands, selectedRegion]
+        .filter((island) => matchesRegion(island, selectedRegion))
+        .filter((island) => (selectedInitial ? matchesInitial(island, selectedInitial) : false)),
+    [mapIslands, selectedInitial, selectedRegion]
   );
   const focusedIsland = visibleMarkers.find((island) => island.id === focusedIslandId) ?? visibleMarkers[0] ?? null;
   const nearbyRoutes = useMemo(
@@ -119,9 +186,7 @@ export default function IslandsScreen() {
   const wmsUrl = useMemo(() => createIslandWmsUrl(mapBounds), [mapBounds]);
   const nativeMapCenter = useMemo(() => getBoundsCenter(mapBounds), [mapBounds]);
   const nativeMapZoom = getNativeMapZoom(mapViewIndex, zoomLevel);
-  const dataSource = getDataSourceLabel(islandsQuery.data?.meta.source, islands);
-  const mapSource = getDataSourceLabel(mapFeaturesQuery.data?.meta.source, visibleMarkers);
-  const hasActiveFilter = Boolean(debouncedKeyword) || selectedRegion !== 'ALL';
+  const hasActiveFilter = Boolean(debouncedKeyword) || selectedRegion !== 'ALL' || Boolean(selectedInitial);
 
   useEffect(() => {
     const islandName = getRouteParam(routeParams.islandName);
@@ -132,10 +197,19 @@ export default function IslandsScreen() {
     focusIslandOnMap(matched);
   }, [allIslands, focusedIslandId, routeParams.islandName]);
 
-  const selectPreset = (index: number) => {
-    setMapViewIndex(index);
-    setZoomLevel(1);
+  const selectRegion = (region: RegionFilter) => {
+    setSelectedRegion(region);
+    setSelectedInitial(null);
+    setVisibleListCount(30);
     setFocusedIslandId(null);
+    setSelectedIsland(null);
+  };
+
+  const selectInitial = (initial: InitialFilter) => {
+    setSelectedInitial(initial);
+    setVisibleListCount(30);
+    setFocusedIslandId(null);
+    setSelectedIsland(null);
   };
 
   const focusIslandOnMap = (island: IslandSummary) => {
@@ -205,7 +279,7 @@ export default function IslandsScreen() {
             <Pressable
               key={region.value}
               accessibilityRole="button"
-              onPress={() => setSelectedRegion(region.value)}
+              onPress={() => selectRegion(region.value)}
               style={[styles.regionChip, selected && styles.regionChipSelected]}
             >
               {selected ? <Check color={colors.surface} size={14} /> : null}
@@ -215,17 +289,31 @@ export default function IslandsScreen() {
         })}
       </ScrollView>
 
-      <View style={styles.statusPanel}>
-        <View style={styles.statusCopy}>
-          <Text style={styles.statusTitle}>{islandsQuery.isFetching ? '도서정보를 갱신하고 있습니다' : '도서정보 검색 준비 완료'}</Text>
-          <Text style={styles.statusDescription}>
-            {debouncedKeyword ? `"${debouncedKeyword}" 검색 결과를 보여줍니다.` : '검색어를 입력하거나 권역을 선택하면 지도와 목록이 함께 좁혀집니다.'}
-          </Text>
+      <View style={styles.initialPanel}>
+        <View style={styles.initialHeader}>
+          <Text style={styles.initialTitle}>초성으로 도서 찾기</Text>
+          <Text style={styles.initialCount}>{selectedInitial ? `${islands.length}/${regionFilteredIslands.length}개` : '0/0개'}</Text>
         </View>
-        <View style={[styles.sourcePill, dataSource.tone === 'preview' && styles.sourcePillPreview]}>
-          <Text style={[styles.sourcePillText, dataSource.tone === 'preview' && styles.sourcePillTextPreview]}>
-            {dataSource.label}
-          </Text>
+        <View style={styles.initialChips}>
+          {INITIAL_FILTERS.map((filter) => {
+            const selected = selectedInitial === filter.value;
+            const count = initialCounts[filter.value] ?? 0;
+            const disabled = count === 0;
+
+            return (
+              <Pressable
+                key={filter.value}
+                accessibilityRole="button"
+                disabled={disabled}
+                onPress={() => selectInitial(filter.value)}
+                style={[styles.initialChip, selected && styles.initialChipSelected, disabled && styles.initialChipDisabled]}
+              >
+                <Text style={[styles.initialChipText, selected && styles.initialChipTextSelected, disabled && styles.initialChipTextDisabled]}>
+                  {filter.label} ({count})
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
       </View>
 
@@ -235,30 +323,9 @@ export default function IslandsScreen() {
             <Layers color={colors.primary} size={18} />
             <View>
               <Text style={styles.mapTitle}>2D 도서 지도</Text>
-              <Text style={styles.mapSubtitle}>{MAP_VIEW_PRESETS[mapViewIndex].description}</Text>
+              <Text style={styles.mapSubtitle}>{selectedInitial ? `${selectedInitial} 초성 선택 결과` : '초성을 선택하면 지도에 표시됩니다'}</Text>
             </View>
           </View>
-          <Text style={styles.sourceBadge}>{visibleMarkers.length}개 마커</Text>
-        </View>
-
-        <View style={styles.mapControls}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mapViewChips}>
-            {MAP_VIEW_PRESETS.map((preset, index) => {
-              const selected = mapViewIndex === index;
-
-              return (
-                <Pressable
-                  key={preset.label}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${preset.label} 지도 보기`}
-                  onPress={() => selectPreset(index)}
-                  style={[styles.mapViewChip, selected && styles.mapViewChipSelected]}
-                >
-                  <Text style={[styles.mapViewChipText, selected && styles.mapViewChipTextSelected]}>{preset.label}</Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
           <View style={styles.zoomControls}>
             <Pressable
               accessibilityRole="button"
@@ -301,10 +368,6 @@ export default function IslandsScreen() {
               <Text style={styles.mapLoadingText}>지도 갱신중</Text>
             </View>
           ) : null}
-
-          <View style={styles.mapSourceBadge}>
-            <Text style={styles.mapSourceText}>{mapSource.label}</Text>
-          </View>
 
           {visibleMarkers.map((island) => {
             const position = getMarkerPosition(island, mapBounds);
@@ -383,7 +446,7 @@ export default function IslandsScreen() {
       <View style={styles.sectionHeader}>
         <View>
           <Text style={styles.sectionTitle}>도서정보 조회</Text>
-          <Text style={styles.sectionSubtitle}>{getFilterSummary(debouncedKeyword, selectedRegion)}</Text>
+          <Text style={styles.sectionSubtitle}>{getFilterSummary(debouncedKeyword, selectedRegion, selectedInitial)}</Text>
         </View>
         <Text style={styles.countText}>{islands.length}개</Text>
       </View>
@@ -392,13 +455,13 @@ export default function IslandsScreen() {
       {islandsQuery.isError ? <InfoPanel title="도서정보를 불러오지 못했습니다." description="API 서버 상태를 확인한 뒤 다시 시도해 주세요." /> : null}
       {!islandsQuery.isLoading && !islandsQuery.isError && islands.length === 0 ? (
         <InfoPanel
-          title={hasActiveFilter ? '검색 결과가 없습니다.' : '표시할 도서정보가 없습니다.'}
-          description="섬 이름이나 지역 필터를 조금 다르게 선택해 보세요."
+          title={selectedInitial ? '검색 결과가 없습니다.' : '초성을 선택해 주세요.'}
+          description={selectedInitial ? '다른 초성이나 권역을 선택해 보세요.' : '초성을 선택하면 해당 초성으로 시작하는 도서정보가 아래에 표시됩니다.'}
         />
       ) : null}
 
       <View style={styles.list}>
-        {islands.map((island) => (
+        {visibleListIslands.map((island) => (
           <Pressable
             key={island.id}
             accessibilityRole="button"
@@ -418,11 +481,27 @@ export default function IslandsScreen() {
                   {[island.provinceName, island.cityName].filter(Boolean).join(' · ') || '지역정보 없음'}
                 </Text>
               </View>
-              <LocateFixed color={colors.primary} size={20} />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${island.islandName} 지도에서 보기`}
+                onPress={(event) => {
+                  event.stopPropagation();
+                  focusIslandOnMap(island);
+                }}
+                style={styles.locateButton}
+              >
+                <LocateFixed color={colors.primary} size={20} />
+              </Pressable>
             </View>
             <Text style={styles.description}>{island.description ?? '도서 기본정보를 확인할 수 있습니다.'}</Text>
           </Pressable>
         ))}
+        {islands.length > visibleListIslands.length ? (
+          <Pressable accessibilityRole="button" onPress={() => setVisibleListCount((count) => count + 30)} style={styles.listMoreButton}>
+            <Text style={styles.listMoreButtonText}>{Math.min(islands.length, visibleListCount + 30)}/{islands.length}개 보기</Text>
+            <Plus color={colors.primary} size={16} />
+          </Pressable>
+        ) : null}
       </View>
 
       <IslandDetailModal
@@ -459,6 +538,10 @@ function IslandDetailModal({
   const primaryDetails = [
     { label: '지역', value: region },
     { label: '주소', value: island?.address },
+    { label: '도서구분', value: island?.islandTypeName },
+    { label: '연결유형', value: island?.connectionTypeName },
+    { label: '다리/제방', value: island?.bridgeNames },
+    { label: '예보 권역', value: island?.forecastLocationName },
     { label: '면적', value: formatArea(island?.areaSquareMeters) },
     { label: '인구', value: formatNumber(island?.population) },
     { label: '해안선', value: formatLength(island?.coastlineLengthMeters) }
@@ -467,8 +550,9 @@ function IslandDetailModal({
     { label: '위도', value: island?.latitude?.toFixed(4) },
     { label: '경도', value: island?.longitude?.toFixed(4) }
   ].filter((item) => item.value);
-  const sourceLabel = island?.source === 'VWORLD' ? 'VWorld 도서정보' : '미리보기 데이터';
-  const sourceTone = island?.source === 'VWORLD' ? 'live' : 'preview';
+  const sourceLabel =
+    island?.source === 'LOCAL_ISLAND_MASTER' ? '행정안전부 도서지역 데이터' : island?.source === 'VWORLD' ? 'VWorld 도서정보' : '데이터 출처 확인 필요';
+  const sourceTone = island?.source === 'MOCK' ? 'preview' : 'live';
 
   return (
     <Modal animationType="slide" transparent visible={Boolean(island)} onRequestClose={onClose}>
@@ -575,13 +659,53 @@ function matchesRegion(island: IslandSummary, region: RegionFilter) {
   return province.includes(region);
 }
 
-function getFilterSummary(keyword: string, region: RegionFilter) {
-  const selectedRegion = REGION_FILTERS.find((item) => item.value === region)?.label ?? '전체';
-  if (keyword) {
-    return `${selectedRegion} 지역에서 "${keyword}" 검색`;
+function matchesInitial(island: IslandSummary, initial: InitialFilter) {
+  if (initial === 'ALL') return true;
+  return getKoreanInitial(island.islandName) === initial;
+}
+
+function getInitialCounts(islands: IslandSummary[]) {
+  return islands.reduce<Record<string, number>>((counts, island) => {
+    const initial = getKoreanInitial(island.islandName);
+    if (initial) {
+      counts[initial] = (counts[initial] ?? 0) + 1;
+    }
+
+    return counts;
+  }, {});
+}
+
+function getKoreanInitial(value?: string | null) {
+  const firstChar = value?.trim().charAt(0);
+  if (!firstChar) return null;
+  const code = firstChar.charCodeAt(0);
+  if (code < 0xac00 || code > 0xd7a3) return null;
+  const index = Math.floor((code - 0xac00) / 588);
+  const initial = KOREAN_CHOSEONGS[index];
+  return KOREAN_INITIALS.includes(initial as (typeof KOREAN_INITIALS)[number])
+    ? (initial as (typeof KOREAN_INITIALS)[number])
+    : null;
+}
+
+function getFilterSummary(keyword: string, region: RegionFilter, initial: InitialFilter | null = null) {
+  const selectedRegion = REGION_FILTERS.find((item) => item.value === region)?.label ?? '지역 미선택';
+  if (!initial) {
+    return '초성 미선택';
   }
 
-  return `${selectedRegion} 지역 기준`;
+  if (keyword) {
+    if (region === 'ALL') {
+      return `지역 미선택 · ${initial} 초성 · "${keyword}" 검색`;
+    }
+
+    return `${selectedRegion} 지역 · ${initial} 초성 · "${keyword}" 검색`;
+  }
+
+  if (region === 'ALL') {
+    return `${initial} 초성 기준`;
+  }
+
+  return `${selectedRegion} 지역 · ${initial} 초성 기준`;
 }
 
 function getRouteParam(value: string | string[] | undefined) {
@@ -589,8 +713,12 @@ function getRouteParam(value: string | string[] | undefined) {
 }
 
 function getDataSourceLabel(source: string | undefined, islands: IslandSummary[]) {
+  if (source?.includes('local-island-master') || islands.some((island) => island.source === 'LOCAL_ISLAND_MASTER')) {
+    return { label: '도서지역 DB', tone: 'live' as const };
+  }
+
   if (source?.includes('preview') || source?.includes('seed') || islands.every((island) => island.source === 'MOCK')) {
-    return { label: '미리보기 데이터', tone: 'preview' as const };
+    return { label: '데이터 출처 확인 필요', tone: 'preview' as const };
   }
 
   if (source?.includes('vworld') || islands.some((island) => island.source === 'VWORLD')) {
@@ -753,6 +881,74 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingRight: 12
   },
+  initialPanel: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 10,
+    padding: 12
+  },
+  initialHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'space-between'
+  },
+  initialTitle: {
+    color: colors.navy,
+    fontSize: 14,
+    fontWeight: '900'
+  },
+  initialCount: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '900'
+  },
+  initialChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7
+  },
+  initialChip: {
+    alignItems: 'center',
+    backgroundColor: colors.backgroundSoft,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 4,
+    justifyContent: 'center',
+    minHeight: 34,
+    minWidth: 48,
+    paddingHorizontal: 9
+  },
+  initialChipSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary
+  },
+  initialChipDisabled: {
+    opacity: 0.38
+  },
+  initialChipText: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '900'
+  },
+  initialChipTextSelected: {
+    color: colors.surface
+  },
+  initialChipTextDisabled: {
+    color: colors.muted
+  },
+  initialChipCount: {
+    color: colors.muted,
+    fontSize: 10,
+    fontWeight: '900'
+  },
+  initialChipCountSelected: {
+    color: colors.surface
+  },
   regionChip: {
     alignItems: 'center',
     backgroundColor: colors.surface,
@@ -868,6 +1064,37 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     padding: 10
+  },
+  mapApiPanel: {
+    backgroundColor: colors.backgroundSoft,
+    borderBottomColor: colors.border,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 9
+  },
+  mapApiItem: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexGrow: 1,
+    gap: 2,
+    minWidth: 92,
+    paddingHorizontal: 10,
+    paddingVertical: 8
+  },
+  mapApiLabel: {
+    color: colors.primary,
+    fontSize: 11,
+    fontWeight: '900'
+  },
+  mapApiValue: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: '800'
   },
   mapViewChips: {
     gap: 7,
@@ -1225,6 +1452,20 @@ const styles = StyleSheet.create({
   list: {
     gap: 10
   },
+  listMoreButton: {
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    borderRadius: 8,
+    flexDirection: 'row',
+    gap: 5,
+    justifyContent: 'center',
+    minHeight: 42
+  },
+  listMoreButtonText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '900'
+  },
   card: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
@@ -1257,6 +1498,16 @@ const styles = StyleSheet.create({
   cardTitleWrap: {
     flex: 1,
     minWidth: 0
+  },
+  locateButton: {
+    alignItems: 'center',
+    backgroundColor: colors.backgroundSoft,
+    borderColor: colors.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 36,
+    justifyContent: 'center',
+    width: 36
   },
   cardTitle: {
     color: colors.navy,

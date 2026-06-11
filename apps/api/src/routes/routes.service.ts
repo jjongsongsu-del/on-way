@@ -1,15 +1,18 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { CACHE_KEYS, CACHE_TTL_SECONDS } from '../cache/cache-policy';
 import { CacheService } from '../cache/cache.service';
+import { PrismaService } from '../database/prisma.service';
 import { toApiResponse } from '../normalizer/public-api.normalizer';
+import { makeStableId } from '../public-api/public-api-response.util';
 import { FERRY_API_CLIENT } from '../public-api/public-api.tokens';
-import type { PublicFerryApiClient, RouteSearchParams } from '../public-api/types/public-api.types';
+import type { PortOption, PublicApiResult, PublicFerryApiClient, RouteOption, RouteSearchParams } from '../public-api/types/public-api.types';
 
 @Injectable()
 export class RoutesService {
   constructor(
     @Inject(FERRY_API_CLIENT) private readonly ferryApiClient: PublicFerryApiClient,
-    private readonly cacheService: CacheService
+    private readonly cacheService: CacheService,
+    private readonly prismaService: PrismaService
   ) {}
 
   async getRoutes() {
@@ -22,7 +25,7 @@ export class RoutesService {
 
   async getRouteOptions() {
     const cached = await this.cacheService.remember(CACHE_KEYS.routeOptions(), CACHE_TTL_SECONDS.ROUTE_OPTIONS, () =>
-      this.ferryApiClient.getRouteOptions()
+      this.getRouteOptionsFromMasterOrApi()
     );
 
     return toApiResponse(cached.value, cached);
@@ -32,7 +35,7 @@ export class RoutesService {
     const cached = await this.cacheService.remember(
       CACHE_KEYS.departurePortOptions(),
       CACHE_TTL_SECONDS.ROUTE_OPTIONS,
-      () => this.ferryApiClient.getDeparturePortOptions()
+      () => this.getDeparturePortOptionsFromMasterOrApi()
     );
 
     return toApiResponse(cached.value, cached);
@@ -42,7 +45,7 @@ export class RoutesService {
     const cached = await this.cacheService.remember(
       CACHE_KEYS.arrivalPortOptions(),
       CACHE_TTL_SECONDS.ROUTE_OPTIONS,
-      () => this.ferryApiClient.getArrivalPortOptions()
+      () => this.getArrivalPortOptionsFromMasterOrApi()
     );
 
     return toApiResponse(cached.value, cached);
@@ -61,7 +64,7 @@ export class RoutesService {
   async searchRoutes(params: RouteSearchParams) {
     const key = `routes:search:${params.departure}:${params.arrival}`;
     const cached = await this.cacheService.remember(key, CACHE_TTL_SECONDS.ROUTES, () =>
-      this.ferryApiClient.searchRoutes(params)
+      this.searchRoutesFromMasterOrApi(params)
     );
 
     return toApiResponse(cached.value, cached);
@@ -92,4 +95,117 @@ export class RoutesService {
 
     return toApiResponse(cached.value, cached);
   }
+
+  private async getRouteOptionsFromMasterOrApi(): Promise<PublicApiResult<RouteOption[]>> {
+    const routeOptions = await this.getRouteOptionsFromMaster();
+    if (routeOptions.data.length > 0) return routeOptions;
+
+    return this.ferryApiClient.getRouteOptions();
+  }
+
+  private async getDeparturePortOptionsFromMasterOrApi(): Promise<PublicApiResult<PortOption[]>> {
+    const portOptions = await this.getPortOptionsFromMaster('departure');
+    if (portOptions.data.length > 0) return portOptions;
+
+    return this.ferryApiClient.getDeparturePortOptions();
+  }
+
+  private async getArrivalPortOptionsFromMasterOrApi(): Promise<PublicApiResult<PortOption[]>> {
+    const portOptions = await this.getPortOptionsFromMaster('arrival');
+    if (portOptions.data.length > 0) return portOptions;
+
+    return this.ferryApiClient.getArrivalPortOptions();
+  }
+
+  private async searchRoutesFromMasterOrApi(params: RouteSearchParams) {
+    const routeOptions = await this.getRouteOptionsFromMaster();
+    if (routeOptions.data.length === 0) {
+      return this.ferryApiClient.searchRoutes(params);
+    }
+
+    const departure = params.departure?.trim() ?? '';
+    const arrival = params.arrival?.trim() ?? '';
+    const data = routeOptions.data
+      .filter(
+        (route) =>
+          (!departure || portMatches(route.departurePortName, departure) || route.stopPortNames.some((portName) => portMatches(portName, departure))) &&
+          (!arrival || portMatches(route.arrivalPortName, arrival) || route.stopPortNames.some((portName) => portMatches(portName, arrival)))
+      )
+      .map((route) => ({
+        id: route.id,
+        departurePortName: route.departurePortName,
+        arrivalPortName: route.arrivalPortName,
+        operationRouteName: route.routeName,
+        licenseRouteName: route.routeName,
+        provider: 'LOCAL'
+      }));
+
+    return this.createResult(data, 'komsa-csv-route-master:search');
+  }
+
+  private async getRouteOptionsFromMaster(): Promise<PublicApiResult<RouteOption[]>> {
+    const routes = await this.prismaService.ferryRouteMaster.findMany({
+      orderBy: [{ departurePortName: 'asc' }, { arrivalPortName: 'asc' }, { routeName: 'asc' }]
+    });
+
+    const data = routes.map((route) => ({
+      id: makeStableId('route-option', [route.routePairKey]),
+      routeName: route.routeName,
+      departurePortName: route.departurePortName,
+      arrivalPortName: route.arrivalPortName,
+      stopPortNames: route.stopPortNames
+    }));
+
+    return this.createResult(data, 'komsa-csv-route-master:options');
+  }
+
+  private async getPortOptionsFromMaster(mode: 'departure' | 'arrival'): Promise<PublicApiResult<PortOption[]>> {
+    const where =
+      mode === 'departure'
+        ? { departureRouteCount: { gt: 0 } }
+        : { arrivalRouteCount: { gt: 0 } };
+    const ports = await this.prismaService.ferryPortMaster.findMany({
+      where,
+      orderBy: [{ portName: 'asc' }]
+    });
+
+    return this.createResult(
+      ports.map((port) => ({
+        id: makeStableId('port-option', [port.portKey]),
+        portName: port.portName
+      })),
+      `komsa-csv-route-master:${mode}-ports`
+    );
+  }
+
+  private createResult<T>(data: T, source: string): PublicApiResult<T> {
+    return {
+      data,
+      meta: {
+        provider: 'LOCAL',
+        source,
+        fetchedAt: new Date().toISOString(),
+        rawFormat: 'json'
+      }
+    };
+  }
+}
+
+function portMatches(sourcePortName: string, targetPortName: string) {
+  const source = normalizePortName(sourcePortName);
+  const target = normalizePortName(targetPortName);
+
+  return Boolean(source && target && (source.includes(target) || target.includes(source)));
+}
+
+function normalizePortName(value: string) {
+  return value
+    .replace(/\s/g, '')
+    .replace(/여객선터미널/g, '')
+    .replace(/연안여객터미널/g, '')
+    .replace(/항구/g, '')
+    .replace(/항$/g, '')
+    .replace(/도$/g, '')
+    .replace(/섬$/g, '')
+    .toLowerCase();
 }

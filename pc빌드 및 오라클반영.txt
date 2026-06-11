@@ -1,0 +1,181 @@
+﻿PC에서 빌드/푸시:
+
+<위에는 그냥, 밑에는 클래식 토큰 - 클래식토큰으로 사용>
+docker login ghcr.io -u jjongsongsu-del
+<GITHUB_TOKEN>
+<GITHUB_TOKEN>
+
+C:\dev\sea-load\build-push-prod-images.bat
+
+
+오라클 서버에서 pull/run:
+
+cd /home/opc/sea-load
+git pull origin main
+
+docker login ghcr.io -u jjongsongsu-del
+<GITHUB_TOKEN>
+<GITHUB_TOKEN>
+
+docker compose -f docker-compose.prod.yml -f docker-compose.registry.yml --env-file .env.production pull
+docker compose -f docker-compose.prod.yml -f docker-compose.registry.yml --env-file .env.production up -d
+
+
+.env.production에 필요하면 추가:
+REGISTRY_IMAGE_PREFIX=ghcr.io/jjongsongsu-del
+IMAGE_TAG=latest
+
+
+
+1. 컨테이너 상태 확인
+
+docker compose -f docker-compose.prod.yml -f docker-compose.registry.yml --env-file .env.production ps
+web, api, postgres, redis가 Up 상태인지 봅니다.
+
+2. API 로그 확인
+
+docker compose -f docker-compose.prod.yml -f docker-compose.registry.yml --env-file .env.production logs api --tail=100
+에러 없이 Nest 서버가 뜨는지 확인합니다.
+
+3. DB 마이그레이션 실행
+docker compose -f docker-compose.prod.yml -f docker-compose.registry.yml --env-file .env.production exec api ls -l apps/api/node_modules/.bin/prisma
+docker compose -f docker-compose.prod.yml -f docker-compose.registry.yml --env-file .env.production exec api ./apps/api/node_modules/.bin/prisma migrate deploy --schema apps/api/prisma/schema.prisma
+#docker compose -f docker-compose.prod.yml -f docker-compose.registry.yml --env-file .env.production exec api npx prisma@6.19.0 migrate deploy --schema apps/api/prisma/schema.prisma
+
+
+4. 헬스체크 확인
+
+서버 안에서:
+
+curl -i http://localhost:8082/api/v1/health
+정상이면 200 OK와 JSON 응답이 나와야 합니다.
+
+5. 웹 접속 확인
+
+서버 안에서:
+
+curl -i http://localhost:8082/
+외부 브라우저에서:
+
+http://131.186.26.5:8082/
+http://131.186.26.5:8082/api/v1/health
+6. APK 연결 확인
+
+핸드폰 앱이 http://131.186.26.5:8082/api/v1로 빌드되어 있으니, 아래 주소가 핸드폰 브라우저에서도 열리면 앱 연결도 됩니다.
+
+http://131.186.26.5:8082/api/v1/health
+만약 api가 안 뜨면 바로 이걸 보세요.
+
+docker compose -f docker-compose.prod.yml -f docker-compose.registry.yml --env-file .env.production logs api --tail=200
+핵심은 ps → migrate → health curl → 외부 접속 확인 순서입니다.
+
+
+
+
+이제 오라클 서버에서는 web, api를 빌드하지 않고 이미지를 내려받아 실행합니다. 서버 부담이 확 줄어들 거예요.
+
+커밋/푸시 완료:
+d527d57 chore: add registry deployment flow
+
+
+$env:GHCR_TOKEN="<GITHUB_TOKEN>"
+$env:GHCR_TOKEN | docker login ghcr.io -u jjongsongsu-del --password-stdin
+
+
+
+docker push ghcr.io/jjongsongsu-del/sea-load-api:latest
+docker push ghcr.io/jjongsongsu-del/sea-load-web:latest
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+< DB 넣기 >
+PC에서 다시 생성하세요.
+
+docker exec badagil-postgres pg_dump -U badagil -d badagil `
+  -Fc `
+  -t public.vessel_detail `
+  -f /tmp/vessel_detail_seed.dump
+
+PC로 복사:
+docker cp badagil-postgres:/tmp/vessel_detail_seed.dump C:\dev\sea-load\vessel_detail_seed.dump
+
+서버로 전송:
+
+
+
+먼저 서버에 dump 파일이 있는지:
+ls -lh /home/opc/sea-load/vessel_detail_seed.dump
+
+컨테이너 안으로 복사:
+docker cp /home/opc/sea-load/vessel_detail_seed.dump badagil-postgres-prod:/tmp/vessel_detail_seed.dump
+
+컨테이너 안 파일 확인:
+docker exec badagil-postgres-prod ls -lh /tmp/vessel_detail_seed.dump
+
+복원 실행:
+docker exec badagil-postgres-prod pg_restore -U badagil -d badagil \
+  --data-only \
+  -t vessel_detail \
+  /tmp/vessel_detail_seed.dump
+
+
+다시 건수 확인:
+
+docker exec badagil-postgres-prod psql -U badagil -d badagil -c "select count(*) from vessel_detail;"
+만약 pg_restore에서 “relation already exists” 같은 메시지가 나오면 무시해도 되지만, “0 rows”면 복원이 안 된 겁니다. 그때는 아래처럼 테이블명을 확인해 주세요:
+
+docker exec badagil-postgres-prod pg_restore -l /tmp/vessel_detail_seed.dump | grep vessel_detail
+여기 출력에 나오는 정확한 테이블명 기준으로 -t 값을 맞추면 됩니다.
+
+
+
+/*************************************************************/
+**************************************************************
+HTTPS 설정
+**************************************************************
+/*************************************************************/
+
+
+서버에서 순서대로 실행해 주세요.
+
+sudo dnf install -y dnf-plugins-core
+sudo dnf config-manager --enable ol9_developer_EPEL
+sudo dnf install -y certbot python3-certbot-nginx
+설치 확인:
+
+certbot --version
+그 다음 HTTPS 인증서 발급:
+
+sudo certbot --nginx -d seomttok.duckdns.org
+만약 ol9_developer_EPEL 저장소가 없다고 나오면, 저장소 목록을 먼저 확인하세요.
+
+sudo dnf repolist all | grep EPEL
+그리고 보이는 이름이 예를 들어 ol9_developer_EPEL_modular 같은 식이면 그 이름을 enable 하면 됩니다.
+
+추가로 Nginx가 아직 설치되어 있지 않으면:
+
+sudo dnf install -y nginx
+sudo systemctl enable nginx
+sudo systemctl start nginx
+인증서 발급 전에 Oracle Cloud 보안 목록과 서버 방화벽에서 80, 443이 열려 있어야 합니다.
+Certbot이 도메인 검증할 때 http://seomttok.duckdns.org/.well-known/...로 접근하기 때문이에요.
