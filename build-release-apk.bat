@@ -5,10 +5,10 @@ set "ROOT_DIR=%~dp0"
 set "ANDROID_DIR=%ROOT_DIR%apps\mobile\android"
 set "DIST_DIR=%ROOT_DIR%dist"
 set "APK_SOURCE=%ANDROID_DIR%\app\build\outputs\apk\release\app-release.apk"
-set "APK_TARGET=%DIST_DIR%\seomttok-oracle-release.apk"
+set "APK_TARGET=%DIST_DIR%\seomttok-company-release.apk"
 
 if "%EXPO_PUBLIC_API_BASE_URL%"=="" (
-  set "EXPO_PUBLIC_API_BASE_URL=http://131.186.26.5:8082/api/v1"
+  set "EXPO_PUBLIC_API_BASE_URL=http://121.162.171.85:8093/api/v1"
 )
 
 set "NODE_ENV=production"
