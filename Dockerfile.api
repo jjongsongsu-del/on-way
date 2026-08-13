@@ -18,6 +18,7 @@ RUN --mount=type=cache,id=sea-load-pnpm-store,target=/pnpm/store \
 COPY apps/api apps/api
 COPY packages/shared packages/shared
 
+RUN pnpm --filter @badagil/shared build
 RUN pnpm --filter @badagil/api db:generate
 RUN pnpm --filter @badagil/api build
 

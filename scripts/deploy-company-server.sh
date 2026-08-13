@@ -4,6 +4,7 @@ set -euo pipefail
 APP_DIR="${APP_DIR:-/home/seaload/sea-load}"
 APP_PORT="${APP_PORT:-8093}"
 USE_REGISTRY="${USE_REGISTRY:-0}"
+NO_CACHE="${NO_CACHE:-0}"
 
 cd "${APP_DIR}"
 
@@ -20,7 +21,11 @@ if [[ "${USE_REGISTRY}" == "1" ]]; then
   docker compose "${COMPOSE_FILES[@]}" --env-file .env.production pull
 else
   echo "[2/6] Building images on server"
-  docker compose "${COMPOSE_FILES[@]}" --env-file .env.production build
+  if [[ "${NO_CACHE}" == "1" ]]; then
+    docker compose "${COMPOSE_FILES[@]}" --env-file .env.production build --no-cache
+  else
+    docker compose "${COMPOSE_FILES[@]}" --env-file .env.production build
+  fi
 fi
 
 echo "[3/6] Starting services"
