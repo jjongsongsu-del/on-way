@@ -182,47 +182,47 @@ export class TourismApiClient {
   }
 
   private getGoCampingUrl() {
-    return this.configService.get<string>('GOCAMPING_API_URL') ?? DEFAULT_GOCAMPING_URL;
+    return getConfiguredValue(this.configService, 'GOCAMPING_API_URL') ?? DEFAULT_GOCAMPING_URL;
   }
 
   private getKorServiceUrl() {
-    return this.configService.get<string>('KOR_TOURISM_API_URL') ?? DEFAULT_KOR_SERVICE_URL;
+    return getConfiguredValue(this.configService, 'KOR_TOURISM_API_URL') ?? DEFAULT_KOR_SERVICE_URL;
   }
 
   private getPhotoGalleryUrl() {
-    return this.configService.get<string>('PHOTO_GALLERY_API_URL') ?? DEFAULT_PHOTO_GALLERY_URL;
+    return getConfiguredValue(this.configService, 'PHOTO_GALLERY_API_URL') ?? DEFAULT_PHOTO_GALLERY_URL;
   }
 
   private getCultureCampingUrl() {
-    return this.configService.get<string>('CULTURE_CAMPING_API_URL') ?? DEFAULT_CULTURE_CAMPING_URL;
+    return getConfiguredValue(this.configService, 'CULTURE_CAMPING_API_URL') ?? DEFAULT_CULTURE_CAMPING_URL;
   }
 
   private getGeneralCampgroundUrl() {
-    return this.configService.get<string>('GENERAL_CAMPGROUND_API_URL') ?? DEFAULT_GENERAL_CAMPGROUND_URL;
+    return getConfiguredValue(this.configService, 'GENERAL_CAMPGROUND_API_URL') ?? DEFAULT_GENERAL_CAMPGROUND_URL;
   }
 
   private getSeaTripUrl() {
-    return this.configService.get<string>('SEA_TRIP_INDEX_API_URL') ?? DEFAULT_SEA_TRIP_URL;
+    return getConfiguredValue(this.configService, 'SEA_TRIP_INDEX_API_URL') ?? DEFAULT_SEA_TRIP_URL;
   }
 
   private getLodgingsUrl() {
-    return this.configService.get<string>('LODGINGS_API_URL') ?? DEFAULT_LODGINGS_URL;
+    return getConfiguredValue(this.configService, 'LODGINGS_API_URL') ?? DEFAULT_LODGINGS_URL;
   }
 
   private getTouristRestaurantsUrl() {
-    return this.configService.get<string>('TOURIST_RESTAURANTS_API_URL') ?? DEFAULT_TOURIST_RESTAURANTS_URL;
+    return getConfiguredValue(this.configService, 'TOURIST_RESTAURANTS_API_URL') ?? DEFAULT_TOURIST_RESTAURANTS_URL;
   }
 
   private getTouristPensionsUrl() {
-    return this.configService.get<string>('TOURIST_PENSIONS_API_URL') ?? DEFAULT_TOURIST_PENSIONS_URL;
+    return getConfiguredValue(this.configService, 'TOURIST_PENSIONS_API_URL') ?? DEFAULT_TOURIST_PENSIONS_URL;
   }
 
   private getMudFlatUrl() {
-    return this.configService.get<string>('MUD_FLAT_API_URL') ?? DEFAULT_MUD_FLAT_URL;
+    return getConfiguredValue(this.configService, 'MUD_FLAT_API_URL') ?? DEFAULT_MUD_FLAT_URL;
   }
 
   private getBoryeongIslandPhotoUrl() {
-    return this.configService.get<string>('BORYEONG_ISLAND_PHOTO_API_URL') ?? DEFAULT_BORYEONG_ISLAND_PHOTO_URL;
+    return getConfiguredValue(this.configService, 'BORYEONG_ISLAND_PHOTO_API_URL') ?? DEFAULT_BORYEONG_ISLAND_PHOTO_URL;
   }
 
   private createLocalDataAddressFilter(keyword?: string) {
@@ -236,9 +236,14 @@ export class TourismApiClient {
 
   private getServiceKey() {
     return (
-      this.configService.get<string>('TOURISM_SERVICE_KEY') ??
-      this.configService.get<string>('DATA_GO_KR_SERVICE_KEY') ??
-      this.configService.get<string>('PUBLIC_DATA_SERVICE_KEY')
+      getConfiguredValue(this.configService, 'TOURISM_SERVICE_KEY') ??
+      getConfiguredValue(this.configService, 'DATA_GO_KR_SERVICE_KEY') ??
+      getConfiguredValue(this.configService, 'PUBLIC_DATA_SERVICE_KEY')
     );
   }
+}
+
+function getConfiguredValue(configService: ConfigService, key: string) {
+  const value = configService.get<string>(key)?.trim();
+  return value || undefined;
 }

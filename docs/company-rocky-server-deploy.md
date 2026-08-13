@@ -59,6 +59,14 @@ WATER_TEMPERATURE_API_URL=https://apis.data.go.kr/1192136/surveyWaterTemp
 SALINITY_API_URL=https://apis.data.go.kr/1192000/apVhdService_Tgcsy15
 ```
 
+Travel API URL overrides are also optional. Photo and mudflat defaults are:
+
+```text
+PHOTO_GALLERY_API_URL=https://apis.data.go.kr/B551011/PhotoGalleryService1
+MUD_FLAT_API_URL=https://apis.data.go.kr/1192000/MudFlatInfoService
+BORYEONG_ISLAND_PHOTO_API_URL=https://apis.data.go.kr/4510000/GetIslandPhotoService/getIslandInfo
+```
+
 By default, the company server builds Docker images locally from `/home/sea-load`.
 
 If you prefer pulling GHCR images instead:
