@@ -4,7 +4,7 @@ Target:
 
 - Domain: `seaload.aodata.co.kr`
 - Test URL: `http://121.162.171.85:8093`
-- App directory: `/home/sea-load`
+- App directory: `/home/seaload/sea-load`
 - App user: `seaload`
 
 ## 1. DNS
@@ -22,13 +22,13 @@ Run as `root` or a sudo user on the Rocky Linux server:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/jjongsongsu-del/on-way/main/scripts/install-company-rocky-server.sh -o /tmp/install-company-rocky-server.sh
 chmod +x /tmp/install-company-rocky-server.sh
-sudo APP_DIR=/home/sea-load APP_PORT=8093 APP_DOMAIN=seaload.aodata.co.kr /tmp/install-company-rocky-server.sh
+sudo APP_DIR=/home/seaload/sea-load APP_PORT=8093 APP_DOMAIN=seaload.aodata.co.kr /tmp/install-company-rocky-server.sh
 ```
 
 Then edit production secrets:
 
 ```bash
-sudo -u seaload vi /home/sea-load/.env.production
+sudo -u seaload vi /home/seaload/sea-load/.env.production
 ```
 
 At minimum, change:
@@ -55,13 +55,13 @@ If you prefer pulling GHCR images instead:
 
 ```bash
 sudo -u seaload docker login ghcr.io -u jjongsongsu-del
-sudo -u seaload USE_REGISTRY=1 /home/sea-load/scripts/deploy-company-server.sh
+sudo -u seaload USE_REGISTRY=1 /home/seaload/sea-load/scripts/deploy-company-server.sh
 ```
 
 ## 3. Deploy
 
 ```bash
-sudo -u seaload /home/sea-load/scripts/deploy-company-server.sh
+sudo -u seaload /home/seaload/sea-load/scripts/deploy-company-server.sh
 ```
 
 ## 4. Verify

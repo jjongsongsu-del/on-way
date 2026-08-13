@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_DIR="${APP_DIR:-/home/sea-load}"
+APP_DIR="${APP_DIR:-/home/seaload/sea-load}"
 APP_PORT="${APP_PORT:-8093}"
 USE_REGISTRY="${USE_REGISTRY:-0}"
 
