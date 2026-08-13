@@ -49,6 +49,16 @@ WEATHER_SERVICE_KEY=
 KHOA_SERVICE_KEY=
 ```
 
+Forecast API URL overrides are optional. When left blank, the app uses these defaults:
+
+```text
+SHORT_TERM_FORECAST_API_URL=https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0
+WEATHER_WARNING_API_URL=https://apis.data.go.kr/1360000/WthrWrnInfoService
+TIDE_FORECAST_API_URL=https://apis.data.go.kr/1192136/tideFcstHghLw
+WATER_TEMPERATURE_API_URL=https://apis.data.go.kr/1192136/surveyWaterTemp
+SALINITY_API_URL=https://apis.data.go.kr/1192000/apVhdService_Tgcsy15
+```
+
 By default, the company server builds Docker images locally from `/home/sea-load`.
 
 If you prefer pulling GHCR images instead:

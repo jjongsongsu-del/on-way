@@ -312,32 +312,37 @@ export class ForecastsService {
 
   private getServiceKey() {
     return (
-      this.configService.get<string>('WEATHER_SERVICE_KEY') ??
-      this.configService.get<string>('KHOA_SERVICE_KEY') ??
-      this.configService.get<string>('DATA_GO_KR_SERVICE_KEY') ??
-      this.configService.get<string>('PUBLIC_DATA_SERVICE_KEY')
+      getConfiguredValue(this.configService, 'WEATHER_SERVICE_KEY') ??
+      getConfiguredValue(this.configService, 'KHOA_SERVICE_KEY') ??
+      getConfiguredValue(this.configService, 'DATA_GO_KR_SERVICE_KEY') ??
+      getConfiguredValue(this.configService, 'PUBLIC_DATA_SERVICE_KEY')
     );
   }
 
   private getShortTermUrl() {
-    return this.configService.get<string>('SHORT_TERM_FORECAST_API_URL') ?? DEFAULT_SHORT_TERM_URL;
+    return getConfiguredValue(this.configService, 'SHORT_TERM_FORECAST_API_URL') ?? DEFAULT_SHORT_TERM_URL;
   }
 
   private getWeatherWarningUrl() {
-    return this.configService.get<string>('WEATHER_WARNING_API_URL') ?? DEFAULT_WEATHER_WARNING_URL;
+    return getConfiguredValue(this.configService, 'WEATHER_WARNING_API_URL') ?? DEFAULT_WEATHER_WARNING_URL;
   }
 
   private getTideUrl() {
-    return this.configService.get<string>('TIDE_FORECAST_API_URL') ?? DEFAULT_TIDE_URL;
+    return getConfiguredValue(this.configService, 'TIDE_FORECAST_API_URL') ?? DEFAULT_TIDE_URL;
   }
 
   private getWaterTempUrl() {
-    return this.configService.get<string>('WATER_TEMPERATURE_API_URL') ?? DEFAULT_WATER_TEMP_URL;
+    return getConfiguredValue(this.configService, 'WATER_TEMPERATURE_API_URL') ?? DEFAULT_WATER_TEMP_URL;
   }
 
   private getSalinityUrl() {
-    return this.configService.get<string>('SALINITY_API_URL') ?? DEFAULT_SALINITY_URL;
+    return getConfiguredValue(this.configService, 'SALINITY_API_URL') ?? DEFAULT_SALINITY_URL;
   }
+}
+
+function getConfiguredValue(configService: ConfigService, key: string) {
+  const value = configService.get<string>(key)?.trim();
+  return value || undefined;
 }
 
 function normalizeMarineForecastParams(params: MarineForecastParams): Required<MarineForecastParams> {
