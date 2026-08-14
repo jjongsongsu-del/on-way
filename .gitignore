@@ -11,6 +11,9 @@ coverage/
 *.log
 *.tsbuildinfo
 /*.png
+secrets/
+*.jks
+*.keystore
 .pnpm-store/
 apps/mobile/android/.gradle-cache/
 expo-env.d.ts
