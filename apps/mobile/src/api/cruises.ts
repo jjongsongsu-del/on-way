@@ -32,3 +32,11 @@ export async function fetchCruiseSchedules(filters: CruiseScheduleFilters = {}) 
   }
   return response.body.data;
 }
+
+export async function fetchCruiseScheduleDetail(id: string) {
+  const response = await requestJson<ApiResponse<CruiseSchedule>>(`${API_BASE_URL}/cruises/schedules/${encodeURIComponent(id)}`);
+  if (!response.ok) {
+    throw new Error(`API request failed: ${response.status}`);
+  }
+  return response.body.data;
+}

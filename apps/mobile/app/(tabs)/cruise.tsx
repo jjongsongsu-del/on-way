@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { CalendarDays, Database, FileText, MapPin, Search, Ship, Waves } from 'lucide-react-native';
+import { CalendarDays, Database, FileText, MapPin, Search, Ship, Waves, X } from 'lucide-react-native';
 import type { ComponentType } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { CruiseSchedule } from '@badagil/shared';
-import { fetchCruiseOverview, fetchCruiseSchedules } from '@/api/cruises';
+import { fetchCruiseOverview, fetchCruiseScheduleDetail, fetchCruiseSchedules } from '@/api/cruises';
 import { InfoCard } from '@/components/InfoCard';
 import { MascotBanner } from '@/components/MascotBanner';
 import { Screen } from '@/components/Screen';
@@ -81,6 +81,7 @@ const cruiseSections: CruiseSection[] = [
 
 export default function CruiseScreen() {
   const [selectedPortName, setSelectedPortName] = useState<string | null>(null);
+  const [selectedScheduleId, setSelectedScheduleId] = useState<string | null>(null);
   const overviewQuery = useQuery({
     queryKey: ['cruise-overview'],
     queryFn: () => fetchCruiseOverview(12),
@@ -92,6 +93,12 @@ export default function CruiseScreen() {
     staleTime: 10 * 60 * 1000
   });
   const overview = overviewQuery.data;
+  const selectedScheduleQuery = useQuery({
+    queryKey: ['cruise-schedule-detail', selectedScheduleId],
+    queryFn: () => fetchCruiseScheduleDetail(selectedScheduleId ?? ''),
+    enabled: Boolean(selectedScheduleId),
+    staleTime: 10 * 60 * 1000
+  });
   const ports = overview?.ports ?? [];
   const schedules = schedulesQuery.data ?? overview?.upcomingSchedules ?? [];
   const selectedPortLabel = selectedPortName ?? '전체 항만';
@@ -161,7 +168,7 @@ export default function CruiseScreen() {
             <View key={group.label} style={styles.scheduleGroup}>
               <Text style={styles.scheduleMonth}>{group.label}</Text>
               {group.items.map((schedule) => (
-                <ScheduleRow key={schedule.id} schedule={schedule} />
+                <ScheduleRow key={schedule.id} schedule={schedule} onPress={() => setSelectedScheduleId(schedule.id)} />
               ))}
             </View>
           ))
@@ -198,12 +205,41 @@ export default function CruiseScreen() {
         )}
       </InfoCard>
 
+      <InfoCard
+        title="등록 유람선 사업자"
+        eyebrow={overviewQuery.isLoading ? '조회 중' : `${overview?.summary.totalOperatorLicenses ?? 0}건 · 영업 ${overview?.summary.activeOperatorLicenses ?? 0}건`}
+      >
+        {overview?.operatorLicenses.length ? (
+          overview.operatorLicenses.map((operator) => (
+            <View key={operator.id} style={styles.operatorRow}>
+              <View style={styles.productHeader}>
+                <Text style={styles.productTitle}>{operator.businessName}</Text>
+                {operator.businessStatus ? <Text style={styles.operatorStatus}>{operator.businessStatus}</Text> : null}
+              </View>
+              <Text style={styles.sourceDescription}>{operator.roadAddress ?? operator.lotAddress ?? '주소 확인 필요'}</Text>
+              <View style={styles.fieldWrap}>
+                {[operator.port?.portName, operator.detailStatus, operator.permitDate && `인허가 ${operator.permitDate}`]
+                  .filter(Boolean)
+                  .map((item) => (
+                    <Text key={item} style={styles.fieldChip}>
+                      {item}
+                    </Text>
+                  ))}
+              </View>
+            </View>
+          ))
+        ) : (
+          <Text style={styles.emptyText}>행안부 관광유람선업 API 인증키가 연결되면 등록 사업자 원장이 표시됩니다.</Text>
+        )}
+      </InfoCard>
+
       <InfoCard title="데이터 현황" eyebrow={overview?.updatedAt ? formatDate(overview.updatedAt) : '적재 대기'}>
         <View style={styles.summaryGrid}>
           <SummaryCell label="항만" value={overview?.summary.totalPorts ?? 0} />
           <SummaryCell label="선박" value={overview?.summary.totalVessels ?? 0} />
           <SummaryCell label="일정" value={overview?.summary.totalSchedules ?? 0} />
           <SummaryCell label="관광상품" value={overview?.summary.totalTourProducts ?? 0} />
+          <SummaryCell label="사업자" value={overview?.summary.totalOperatorLicenses ?? 0} />
         </View>
         <View style={styles.sourceWrap}>
           {(overview?.summary.sourceNames ?? cruiseSources.map((source) => source.title)).map((sourceName) => (
@@ -254,13 +290,20 @@ export default function CruiseScreen() {
           <Text style={styles.disabledButtonText}>상세 검색 준비 중</Text>
         </Pressable>
       </InfoCard>
+
+      <ScheduleDetailModal
+        schedule={selectedScheduleQuery.data ?? schedules.find((schedule) => schedule.id === selectedScheduleId) ?? null}
+        loading={selectedScheduleQuery.isLoading}
+        visible={Boolean(selectedScheduleId)}
+        onClose={() => setSelectedScheduleId(null)}
+      />
     </Screen>
   );
 }
 
-function ScheduleRow({ schedule }: { schedule: CruiseSchedule }) {
+function ScheduleRow({ schedule, onPress }: { schedule: CruiseSchedule; onPress: () => void }) {
   return (
-    <View style={styles.scheduleRow}>
+    <Pressable accessibilityRole="button" onPress={onPress} style={styles.scheduleRow}>
       <View style={styles.scheduleDateBox}>
         <Text style={styles.scheduleDay}>{schedule.arrivalDate.slice(5).replace('-', '.')}</Text>
         <Text style={styles.scheduleTime}>{schedule.arrivalTime ?? '시간 확인'}</Text>
@@ -279,6 +322,77 @@ function ScheduleRow({ schedule }: { schedule: CruiseSchedule }) {
             .join(' · ') || schedule.berthName || schedule.sourceName}
         </Text>
       </View>
+    </Pressable>
+  );
+}
+
+function ScheduleDetailModal({
+  schedule,
+  loading,
+  visible,
+  onClose
+}: {
+  schedule: CruiseSchedule | null;
+  loading: boolean;
+  visible: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.modalSheet}>
+          <View style={styles.modalHandle} />
+          <View style={styles.modalHeader}>
+            <View style={styles.modalTitleBox}>
+              <Text style={styles.modalEyebrow}>{schedule?.port.portName ?? '크루즈 일정'}</Text>
+              <Text style={styles.modalTitle}>{schedule?.vesselName ?? (loading ? '상세 조회 중' : '일정 상세')}</Text>
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel="닫기" onPress={onClose} style={styles.closeButton}>
+              <X color={colors.muted} size={20} strokeWidth={2.5} />
+            </Pressable>
+          </View>
+
+          <ScrollView contentContainerStyle={styles.modalContent}>
+            {schedule ? (
+              <>
+                <View style={styles.detailHero}>
+                  <Text style={styles.detailHeroDate}>{schedule.arrivalDate}</Text>
+                  <Text style={styles.detailHeroText}>
+                    입항 {schedule.arrivalTime ?? '확인 필요'} · 출항 {schedule.departureDate ?? schedule.arrivalDate} {schedule.departureTime ?? '확인 필요'}
+                  </Text>
+                  {schedule.scheduleType ? <Text style={styles.detailHeroBadge}>{schedule.scheduleType}</Text> : null}
+                </View>
+
+                <View style={styles.detailGrid}>
+                  <DetailLine label="선사" value={schedule.operatorName} />
+                  <DetailLine label="승객수" value={schedule.vessel?.passengerCapacity ? `${schedule.vessel.passengerCapacity.toLocaleString()}명` : null} />
+                  <DetailLine label="총톤수" value={schedule.vessel?.grossTonnage ? `${schedule.vessel.grossTonnage.toLocaleString()} GT` : null} />
+                  <DetailLine label="선박 길이" value={schedule.vessel?.lengthMeter ? `${schedule.vessel.lengthMeter} m` : null} />
+                  <DetailLine label="선석" value={schedule.berthName} />
+                  <DetailLine label="터미널" value={schedule.port.terminalName} />
+                  <DetailLine label="출항지" value={schedule.homePortName} />
+                  <DetailLine label="전항지" value={schedule.previousPortName} />
+                  <DetailLine label="차항지" value={schedule.nextPortName} />
+                  <DetailLine label="대리점" value={schedule.agentName} />
+                  <DetailLine label="연락처" value={schedule.agentTel} />
+                  <DetailLine label="출처" value={schedule.sourceName} />
+                </View>
+              </>
+            ) : (
+              <Text style={styles.emptyText}>{loading ? '상세 정보를 불러오는 중입니다.' : '상세 정보를 찾지 못했습니다.'}</Text>
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function DetailLine({ label, value }: { label: string; value: string | number | null | undefined }) {
+  return (
+    <View style={styles.detailLine}>
+      <Text style={styles.detailLabel}>{label}</Text>
+      <Text style={styles.detailValue}>{value ? String(value) : '확인 필요'}</Text>
     </View>
   );
 }
@@ -452,6 +566,22 @@ const styles = StyleSheet.create({
     gap: 8,
     padding: 12
   },
+  operatorRow: {
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 8,
+    padding: 12
+  },
+  operatorStatus: {
+    backgroundColor: colors.primarySoft,
+    borderRadius: 8,
+    color: colors.primary,
+    fontSize: 11,
+    fontWeight: '900',
+    paddingHorizontal: 7,
+    paddingVertical: 4
+  },
   productHeader: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -600,5 +730,112 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 13,
     fontWeight: '800'
+  },
+  modalBackdrop: {
+    backgroundColor: 'rgba(16, 42, 67, 0.36)',
+    flex: 1,
+    justifyContent: 'flex-end'
+  },
+  modalSheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    maxHeight: '86%',
+    paddingTop: 8
+  },
+  modalHandle: {
+    alignSelf: 'center',
+    backgroundColor: colors.border,
+    borderRadius: 8,
+    height: 4,
+    marginBottom: 10,
+    width: 44
+  },
+  modalHeader: {
+    alignItems: 'center',
+    borderBottomColor: colors.border,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 18,
+    paddingBottom: 14
+  },
+  modalTitleBox: {
+    flex: 1,
+    gap: 3
+  },
+  modalEyebrow: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '900'
+  },
+  modalTitle: {
+    color: colors.navy,
+    fontSize: 19,
+    fontWeight: '900'
+  },
+  closeButton: {
+    alignItems: 'center',
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 38,
+    justifyContent: 'center',
+    width: 38
+  },
+  modalContent: {
+    gap: 14,
+    padding: 18,
+    paddingBottom: 28
+  },
+  detailHero: {
+    backgroundColor: colors.primarySoft,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 6,
+    padding: 14
+  },
+  detailHeroDate: {
+    color: colors.navy,
+    fontSize: 18,
+    fontWeight: '900'
+  },
+  detailHeroText: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 19
+  },
+  detailHeroBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '900',
+    paddingHorizontal: 8,
+    paddingVertical: 5
+  },
+  detailGrid: {
+    gap: 8
+  },
+  detailLine: {
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 4,
+    padding: 12
+  },
+  detailLabel: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '800'
+  },
+  detailValue: {
+    color: colors.navy,
+    fontSize: 14,
+    fontWeight: '800',
+    lineHeight: 20
   }
 });

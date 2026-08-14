@@ -57,6 +57,10 @@ const SOURCES = {
       city: '인천광역시',
       terminal: '인천항 크루즈터미널'
     }
+  },
+  operatorApi: {
+    name: '행정안전부_문화_관광유람선업 조회서비스',
+    url: process.env.CRUISE_TOURIST_API_URL || 'https://apis.data.go.kr/1741000/tourist_cruises'
   }
 };
 
@@ -66,7 +70,10 @@ async function main() {
     vessels: 0,
     schedules: 0,
     tourProducts: 0,
-    skippedIncheon: false
+    operatorLicenses: 0,
+    skippedIncheon: false,
+    skippedOperatorApi: false,
+    warnings: []
   };
 
   const ports = {};
@@ -160,6 +167,8 @@ async function main() {
     summary.skippedIncheon = true;
   } else {
     const incheonRows = await fetchIncheonSchedules();
+    const incheonQuality = validateIncheonRows(incheonRows);
+    if (incheonQuality.warnings.length > 0) summary.warnings.push(...incheonQuality.warnings);
     for (const row of incheonRows) {
       const vessel = await upsertVessel({
         vesselName: row.vesselName,
@@ -183,12 +192,36 @@ async function main() {
     }
   }
 
+  if (args['skip-operator-api'] === true) {
+    summary.skippedOperatorApi = true;
+  } else {
+    const serviceKey = getPublicDataServiceKey();
+    if (!serviceKey) {
+      summary.skippedOperatorApi = true;
+      summary.warnings.push('관광유람선업 API 인증키가 없어 사업자 원장 적재를 건너뜁니다.');
+    } else {
+      try {
+        const operatorRows = await fetchTouristCruiseOperators(serviceKey);
+        const portRows = await prisma.$queryRawUnsafe('SELECT id, port_name, city_name FROM cruise_port');
+        for (const row of operatorRows) {
+          await upsertOperatorLicense(row, matchOperatorPort(row, portRows));
+          summary.operatorLicenses += 1;
+        }
+      } catch (error) {
+        if (args['strict-operator-api'] === true) throw error;
+        summary.skippedOperatorApi = true;
+        summary.warnings.push(`관광유람선업 API 적재 실패: ${error.message}`);
+      }
+    }
+  }
+
   const dbSummary = await prisma.$queryRawUnsafe(`
     SELECT
       (SELECT count(*)::int FROM cruise_port) AS ports,
       (SELECT count(*)::int FROM cruise_vessel) AS vessels,
       (SELECT count(*)::int FROM cruise_schedule) AS schedules,
-      (SELECT count(*)::int FROM cruise_tour_product) AS "tourProducts"
+      (SELECT count(*)::int FROM cruise_tour_product) AS "tourProducts",
+      (SELECT count(*)::int FROM cruise_operator_license) AS "operatorLicenses"
   `);
 
   console.log(JSON.stringify({ processed: summary, database: dbSummary[0] }, null, 2));
@@ -398,24 +431,232 @@ async function upsertPohangProduct(portId, rows) {
 }
 
 async function fetchIncheonSchedules() {
-  const response = await fetch(SOURCES.incheon.url, { headers: { 'User-Agent': 'sea-load-cruise-seed/1.0' } });
-  if (!response.ok) throw new Error(`Failed to fetch Incheon cruise schedules: ${response.status}`);
-  const html = await response.text();
-  const rows = [...html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)]
-    .map((match) => [...match[1].matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((cell) => htmlText(cell[1])))
-    .filter((cells) => cells.length >= 8)
-    .filter((cells) => /^\d+$/.test(cells[0]));
+  try {
+    const html = await fetchTextWithRetry(SOURCES.incheon.url, { 'User-Agent': 'sea-load-cruise-seed/1.0' }, 2);
+    const tableRows = extractHtmlTableRows(html)
+      .filter((cells) => cells.length >= 8)
+      .filter((cells) => /^\d+$/.test(cells[0]));
+    const rows = tableRows.map((cells) => ({
+      sequence: cells[0],
+      vesselName: cells[1],
+      operatorName: cells[2],
+      arrivalDate: cells[3],
+      arrivalTime: cells[4],
+      departureDate: cells[5],
+      departureTime: cells[6],
+      scheduleType: normalizeScheduleType(cells[7]),
+      sourceUrl: SOURCES.incheon.url
+    }));
+    if (rows.length === 0) throw new Error('인천항 크루즈 표에서 일정 행을 찾지 못했습니다.');
+    return rows;
+  } catch (error) {
+    if (args['strict-incheon'] === true) throw error;
+    console.warn(`Incheon cruise schedule skipped: ${error.message}`);
+    return [];
+  }
+}
 
-  return rows.map((cells) => ({
-    sequence: cells[0],
-    vesselName: cells[1],
-    operatorName: cells[2],
-    arrivalDate: cells[3],
-    arrivalTime: cells[4],
-    departureDate: cells[5],
-    departureTime: cells[6],
-    scheduleType: cells[7]
-  }));
+function validateIncheonRows(rows) {
+  const warnings = [];
+  if (rows.length === 0) {
+    warnings.push('인천항 크루즈 일정이 0건입니다. 웹 페이지 구조 또는 네트워크 상태 확인이 필요합니다.');
+  }
+  const missingRequired = rows.filter((row) => !row.vesselName || !dateOnly(row.arrivalDate)).length;
+  if (missingRequired > 0) {
+    warnings.push(`인천항 크루즈 일정 ${missingRequired}건에 선명 또는 입항일자가 없습니다.`);
+  }
+  const typeSet = new Set(rows.map((row) => row.scheduleType).filter(Boolean));
+  const unknownTypes = [...typeSet].filter((type) => !['기항', '모항', '오버나잇', '모항(하선)', '모항(승선)'].includes(type));
+  if (unknownTypes.length > 0) {
+    warnings.push(`인천항 비고 유형 확인 필요: ${unknownTypes.join(', ')}`);
+  }
+  return { warnings };
+}
+
+async function fetchTouristCruiseOperators(serviceKey) {
+  const first = await fetchTouristCruiseOperatorPage(serviceKey, 1, Number(args['operator-page-size'] ?? 500));
+  const total = Math.min(Number(first.totalCount ?? first.items.length), Number(args['operator-max-rows'] ?? 2000));
+  const pages = Math.max(1, Math.ceil(total / first.pageSize));
+  const items = [...first.items];
+  for (let pageNo = 2; pageNo <= pages; pageNo += 1) {
+    const page = await fetchTouristCruiseOperatorPage(serviceKey, pageNo, first.pageSize);
+    items.push(...page.items);
+  }
+  return items.slice(0, total);
+}
+
+async function fetchTouristCruiseOperatorPage(serviceKey, pageNo, pageSize) {
+  const url = new URL(`${SOURCES.operatorApi.url.replace(/\/$/, '')}/info`);
+  url.searchParams.set('serviceKey', serviceKey);
+  url.searchParams.set('type', 'json');
+  url.searchParams.set('pageNo', String(pageNo));
+  url.searchParams.set('numOfRows', String(pageSize));
+  const text = await fetchTextWithRetry(url.toString(), { Accept: 'application/json' }, 2);
+  const parsed = JSON.parse(text);
+  const items = extractApiItems(parsed);
+  return {
+    items,
+    pageSize,
+    totalCount: pickFirst(parsed, ['response.body.totalCount', 'body.totalCount', 'totalCount', 'totalCnt'])
+  };
+}
+
+async function upsertOperatorLicense(row, portId) {
+  const businessName = pick(row, ['bplcNm', '사업장명', 'businessName', 'BPLCNM']) || '이름 미상 관광유람선업';
+  const managementNo = pick(row, ['mgtNo', '관리번호', 'MGTNO']);
+  const licenseKey = normalizeKey(managementNo || `${businessName}:${pick(row, ['siteWhlAddr', 'rdnWhlAddr', '소재지전체주소'])}`);
+  await prisma.$executeRawUnsafe(
+    `
+      INSERT INTO cruise_operator_license (
+        id, license_key, port_id, management_no, business_name, business_status, detail_status,
+        road_address, lot_address, phone, permit_date, close_date, local_government_code,
+        local_government_name, x, y, source_name, source_url, raw, collected_at, updated_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::date, $12::date, $13, $14, $15, $16,
+        $17, $18, $19::jsonb, $20, $21
+      )
+      ON CONFLICT (license_key) DO UPDATE SET
+        port_id = EXCLUDED.port_id,
+        management_no = EXCLUDED.management_no,
+        business_name = EXCLUDED.business_name,
+        business_status = EXCLUDED.business_status,
+        detail_status = EXCLUDED.detail_status,
+        road_address = EXCLUDED.road_address,
+        lot_address = EXCLUDED.lot_address,
+        phone = EXCLUDED.phone,
+        permit_date = EXCLUDED.permit_date,
+        close_date = EXCLUDED.close_date,
+        local_government_code = EXCLUDED.local_government_code,
+        local_government_name = EXCLUDED.local_government_name,
+        x = EXCLUDED.x,
+        y = EXCLUDED.y,
+        source_name = EXCLUDED.source_name,
+        source_url = EXCLUDED.source_url,
+        raw = EXCLUDED.raw,
+        collected_at = EXCLUDED.collected_at,
+        updated_at = EXCLUDED.updated_at
+    `,
+    stableId('cruise-license', licenseKey),
+    licenseKey,
+    portId,
+    managementNo,
+    businessName,
+    pick(row, ['trdStateNm', '영업상태명', 'businessStatus']),
+    pick(row, ['dtlStateNm', '상세영업상태명', 'detailStatus']),
+    pick(row, ['rdnWhlAddr', '도로명전체주소', 'roadAddress']),
+    pick(row, ['siteWhlAddr', '소재지전체주소', 'lotAddress']),
+    pick(row, ['siteTel', '소재지전화', 'phone']),
+    ymdDate(pick(row, ['apvPermYmd', '인허가일자', 'permitDate'])),
+    ymdDate(pick(row, ['dcbYmd', '폐업일자', 'closeDate'])),
+    pick(row, ['opnSfTeamCode', '개방자치단체코드', 'localGovernmentCode']),
+    pick(row, ['siteArea', '관리기관명', 'localGovernmentName']),
+    numberValue(pick(row, ['x', '좌표정보(x)', 'X'])),
+    numberValue(pick(row, ['y', '좌표정보(y)', 'Y'])),
+    SOURCES.operatorApi.name,
+    SOURCES.operatorApi.url,
+    JSON.stringify(row),
+    now,
+    now
+  );
+}
+
+function matchOperatorPort(row, ports) {
+  const text = [pick(row, ['rdnWhlAddr', 'siteWhlAddr', '도로명전체주소', '소재지전체주소']), pick(row, ['bplcNm', '사업장명'])]
+    .filter(Boolean)
+    .join(' ');
+  const matched = ports.find((port) => {
+    if (port.city_name && text.includes(port.city_name.replace(/특별시|광역시|특별자치도|특별자치시/g, '').split(' ')[0])) return true;
+    return text.includes(port.port_name.replace('항', ''));
+  });
+  return matched?.id ?? null;
+}
+
+async function fetchTextWithRetry(url, headers, attempts) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const response = await fetch(url, { headers, signal: AbortSignal.timeout(15000) });
+      if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
+      return await response.text();
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
+    }
+  }
+  throw lastError;
+}
+
+function extractHtmlTableRows(html) {
+  return [...html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)].map((match) =>
+    [...match[1].matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((cell) => htmlText(cell[1]))
+  );
+}
+
+function extractApiItems(parsed) {
+  const candidates = [
+    parsed?.response?.body?.items?.item,
+    parsed?.response?.body?.items,
+    parsed?.body?.items?.item,
+    parsed?.body?.items,
+    parsed?.items?.item,
+    parsed?.items,
+    parsed?.data
+  ];
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate;
+    if (candidate && typeof candidate === 'object') return [candidate];
+  }
+  return [];
+}
+
+function pickFirst(source, paths) {
+  for (const pathText of paths) {
+    const value = pathText.split('.').reduce((target, key) => target?.[key], source);
+    if (value !== undefined && value !== null && value !== '') return value;
+  }
+  return null;
+}
+
+function pick(row, keys) {
+  for (const key of keys) {
+    if (row?.[key] !== undefined && row?.[key] !== null && String(row[key]).trim() !== '') return clean(row[key]);
+    const found = Object.keys(row ?? {}).find((candidate) => normalizeFieldName(candidate) === normalizeFieldName(key));
+    if (found && clean(row[found])) return clean(row[found]);
+  }
+  return null;
+}
+
+function normalizeFieldName(value) {
+  return String(value ?? '').replace(/[^가-힣a-zA-Z0-9]/g, '').toLowerCase();
+}
+
+function normalizeScheduleType(value) {
+  const text = clean(value);
+  if (!text) return null;
+  if (text.includes('오버')) return '오버나잇';
+  if (text.includes('하선')) return '모항(하선)';
+  if (text.includes('승선')) return '모항(승선)';
+  if (text.includes('모항')) return '모항';
+  if (text.includes('기항')) return '기항';
+  return text;
+}
+
+function ymdDate(value) {
+  const text = clean(value);
+  if (!text) return null;
+  const compact = text.replace(/[^0-9]/g, '');
+  if (compact.length >= 8) return `${compact.slice(0, 4)}-${compact.slice(4, 6)}-${compact.slice(6, 8)}`;
+  return dateOnly(text);
+}
+
+function numberValue(value) {
+  if (!value) return null;
+  const number = Number(String(value).replace(/,/g, ''));
+  return Number.isFinite(number) ? number : null;
+}
+
+function getPublicDataServiceKey() {
+  return process.env.CRUISE_SERVICE_KEY || process.env.TOURISM_SERVICE_KEY || process.env.DATA_GO_KR_SERVICE_KEY || process.env.PUBLIC_DATA_SERVICE_KEY;
 }
 
 function parseCsvFile(fileName) {

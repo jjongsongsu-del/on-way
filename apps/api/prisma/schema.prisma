@@ -833,6 +833,7 @@ model CruisePort {
 
   schedules       CruiseSchedule[]
   tourProducts    CruiseTourProduct[]
+  operatorLicenses CruiseOperatorLicense[]
 
   @@index([portName])
   @@index([regionName])
@@ -925,6 +926,39 @@ model CruiseTourProduct {
   @@index([productName])
   @@index([address])
   @@map("cruise_tour_product")
+}
+
+model CruiseOperatorLicense {
+  id                 String   @id @default(cuid())
+  licenseKey         String   @unique @map("license_key")
+  portId             String?  @map("port_id")
+  managementNo       String?  @map("management_no")
+  businessName       String   @map("business_name")
+  businessStatus     String?  @map("business_status")
+  detailStatus       String?  @map("detail_status")
+  roadAddress        String?  @map("road_address")
+  lotAddress         String?  @map("lot_address")
+  phone              String?
+  permitDate         DateTime? @map("permit_date") @db.Date
+  closeDate          DateTime? @map("close_date") @db.Date
+  localGovernmentCode String? @map("local_government_code")
+  localGovernmentName String? @map("local_government_name")
+  x                  Decimal? @db.Decimal(14, 7)
+  y                  Decimal? @db.Decimal(14, 7)
+  sourceName         String   @map("source_name")
+  sourceUrl          String?  @map("source_url")
+  raw                Json?
+  collectedAt        DateTime @map("collected_at")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  port               CruisePort? @relation(fields: [portId], references: [id])
+
+  @@index([businessName])
+  @@index([businessStatus])
+  @@index([roadAddress])
+  @@index([lotAddress])
+  @@map("cruise_operator_license")
 }
 
 enum SailingStatusCode {

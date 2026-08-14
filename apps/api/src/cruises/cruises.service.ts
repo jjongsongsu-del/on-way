@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { CruiseOverview, CruisePort, CruiseSchedule, CruiseTourProduct } from '@badagil/shared';
+import type { CruiseOperatorLicense, CruiseOverview, CruisePort, CruiseSchedule, CruiseTourProduct } from '@badagil/shared';
 import { PrismaService } from '../database/prisma.service';
 import { toApiResponse } from '../normalizer/public-api.normalizer';
 import type { PublicApiResult } from '../public-api/types/public-api.types';
@@ -82,28 +82,62 @@ type CruiseProductRow = {
   port_source_url: string | null;
 };
 
+type CruiseOperatorLicenseRow = {
+  id: string;
+  license_key: string;
+  management_no: string | null;
+  business_name: string;
+  business_status: string | null;
+  detail_status: string | null;
+  road_address: string | null;
+  lot_address: string | null;
+  phone: string | null;
+  permit_date: Date | string | null;
+  close_date: Date | string | null;
+  local_government_code: string | null;
+  local_government_name: string | null;
+  x: unknown;
+  y: unknown;
+  source_name: string;
+  source_url: string | null;
+  collected_at: Date | string;
+  port_id: string | null;
+  port_key: string | null;
+  port_name: string | null;
+  region_name: string | null;
+  city_name: string | null;
+  terminal_name: string | null;
+  port_source_name: string | null;
+  port_source_url: string | null;
+};
+
 @Injectable()
 export class CruisesService {
   constructor(private readonly prismaService: PrismaService) {}
 
   async getOverview(params: { limit?: number }) {
     const limit = clampNumber(params.limit ?? 12, 4, 40);
-    const [ports, schedules, tourProducts, counts, sources] = await Promise.all([
+    const [ports, schedules, tourProducts, operatorLicenses, counts, sources] = await Promise.all([
       this.prismaService.$queryRawUnsafe<CruisePortRow[]>('SELECT * FROM cruise_port ORDER BY port_name ASC'),
       this.findSchedules({ from: todayDateString(), limit }),
       this.findTourProducts(10),
+      this.findOperatorLicenses(8),
       this.prismaService.$queryRawUnsafe<Array<Record<string, number>>>(`
         SELECT
           (SELECT count(*)::int FROM cruise_port) AS "totalPorts",
           (SELECT count(*)::int FROM cruise_vessel) AS "totalVessels",
           (SELECT count(*)::int FROM cruise_schedule) AS "totalSchedules",
           (SELECT count(*)::int FROM cruise_schedule WHERE arrival_date >= CURRENT_DATE) AS "upcomingSchedules",
-          (SELECT count(*)::int FROM cruise_tour_product) AS "totalTourProducts"
+          (SELECT count(*)::int FROM cruise_tour_product) AS "totalTourProducts",
+          (SELECT count(*)::int FROM cruise_operator_license) AS "totalOperatorLicenses",
+          (SELECT count(*)::int FROM cruise_operator_license WHERE business_status LIKE '%영업%') AS "activeOperatorLicenses"
       `),
       this.prismaService.$queryRawUnsafe<Array<{ source_name: string }>>(`
         SELECT source_name FROM cruise_schedule
         UNION
         SELECT source_name FROM cruise_tour_product
+        UNION
+        SELECT source_name FROM cruise_operator_license
         ORDER BY source_name ASC
       `)
     ]);
@@ -112,12 +146,15 @@ export class CruisesService {
       ports: ports.map(toCruisePort),
       upcomingSchedules: schedules,
       tourProducts,
+      operatorLicenses,
       summary: {
         totalPorts: Number(counts[0]?.totalPorts ?? 0),
         totalVessels: Number(counts[0]?.totalVessels ?? 0),
         totalSchedules: Number(counts[0]?.totalSchedules ?? 0),
         upcomingSchedules: Number(counts[0]?.upcomingSchedules ?? 0),
         totalTourProducts: Number(counts[0]?.totalTourProducts ?? 0),
+        totalOperatorLicenses: Number(counts[0]?.totalOperatorLicenses ?? 0),
+        activeOperatorLicenses: Number(counts[0]?.activeOperatorLicenses ?? 0),
         sourceNames: sources.map((source) => source.source_name)
       },
       updatedAt: new Date().toISOString()
@@ -203,6 +240,29 @@ export class CruisesService {
       limit
     );
     return rows.map(toCruiseTourProduct);
+  }
+
+  private async findOperatorLicenses(limit: number) {
+    const rows = await this.prismaService.$queryRawUnsafe<CruiseOperatorLicenseRow[]>(
+      `
+        SELECT
+          l.id, l.license_key, l.management_no, l.business_name, l.business_status, l.detail_status,
+          l.road_address, l.lot_address, l.phone, l.permit_date, l.close_date,
+          l.local_government_code, l.local_government_name, l.x, l.y,
+          l.source_name, l.source_url, l.collected_at,
+          p.id AS port_id, p.port_key, p.port_name, p.region_name, p.city_name, p.terminal_name,
+          p.source_name AS port_source_name, p.source_url AS port_source_url
+        FROM cruise_operator_license l
+        LEFT JOIN cruise_port p ON p.id = l.port_id
+        ORDER BY
+          CASE WHEN l.business_status LIKE '%영업%' THEN 0 ELSE 1 END,
+          l.permit_date DESC NULLS LAST,
+          l.business_name ASC
+        LIMIT $1
+      `,
+      limit
+    );
+    return rows.map(toCruiseOperatorLicense);
   }
 }
 
@@ -299,6 +359,41 @@ function toCruiseTourProduct(row: CruiseProductRow): CruiseTourProduct {
     sourceName: row.source_name,
     sourceUrl: row.source_url,
     referenceDate: row.reference_date ? toDateString(row.reference_date) : null
+  };
+}
+
+function toCruiseOperatorLicense(row: CruiseOperatorLicenseRow): CruiseOperatorLicense {
+  return {
+    id: row.id,
+    licenseKey: row.license_key,
+    port: row.port_id
+      ? toCruisePort({
+          id: row.port_id,
+          port_key: row.port_key ?? '',
+          port_name: row.port_name ?? '',
+          region_name: row.region_name,
+          city_name: row.city_name,
+          terminal_name: row.terminal_name,
+          source_name: row.port_source_name ?? row.source_name,
+          source_url: row.port_source_url
+        })
+      : null,
+    managementNo: row.management_no,
+    businessName: row.business_name,
+    businessStatus: row.business_status,
+    detailStatus: row.detail_status,
+    roadAddress: row.road_address,
+    lotAddress: row.lot_address,
+    phone: row.phone,
+    permitDate: row.permit_date ? toDateString(row.permit_date) : null,
+    closeDate: row.close_date ? toDateString(row.close_date) : null,
+    localGovernmentCode: row.local_government_code,
+    localGovernmentName: row.local_government_name,
+    x: toNumber(row.x),
+    y: toNumber(row.y),
+    sourceName: row.source_name,
+    sourceUrl: row.source_url,
+    collectedAt: new Date(row.collected_at).toISOString()
   };
 }
 

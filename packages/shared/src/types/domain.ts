@@ -434,16 +434,41 @@ export type CruiseTourProduct = {
   referenceDate: string | null;
 };
 
+export type CruiseOperatorLicense = {
+  id: string;
+  licenseKey: string;
+  port: CruisePort | null;
+  managementNo: string | null;
+  businessName: string;
+  businessStatus: string | null;
+  detailStatus: string | null;
+  roadAddress: string | null;
+  lotAddress: string | null;
+  phone: string | null;
+  permitDate: string | null;
+  closeDate: string | null;
+  localGovernmentCode: string | null;
+  localGovernmentName: string | null;
+  x: number | null;
+  y: number | null;
+  sourceName: string;
+  sourceUrl: string | null;
+  collectedAt: string;
+};
+
 export type CruiseOverview = {
   ports: CruisePort[];
   upcomingSchedules: CruiseSchedule[];
   tourProducts: CruiseTourProduct[];
+  operatorLicenses: CruiseOperatorLicense[];
   summary: {
     totalPorts: number;
     totalVessels: number;
     totalSchedules: number;
     upcomingSchedules: number;
     totalTourProducts: number;
+    totalOperatorLicenses: number;
+    activeOperatorLicenses: number;
     sourceNames: string[];
   };
   updatedAt: string;
