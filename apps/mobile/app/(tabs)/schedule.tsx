@@ -1,5 +1,5 @@
 ﻿import { fetchArrivalPorts, fetchDeparturePorts, type PortOption } from '@/api/routes';
-import { fetchScheduleCandidates, fetchSchedules, fetchWeeklySchedules, type ScheduleCandidate } from '@/api/schedules';
+import { fetchScheduleCandidates, fetchWeeklySchedules, type ScheduleCandidate } from '@/api/schedules';
 import { fetchRouteOptions, type RouteOption } from '@/api/routes';
 import { fetchMarineForecast } from '@/api/forecasts';
 import { fetchVesselDetail } from '@/api/vessels';
@@ -361,6 +361,39 @@ function buildCandidateRouteContext(candidate: ScheduleCandidate | null, filters
   return { departure, arrival };
 }
 
+function scheduleToCandidate(schedule: SailingScheduleSummary): ScheduleCandidate {
+  return {
+    id: `weekly-fallback:${schedule.id}`,
+    sailingDate: schedule.sailingDate,
+    departureTime: schedule.departureTime,
+    departurePortName: schedule.departurePortName,
+    arrivalPortName: schedule.arrivalPortName,
+    vesselCode: null,
+    vesselName: schedule.vesselName ?? '',
+    routeCode: schedule.routeId,
+    routeName: `${schedule.departurePortName} → ${schedule.arrivalPortName}`,
+    licenseRouteName: null,
+    currentPortName: null,
+    status: schedule.status
+  };
+}
+
+function candidateToSchedule(candidate: ScheduleCandidate, filters: ScheduleSavedFilters): SailingScheduleSummary {
+  return {
+    id: `candidate-schedule:${candidate.id}`,
+    sailingDate: candidate.sailingDate,
+    departureTime: candidate.departureTime ?? '',
+    departurePortName: candidate.departurePortName ?? filters.departure,
+    arrivalPortName: candidate.arrivalPortName ?? filters.arrival,
+    routeId: candidate.routeCode ?? candidate.id,
+    vesselId: candidate.vesselCode ?? candidate.vesselName,
+    vesselName: candidate.vesselName || null,
+    status: candidate.status,
+    controlReason: null,
+    passengerCapacity: null
+  };
+}
+
 function parseRouteText(value: string) {
   const normalized = value.replace(/\s+/g, ' ').trim();
   const separator = ['→', '->', '-', '~', '↔'].find((candidate) => normalized.includes(candidate));
@@ -603,22 +636,20 @@ export default function ScheduleScreen() {
     staleTime: 5 * 60 * 1000
   });
 
-  const scheduleFilters = useMemo(
-    () => ({
-      date: submittedFilters.date,
-      departure: submittedFilters.departure,
-      arrival: submittedFilters.arrival,
-      vesselName: selectedCandidate?.vesselName ?? ''
-    }),
-    [selectedCandidate?.vesselName, submittedFilters]
-  );
-
-  const scheduleQuery = useQuery({
-    queryKey: ['schedules', scheduleFilters],
-    queryFn: () => fetchSchedules(scheduleFilters),
-    enabled: Boolean(selectedCandidate?.vesselName),
+  const fallbackWeeklyScheduleQuery = useQuery({
+    queryKey: ['schedule-same-day-results', submittedFilters, searchNonce],
+    queryFn: () =>
+      fetchWeeklySchedules({
+        date: submittedFilters.date,
+        startDate: submittedFilters.date,
+        endDate: submittedFilters.date,
+        departure: submittedFilters.departure,
+        arrival: submittedFilters.arrival,
+        vesselName: submittedFilters.vesselName || undefined
+      }),
+    enabled: hasSearched,
     retry: false,
-    staleTime: 10 * 60 * 1000
+    staleTime: 5 * 60 * 1000
   });
   const selectedCandidateRouteContext = useMemo(
     () => buildCandidateRouteContext(selectedCandidate, submittedFilters, routeOptionsQuery.data ?? []),
@@ -677,15 +708,25 @@ export default function ScheduleScreen() {
     () => [...(candidateQuery.data ?? [])].sort(compareScheduleCandidates),
     [candidateQuery.data]
   );
+  const fallbackScheduleCandidates = useMemo(
+    () => [...(fallbackWeeklyScheduleQuery.data ?? [])].map(scheduleToCandidate).sort(compareScheduleCandidates),
+    [fallbackWeeklyScheduleQuery.data]
+  );
+  const displayCandidates = useMemo(
+    () => (fallbackScheduleCandidates.length > 0 ? fallbackScheduleCandidates : sortedCandidates),
+    [fallbackScheduleCandidates, sortedCandidates]
+  );
+  const isUsingFallbackSchedules = fallbackScheduleCandidates.length > 0;
+  const isScheduleSearchLoading = candidateQuery.isFetching || fallbackWeeklyScheduleQuery.isFetching;
 
-  const candidateStatusCounts = useMemo(() => countCandidateStatuses(sortedCandidates), [sortedCandidates]);
+  const candidateStatusCounts = useMemo(() => countCandidateStatuses(displayCandidates), [displayCandidates]);
 
   const filteredCandidates = useMemo(
     () =>
       candidateStatusFilter === 'ALL'
-        ? sortedCandidates
-        : sortedCandidates.filter((candidate) => candidate.status === candidateStatusFilter),
-    [candidateStatusFilter, sortedCandidates]
+        ? displayCandidates
+        : displayCandidates.filter((candidate) => candidate.status === candidateStatusFilter),
+    [candidateStatusFilter, displayCandidates]
   );
   const visibleCandidates = useMemo(
     () => [...filteredCandidates].sort((a, b) => compareCandidatesBySortMode(a, b, candidateSortMode)),
@@ -693,8 +734,8 @@ export default function ScheduleScreen() {
   );
   const candidateAlertItems = useMemo(() => getCandidateAlertItems(candidateStatusCounts), [candidateStatusCounts]);
   const recommendedCandidate = useMemo(
-    () => (sortedCandidates.length > 1 ? sortedCandidates.find((candidate) => candidate.status === 'NORMAL' || candidate.status === 'SCHEDULED') ?? null : null),
-    [sortedCandidates]
+    () => (displayCandidates.length > 1 ? displayCandidates.find((candidate) => candidate.status === 'NORMAL' || candidate.status === 'SCHEDULED') ?? null : null),
+    [displayCandidates]
   );
   const vesselPreviewNames = useMemo(
     () => Array.from(new Set(visibleCandidates.slice(0, 12).map((candidate) => candidate.vesselName).filter(Boolean))),
@@ -719,11 +760,11 @@ export default function ScheduleScreen() {
   );
 
   useEffect(() => {
-    if (!hasSearched || candidateQuery.isFetching || candidateQuery.isError || sortedCandidates.length !== 1) return;
+    if (!hasSearched || isScheduleSearchLoading || candidateQuery.isError || displayCandidates.length !== 1) return;
 
-    setSelectedCandidate((candidate) => (candidate?.id === sortedCandidates[0].id ? candidate : sortedCandidates[0]));
-    setAutoSelectedCandidateId(sortedCandidates[0].id);
-  }, [candidateQuery.isError, candidateQuery.isFetching, hasSearched, sortedCandidates]);
+    setSelectedCandidate((candidate) => (candidate?.id === displayCandidates[0].id ? candidate : displayCandidates[0]));
+    setAutoSelectedCandidateId(displayCandidates[0].id);
+  }, [candidateQuery.isError, displayCandidates, hasSearched, isScheduleSearchLoading]);
 
   const possiblePortBasis = useMemo(() => {
     if (portSelectMode === 'arrival') return departure;
@@ -1020,14 +1061,14 @@ export default function ScheduleScreen() {
   return (
     <Screen
       title="시간표"
-      subtitle="날짜와 출발·도착지를 선택해 실제 운항 후보와 상세 시간을 확인합니다."
+      subtitle="날짜와 출발·도착지를 선택해 실제 운항 일정과 상세 시간을 확인합니다."
       mascotSource={require('../../assets/mascot/boogi_bg2.png')}
       scrollRef={scrollViewRef}
     >
       <MascotBanner
         eyebrow="시간표 검색"
         title="부기가 오늘 탈 배를 함께 찾아드릴게요"
-        description="출발지와 도착지를 선택하면 운항 후보를 검색하고, 즐겨찾기와 최근 조회로 빠르게 다시 찾을 수 있습니다."
+        description="출발지와 도착지를 선택하면 운항 일정을 검색하고, 즐겨찾기와 최근 조회로 빠르게 다시 찾을 수 있습니다."
         imageSource={require('../../assets/mascot/boogi-schedule.png')}
         tone="blue"
       />
@@ -1092,15 +1133,15 @@ export default function ScheduleScreen() {
         </View>
         <Pressable
           accessibilityRole="button"
-          disabled={candidateQuery.isFetching}
+          disabled={isScheduleSearchLoading}
           onPress={() => runSearch()}
           style={({ pressed }) => [
             styles.searchButton,
             pressed ? styles.searchButtonPressed : null,
-            candidateQuery.isFetching ? styles.searchButtonDisabled : null
+            isScheduleSearchLoading ? styles.searchButtonDisabled : null
           ]}
         >
-          {candidateQuery.isFetching ? <ActivityIndicator color={colors.surface} /> : <Search color={colors.surface} size={19} />}
+          {isScheduleSearchLoading ? <ActivityIndicator color={colors.surface} /> : <Search color={colors.surface} size={19} />}
           <Text style={styles.searchButtonText}>검색</Text>
         </Pressable>
         <View style={styles.quickActionRow}>
@@ -1145,12 +1186,18 @@ export default function ScheduleScreen() {
       </View>
 
       <View onLayout={(event) => { candidateSectionY.current = event.nativeEvent.layout.y; }}>
-        <InfoCard title="운항 후보" eyebrow={`${submittedFilters.date} 기준`}>
+        <InfoCard title="운항 일정" eyebrow={`${submittedFilters.date} 기준`}>
           {!hasSearched ? <Message text="날짜와 출발·도착지를 선택해 주세요. 출발지만 선택해도 후보를 찾고, 도착지를 추가하면 더 정확해집니다." /> : null}
-          {candidateQuery.isFetching ? <Message text="운항 후보를 불러오는 중입니다." /> : null}
-          {candidateQuery.isError ? (
+          {isScheduleSearchLoading ? <Message text="운항 일정을 불러오는 중입니다." /> : null}
+          {candidateQuery.isError && fallbackWeeklyScheduleQuery.isError ? (
             <View style={styles.failureRecoveryPanel}>
-              <RetryNotice text="운항 후보를 불러오지 못했습니다. 네트워크 또는 API 서버 상태를 확인한 뒤 다시 시도해 주세요." onRetry={() => candidateQuery.refetch()} />
+              <RetryNotice
+                text="운항 일정을 불러오지 못했습니다. 네트워크 또는 API 서버 상태를 확인한 뒤 다시 시도해 주세요."
+                onRetry={() => {
+                  candidateQuery.refetch();
+                  fallbackWeeklyScheduleQuery.refetch();
+                }}
+              />
               <View style={styles.failureRecoveryActions}>
                 {submittedFilters.arrival ? (
                   <Pressable accessibilityRole="button" onPress={searchWithoutArrival} style={styles.failureRecoveryButton}>
@@ -1165,11 +1212,13 @@ export default function ScheduleScreen() {
               </View>
             </View>
           ) : null}
-          {hasSearched && candidateQuery.dataUpdatedAt ? <DataTimestamp value={candidateQuery.dataUpdatedAt} /> : null}
+          {hasSearched && (fallbackWeeklyScheduleQuery.dataUpdatedAt || candidateQuery.dataUpdatedAt) ? (
+            <DataTimestamp value={fallbackWeeklyScheduleQuery.dataUpdatedAt || candidateQuery.dataUpdatedAt} />
+          ) : null}
           {autoSelectedCandidateId ? (
             <View style={styles.candidateHintPanel}>
-              <Text style={styles.candidateHintTitle}>후보가 1건이라 상세 운항을 자동으로 열었습니다.</Text>
-              <Text style={styles.candidateHintText}>아래 상세 운항에서 시간표를 바로 확인해 주세요.</Text>
+              <Text style={styles.candidateHintTitle}>일정이 1건이라 예보 기준을 자동으로 잡았습니다.</Text>
+              <Text style={styles.candidateHintText}>일정 행을 누르면 상세 팝업을 볼 수 있습니다.</Text>
             </View>
           ) : null}
           {!autoSelectedCandidateId && recommendedCandidate ? (
@@ -1187,8 +1236,14 @@ export default function ScheduleScreen() {
               </Text>
             </Pressable>
           ) : null}
-          {hasSearched && !candidateQuery.isFetching && !candidateQuery.isError ? (
+          {hasSearched && !isScheduleSearchLoading && !candidateQuery.isError ? (
             <View style={styles.candidateQualityPanel}>
+              {isUsingFallbackSchedules ? (
+                <View style={styles.candidateHintPanel}>
+                  <Text style={styles.candidateHintTitle}>실제 운항 일정으로 보여드립니다.</Text>
+                  <Text style={styles.candidateHintText}>공공 운항 일정 API 기준이라 후보 조회보다 누락이 적습니다.</Text>
+                </View>
+              ) : null}
               {candidateAlertItems.length > 0 ? (
                 <View style={styles.candidateAlertPanel}>
                   <Text style={styles.candidateAlertTitle}>주의가 필요한 운항이 있습니다</Text>
@@ -1209,14 +1264,14 @@ export default function ScheduleScreen() {
                 </View>
               ) : null}
               <View style={styles.resultSummaryRow}>
-                <Text style={styles.resultSummaryMain}>총 {sortedCandidates.length.toLocaleString()}건</Text>
+                <Text style={styles.resultSummaryMain}>총 {displayCandidates.length.toLocaleString()}건</Text>
                 <Text style={styles.resultSummaryText}>
                   정상 {(candidateStatusCounts.NORMAL ?? 0).toLocaleString()} · 지연 {(candidateStatusCounts.DELAYED ?? 0).toLocaleString()} · 결항 {(candidateStatusCounts.CANCELED ?? 0).toLocaleString()} · 통제 {(candidateStatusCounts.CONTROLLED ?? 0).toLocaleString()}
                 </Text>
               </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChipList}>
                 {candidateStatusFilters.map((filter) => {
-                  const count = filter.value === 'ALL' ? sortedCandidates.length : candidateStatusCounts[filter.value] ?? 0;
+                  const count = filter.value === 'ALL' ? displayCandidates.length : candidateStatusCounts[filter.value] ?? 0;
                   const isSelected = candidateStatusFilter === filter.value;
 
                   return (
@@ -1254,7 +1309,7 @@ export default function ScheduleScreen() {
               </View>
             </View>
           ) : null}
-          {sortedCandidates.length === 0 && hasSearched && !candidateQuery.isFetching ? (
+          {displayCandidates.length === 0 && hasSearched && !isScheduleSearchLoading ? (
             <EmptyCandidateActions
               hasArrival={Boolean(submittedFilters.arrival)}
               hasVesselName={Boolean(submittedFilters.vesselName)}
@@ -1265,7 +1320,7 @@ export default function ScheduleScreen() {
               onSelectRecentRoute={() => selectQuickRoute(recentRoutes[0])}
             />
           ) : null}
-          {sortedCandidates.length > 0 && filteredCandidates.length === 0 ? <Message text="선택한 상태에 해당하는 운항 후보가 없습니다. 상태 필터를 전체로 바꿔 확인해 보세요." /> : null}
+          {displayCandidates.length > 0 && filteredCandidates.length === 0 ? <Message text="선택한 상태에 해당하는 운항 일정이 없습니다. 상태 필터를 전체로 바꿔 확인해 보세요." /> : null}
           {visibleCandidates.map((candidate) => (
             <Pressable
               key={candidate.id}
@@ -1273,6 +1328,7 @@ export default function ScheduleScreen() {
               onPress={() => {
                 setSelectedCandidate(candidate);
                 setAutoSelectedCandidateId(null);
+                setSelectedWeeklySchedule(candidateToSchedule(candidate, submittedFilters));
               }}
               style={[styles.candidateRow, selectedCandidate?.id === candidate.id ? styles.candidateRowSelected : null]}
             >
@@ -1282,6 +1338,11 @@ export default function ScheduleScreen() {
                   <StatusPill label={statusLabel[candidate.status]} tone={statusTone[candidate.status]} />
                 </View>
                 <Text style={styles.route}>{candidate.routeName ?? candidate.licenseRouteName ?? '항로 정보 확인 중'}</Text>
+                {candidate.departurePortName || candidate.arrivalPortName ? (
+                  <Text style={styles.routeChipMeta}>
+                    {(candidate.departurePortName ?? submittedFilters.departure) || '출발지 확인'} → {(candidate.arrivalPortName ?? submittedFilters.arrival) || '도착지 확인'}
+                  </Text>
+                ) : null}
                 <View style={styles.candidateVesselLine}>
                   <VesselNameButton vesselName={candidate.vesselName} onPress={setSelectedVesselName} />
                 </View>
@@ -1289,7 +1350,7 @@ export default function ScheduleScreen() {
               </View>
             </Pressable>
           ))}
-          {sortedCandidates.length > 0 && hasSearched && !candidateQuery.isFetching ? (
+          {displayCandidates.length > 0 && hasSearched && !isScheduleSearchLoading ? (
             <CandidateResultActions
               canFavorite={Boolean(submittedRoute)}
               isFavorite={hasSubmittedFavoriteRoute}
@@ -1311,30 +1372,6 @@ export default function ScheduleScreen() {
           <Text style={styles.outlineButtonText}>일정 조회하기</Text>
           <ChevronRight color={colors.primary} size={18} />
         </Pressable>
-      </InfoCard>
-
-      <InfoCard title="상세 운항">
-        {!selectedCandidate ? <Message text="운항 후보를 선택하면 상세 시간표를 확인할 수 있습니다." /> : null}
-        {scheduleQuery.isFetching ? <Message text="상세 시간표를 불러오는 중입니다." /> : null}
-        {scheduleQuery.isError ? <RetryNotice text="상세 시간표를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요." onRetry={() => scheduleQuery.refetch()} /> : null}
-        {selectedCandidate && scheduleQuery.dataUpdatedAt ? <DataTimestamp value={scheduleQuery.dataUpdatedAt} /> : null}
-        {scheduleQuery.data?.length === 0 ? <Message text="선택한 후보의 상세 시간표가 없습니다. 다른 운항 후보를 선택하거나 검색 조건을 넓혀 보세요." /> : null}
-        {(scheduleQuery.data ?? []).map((item) => (
-          <View key={item.id} style={styles.scheduleItem}>
-            <View style={styles.timeBadge}>
-              <Clock3 color={colors.primary} size={17} />
-              <Text style={styles.timeBadgeText}>{item.departureTime || '--:--'}</Text>
-            </View>
-            <View style={styles.scheduleBody}>
-              <VesselNameButton vesselName={item.vesselName ?? selectedCandidate?.vesselName} onPress={setSelectedVesselName} />
-              <Text style={styles.route}>
-                {item.departurePortName} → {item.arrivalPortName}
-              </Text>
-              {item.controlReason ? <Text style={styles.reason}>{item.controlReason}</Text> : null}
-            </View>
-            <StatusPill label={statusLabel[item.status]} tone={statusTone[item.status]} />
-          </View>
-        ))}
       </InfoCard>
 
       {selectedCandidate ? (
@@ -1377,7 +1414,7 @@ export default function ScheduleScreen() {
         onSelectSchedule={setSelectedWeeklySchedule}
         onSelectVessel={setSelectedVesselName}
       />
-      <ScheduleRouteModal schedule={selectedWeeklySchedule} onClose={() => setSelectedWeeklySchedule(null)} />
+      <ScheduleRouteModal schedule={selectedWeeklySchedule} onClose={() => setSelectedWeeklySchedule(null)} onSelectVessel={setSelectedVesselName} />
       <VesselDetailModal
         vesselName={selectedVesselName}
         detail={vesselDetailQuery.data}
@@ -1742,7 +1779,7 @@ function EmptyCandidateActions({
 }) {
   return (
     <View style={styles.emptyActionPanel}>
-      <Text style={styles.emptyActionTitle}>조건에 맞는 운항 후보가 없습니다.</Text>
+      <Text style={styles.emptyActionTitle}>조건에 맞는 운항 일정이 없습니다.</Text>
       <Text style={styles.emptyActionText}>검색 조건을 조금 넓혀 다시 확인해 보세요.</Text>
       <View style={styles.emptyActionGrid}>
         {hasArrival ? (
@@ -1833,7 +1870,7 @@ function ScheduleForecastPanel({
   locationName: string;
   onRetry: () => void;
 }) {
-  if (isLoading) return <Message text="선택한 운항 후보의 도착 섬 기준 예보를 불러오는 중입니다." />;
+  if (isLoading) return <Message text="선택한 운항 일정의 도착 섬 기준 예보를 불러오는 중입니다." />;
   if (isError) return <RetryNotice text="출항 전후 예보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요." onRetry={onRetry} />;
 
   return (
@@ -2303,22 +2340,47 @@ function WeeklyScheduleModal({
   );
 }
 
-function ScheduleRouteModal({ schedule, onClose }: { schedule: SailingScheduleSummary | null; onClose: () => void }) {
+function ScheduleRouteModal({
+  schedule,
+  onClose,
+  onSelectVessel
+}: {
+  schedule: SailingScheduleSummary | null;
+  onClose: () => void;
+  onSelectVessel: (vesselName: string) => void;
+}) {
   return (
-    <Modal animationType="fade" transparent visible={schedule !== null} onRequestClose={onClose}>
+    <Modal animationType="slide" transparent visible={schedule !== null} onRequestClose={onClose}>
       <View style={styles.modalBackdrop}>
-        <View style={styles.modalPanel}>
-          <ModalHeader title="운항항로 정보" onClose={onClose} />
+        <View style={styles.scheduleBottomSheetPanel}>
+          <View style={styles.bottomSheetHandle} />
+          <ModalHeader title="운항 일정 상세" onClose={onClose} />
           {schedule ? (
-            <View style={styles.detailStack}>
+            <ScrollView contentContainerStyle={styles.detailStack}>
+              <View style={styles.scheduleBottomSheetHero}>
+                <View style={styles.timeBadge}>
+                  <Clock3 color={colors.primary} size={17} />
+                  <Text style={styles.timeBadgeText}>{schedule.departureTime || '--:--'}</Text>
+                </View>
+                <View style={styles.scheduleBody}>
+                  <Text style={styles.scheduleBottomSheetDate}>{schedule.sailingDate}</Text>
+                  <Text style={styles.scheduleBottomSheetRoute}>
+                    {schedule.departurePortName} → {schedule.arrivalPortName}
+                  </Text>
+                  <StatusPill label={statusLabel[schedule.status]} tone={statusTone[schedule.status]} />
+                </View>
+              </View>
+              <View style={styles.detailLine}>
+                <Text style={styles.detailLabel}>선박</Text>
+                <VesselNameButton vesselName={schedule.vesselName} onPress={onSelectVessel} />
+              </View>
               <DetailLine label="운항일" value={schedule.sailingDate} />
               <DetailLine label="출항시간" value={schedule.departureTime || '--:--'} />
               <DetailLine label="항로" value={`${schedule.departurePortName} → ${schedule.arrivalPortName}`} />
-              <DetailLine label="선박" value={schedule.vesselName ?? '선박명 확인 필요'} />
               <DetailLine label="상태" value={statusLabel[schedule.status]} />
               {schedule.controlReason ? <DetailLine label="통제 사유" value={schedule.controlReason} /> : null}
               {schedule.passengerCapacity ? <DetailLine label="정원" value={`${schedule.passengerCapacity.toLocaleString()}명`} /> : null}
-            </View>
+            </ScrollView>
           ) : null}
         </View>
       </View>
@@ -3518,6 +3580,43 @@ const styles = StyleSheet.create({
     gap: 14,
     maxHeight: '84%',
     padding: 16
+  },
+  scheduleBottomSheetPanel: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    gap: 14,
+    maxHeight: '78%',
+    padding: 16,
+    paddingBottom: 18
+  },
+  bottomSheetHandle: {
+    alignSelf: 'center',
+    backgroundColor: colors.border,
+    borderRadius: 999,
+    height: 4,
+    width: 44
+  },
+  scheduleBottomSheetHero: {
+    alignItems: 'center',
+    backgroundColor: colors.backgroundSoft,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 12,
+    padding: 12
+  },
+  scheduleBottomSheetDate: {
+    color: colors.primaryDark,
+    fontSize: 12,
+    fontWeight: '900'
+  },
+  scheduleBottomSheetRoute: {
+    color: colors.navy,
+    fontSize: 17,
+    fontWeight: '900',
+    lineHeight: 22
   },
   modalHeader: {
     alignItems: 'center',

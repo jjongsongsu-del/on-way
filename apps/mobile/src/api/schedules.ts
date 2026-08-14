@@ -6,6 +6,8 @@ export type ScheduleCandidate = {
   id: string;
   sailingDate: string;
   departureTime: string | null;
+  departurePortName?: string | null;
+  arrivalPortName?: string | null;
   vesselCode: string | null;
   vesselName: string;
   routeCode: string | null;

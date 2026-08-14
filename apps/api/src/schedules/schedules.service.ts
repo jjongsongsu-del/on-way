@@ -77,17 +77,96 @@ export class SchedulesService {
     });
 
     if (routePairs.length > 0) {
-      return routePairs.map((route) => ({
-        routeKey: route.routeKey,
-        routePairKey: route.routePairKey,
-        routeName: route.routeName,
-        departurePortName: route.departurePortName,
-        arrivalPortName: route.arrivalPortName,
-        stopPortNames: route.stopPortNames,
-        vesselNames: route.vesselNames
+      return routePairs.map(toScheduleRouteContext);
+    }
+
+    const linkedRoute = findLinkedIslandRoute(departure, arrival);
+    if (linkedRoute) {
+      const linkedRoutePairs = await this.prismaService.ferryRouteMaster.findMany({
+        where: {
+          departurePortName: { equals: linkedRoute.departurePortName, mode: 'insensitive' },
+          arrivalPortName: { equals: linkedRoute.viaPortName, mode: 'insensitive' }
+        },
+        orderBy: [{ routeName: 'asc' }, { departurePortName: 'asc' }, { arrivalPortName: 'asc' }],
+        take: 50
+      });
+
+      return linkedRoutePairs.map((route) => ({
+        ...toScheduleRouteContext(route),
+        stopPortNames: [...new Set([...route.stopPortNames, linkedRoute.viaPortName, linkedRoute.arrivalPortName])]
       }));
     }
 
     return [];
   }
+}
+
+type FerryRouteMasterRecord = {
+  routeKey: string;
+  routePairKey: string;
+  routeName: string;
+  departurePortName: string;
+  arrivalPortName: string;
+  stopPortNames: string[];
+  vesselNames: string[];
+};
+
+function toScheduleRouteContext(route: FerryRouteMasterRecord): ScheduleRouteContext {
+  return {
+    routeKey: route.routeKey,
+    routePairKey: route.routePairKey,
+    routeName: route.routeName,
+    departurePortName: route.departurePortName,
+    arrivalPortName: route.arrivalPortName,
+    stopPortNames: route.stopPortNames,
+    vesselNames: route.vesselNames
+  };
+}
+
+const linkedIslandRoutes = [
+  {
+    departurePortName: '\uC778\uCC9C',
+    viaPortName: '\uB355\uC801',
+    arrivalPortName: '\uAD74\uC5C5\uB3C4',
+    aliases: ['\uAD74\uC5C5', '\uAD74\uC5C5\uB3C4']
+  },
+  {
+    departurePortName: '\uC778\uCC9C',
+    viaPortName: '\uB355\uC801',
+    arrivalPortName: '\uBB38\uAC11\uB3C4',
+    aliases: ['\uBB38\uAC11', '\uBB38\uAC11\uB3C4']
+  },
+  {
+    departurePortName: '\uC778\uCC9C',
+    viaPortName: '\uB355\uC801',
+    arrivalPortName: '\uBC31\uC544\uB3C4',
+    aliases: ['\uBC31\uC544', '\uBC31\uC544\uB3C4']
+  },
+  {
+    departurePortName: '\uC778\uCC9C',
+    viaPortName: '\uB355\uC801',
+    arrivalPortName: '\uC6B8\uB3C4',
+    aliases: ['\uC6B8\uB3C4']
+  },
+  {
+    departurePortName: '\uC778\uCC9C',
+    viaPortName: '\uB355\uC801',
+    arrivalPortName: '\uC9C0\uB3C4',
+    aliases: ['\uC9C0\uB3C4']
+  }
+];
+
+function findLinkedIslandRoute(departurePortName: string, arrivalPortName: string) {
+  const departure = normalizePortName(departurePortName);
+  const arrival = normalizePortName(arrivalPortName);
+
+  return linkedIslandRoutes.find(
+    (route) =>
+      normalizePortName(route.departurePortName) === departure &&
+      route.aliases.some((alias) => normalizePortName(alias) === arrival)
+  );
+}
+
+function normalizePortName(value: string) {
+  return value.replace(/\s/g, '').replace(/도$/g, '').toLowerCase();
 }
