@@ -2,6 +2,7 @@ const { PrismaClient } = require('@prisma/client');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 const { TextDecoder } = require('util');
 
 loadDotEnv(path.resolve(__dirname, '../../../.env'));
@@ -118,6 +119,43 @@ async function main() {
       raw: row
     });
     summary.schedules += 1;
+  }
+
+  for (const fileName of ['26년 부산 여객 크루즈 스케쥴.xlsx', '27년 부산 여객 크루즈 스케쥴.xlsx']) {
+    if (!fs.existsSync(path.join(cruiseRoot, fileName))) {
+      summary.warnings.push(`부산 크루즈 XLSX 파일 없음: ${fileName}`);
+      continue;
+    }
+    const rows = parseXlsxFile(fileName);
+    for (const row of rows) {
+      if (!value(row, '선명') || !dateOnly(value(row, '입항예정일'))) continue;
+      const vessel = await upsertVessel({
+        vesselName: value(row, '선명'),
+        grossTonnage: decimal(row, '총톤수'),
+        lengthMeter: decimal(row, '선박길이'),
+        crewCount: int(row, '선원정원수'),
+        passengerCapacity: int(row, '승객정원수'),
+        sourceName: `${SOURCES.busan.name} ${fileName.replace(/\.xlsx$/i, '')}`
+      });
+      await upsertSchedule({
+        source: { ...SOURCES.busan, name: `${SOURCES.busan.name} ${fileName.replace(/\.xlsx$/i, '')}` },
+        portId: ports[SOURCES.busan.port.key],
+        vesselId: vessel.id,
+        vesselName: value(row, '선명'),
+        operatorName: null,
+        arrivalDate: dateOnly(value(row, '입항예정일')),
+        arrivalTime: timeOnly(value(row, '입항예정일')),
+        departureDate: dateOnly(value(row, '출항예정일')),
+        departureTime: timeOnly(value(row, '출항예정일')),
+        homePortName: value(row, '최초출항지'),
+        previousPortName: value(row, '이전항'),
+        nextPortName: value(row, '다음항'),
+        berthName: value(row, '입항부두'),
+        scheduleType: '기항',
+        raw: { ...row, sourceFile: fileName }
+      });
+      summary.schedules += 1;
+    }
   }
 
   const yeosuVessels = new Map();
@@ -665,6 +703,101 @@ function parseCsvFile(fileName) {
   return parseCsv(readText(filePath));
 }
 
+function parseXlsxFile(fileName) {
+  const filePath = path.join(cruiseRoot, fileName);
+  const entries = readZipEntries(fs.readFileSync(filePath));
+  const sheetXml = getZipText(entries, 'xl/worksheets/sheet1.xml');
+  if (!sheetXml) throw new Error(`XLSX worksheet not found: ${fileName}`);
+  const sharedStrings = parseSharedStrings(getZipText(entries, 'xl/sharedStrings.xml'));
+  const rows = parseWorksheetXml(sheetXml, sharedStrings);
+  const headerIndex = rows.findIndex((row) => row.some((cell) => clean(cell) === '선명') && row.some((cell) => clean(cell) === '입항예정일'));
+  if (headerIndex < 0) throw new Error(`XLSX header row not found: ${fileName}`);
+  const headers = rows[headerIndex].map(cleanHeader);
+  return rows
+    .slice(headerIndex + 1)
+    .filter((row) => row.some((cell) => clean(cell)))
+    .map((row) => Object.fromEntries(headers.map((header, index) => [header, clean(row[index])])));
+}
+
+function readZipEntries(buffer) {
+  const entries = new Map();
+  let eocdOffset = -1;
+  for (let i = buffer.length - 22; i >= 0; i -= 1) {
+    if (buffer.readUInt32LE(i) === 0x06054b50) {
+      eocdOffset = i;
+      break;
+    }
+  }
+  if (eocdOffset < 0) throw new Error('Invalid XLSX zip: end of central directory not found');
+  const centralDirectorySize = buffer.readUInt32LE(eocdOffset + 12);
+  const centralDirectoryOffset = buffer.readUInt32LE(eocdOffset + 16);
+  let offset = centralDirectoryOffset;
+  const end = centralDirectoryOffset + centralDirectorySize;
+  while (offset < end) {
+    if (buffer.readUInt32LE(offset) !== 0x02014b50) break;
+    const method = buffer.readUInt16LE(offset + 10);
+    const compressedSize = buffer.readUInt32LE(offset + 20);
+    const fileNameLength = buffer.readUInt16LE(offset + 28);
+    const extraLength = buffer.readUInt16LE(offset + 30);
+    const commentLength = buffer.readUInt16LE(offset + 32);
+    const localHeaderOffset = buffer.readUInt32LE(offset + 42);
+    const name = buffer.toString('utf8', offset + 46, offset + 46 + fileNameLength);
+    const localFileNameLength = buffer.readUInt16LE(localHeaderOffset + 26);
+    const localExtraLength = buffer.readUInt16LE(localHeaderOffset + 28);
+    const dataOffset = localHeaderOffset + 30 + localFileNameLength + localExtraLength;
+    const compressed = buffer.subarray(dataOffset, dataOffset + compressedSize);
+    const data = method === 0 ? compressed : method === 8 ? zlib.inflateRawSync(compressed) : null;
+    if (data) entries.set(name, data);
+    offset += 46 + fileNameLength + extraLength + commentLength;
+  }
+  return entries;
+}
+
+function getZipText(entries, name) {
+  const data = entries.get(name);
+  return data ? data.toString('utf8') : null;
+}
+
+function parseSharedStrings(xml) {
+  if (!xml) return [];
+  return [...xml.matchAll(/<si[^>]*>([\s\S]*?)<\/si>/gi)].map((match) => xmlText(match[1]));
+}
+
+function parseWorksheetXml(xml, sharedStrings) {
+  return [...xml.matchAll(/<row[^>]*r="(\d+)"[^>]*>([\s\S]*?)<\/row>/gi)].map((rowMatch) => {
+    const cells = [];
+    for (const cellMatch of rowMatch[2].matchAll(/<c[^>]*r="([A-Z]+)\d+"([^>]*)>([\s\S]*?)<\/c>/gi)) {
+      const index = columnIndex(cellMatch[1]);
+      const attrs = cellMatch[2];
+      const inner = cellMatch[3];
+      let text = null;
+      if (/t="s"/.test(attrs)) {
+        const sharedIndex = Number((inner.match(/<v>([\s\S]*?)<\/v>/i) ?? [])[1]);
+        text = sharedStrings[sharedIndex] ?? null;
+      } else if (/t="inlineStr"/.test(attrs)) {
+        text = xmlText(inner);
+      } else {
+        text = (inner.match(/<v>([\s\S]*?)<\/v>/i) ?? [])[1] ?? null;
+      }
+      cells[index] = clean(text);
+    }
+    return cells;
+  });
+}
+
+function columnIndex(letters) {
+  return [...letters].reduce((sum, letter) => sum * 26 + letter.charCodeAt(0) - 64, 0) - 1;
+}
+
+function xmlText(xml) {
+  return decodeXml(
+    String(xml ?? '')
+      .replace(/<[^>]+>/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+  );
+}
+
 function parseCsv(text) {
   const records = [];
   let row = [];
@@ -779,6 +912,16 @@ function htmlText(html) {
     .replace(/&#41;/g, ')')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function decodeXml(value) {
+  return String(value ?? '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
 }
 
 function normalizeKey(value) {
