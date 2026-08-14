@@ -21,7 +21,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
-  Clock3,
   Pencil,
   History,
   MapPin,
@@ -378,22 +377,6 @@ function scheduleToCandidate(schedule: SailingScheduleSummary): ScheduleCandidat
   };
 }
 
-function candidateToSchedule(candidate: ScheduleCandidate, filters: ScheduleSavedFilters): SailingScheduleSummary {
-  return {
-    id: `candidate-schedule:${candidate.id}`,
-    sailingDate: candidate.sailingDate,
-    departureTime: candidate.departureTime ?? '',
-    departurePortName: candidate.departurePortName ?? filters.departure,
-    arrivalPortName: candidate.arrivalPortName ?? filters.arrival,
-    routeId: candidate.routeCode ?? candidate.id,
-    vesselId: candidate.vesselCode ?? candidate.vesselName,
-    vesselName: candidate.vesselName || null,
-    status: candidate.status,
-    controlReason: null,
-    passengerCapacity: null
-  };
-}
-
 function parseRouteText(value: string) {
   const normalized = value.replace(/\s+/g, ' ').trim();
   const separator = ['→', '->', '-', '~', '↔'].find((candidate) => normalized.includes(candidate));
@@ -568,7 +551,6 @@ export default function ScheduleScreen() {
   const [candidateSortMode, setCandidateSortMode] = useState<CandidateSortMode>('TIME');
   const [selectedCandidate, setSelectedCandidate] = useState<ScheduleCandidate | null>(null);
   const [autoSelectedCandidateId, setAutoSelectedCandidateId] = useState<string | null>(null);
-  const [selectedWeeklySchedule, setSelectedWeeklySchedule] = useState<SailingScheduleSummary | null>(null);
   const [selectedVesselName, setSelectedVesselName] = useState<string | null>(null);
   const [datePickerTarget, setDatePickerTarget] = useState<DatePickerTarget | null>(null);
   const [portSelectMode, setPortSelectMode] = useState<PortSelectMode | null>(null);
@@ -1328,7 +1310,9 @@ export default function ScheduleScreen() {
               onPress={() => {
                 setSelectedCandidate(candidate);
                 setAutoSelectedCandidateId(null);
-                setSelectedWeeklySchedule(candidateToSchedule(candidate, submittedFilters));
+                if (candidate.vesselName) {
+                  setSelectedVesselName(candidate.vesselName);
+                }
               }}
               style={[styles.candidateRow, selectedCandidate?.id === candidate.id ? styles.candidateRowSelected : null]}
             >
@@ -1411,10 +1395,13 @@ export default function ScheduleScreen() {
         onOpenPortPicker={openPortModal}
         onRunSearch={runWeeklySearch}
         onRetry={() => weeklyScheduleQuery.refetch()}
-        onSelectSchedule={setSelectedWeeklySchedule}
+        onSelectSchedule={(schedule) => {
+          if (schedule.vesselName) {
+            setSelectedVesselName(schedule.vesselName);
+          }
+        }}
         onSelectVessel={setSelectedVesselName}
       />
-      <ScheduleRouteModal schedule={selectedWeeklySchedule} onClose={() => setSelectedWeeklySchedule(null)} onSelectVessel={setSelectedVesselName} />
       <VesselDetailModal
         vesselName={selectedVesselName}
         detail={vesselDetailQuery.data}
@@ -2334,54 +2321,6 @@ function WeeklyScheduleModal({
               </View>
             ))}
           </ScrollView>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-function ScheduleRouteModal({
-  schedule,
-  onClose,
-  onSelectVessel
-}: {
-  schedule: SailingScheduleSummary | null;
-  onClose: () => void;
-  onSelectVessel: (vesselName: string) => void;
-}) {
-  return (
-    <Modal animationType="slide" transparent visible={schedule !== null} onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <View style={styles.scheduleBottomSheetPanel}>
-          <View style={styles.bottomSheetHandle} />
-          <ModalHeader title="운항 일정 상세" onClose={onClose} />
-          {schedule ? (
-            <ScrollView contentContainerStyle={styles.detailStack}>
-              <View style={styles.scheduleBottomSheetHero}>
-                <View style={styles.timeBadge}>
-                  <Clock3 color={colors.primary} size={17} />
-                  <Text style={styles.timeBadgeText}>{schedule.departureTime || '--:--'}</Text>
-                </View>
-                <View style={styles.scheduleBody}>
-                  <Text style={styles.scheduleBottomSheetDate}>{schedule.sailingDate}</Text>
-                  <Text style={styles.scheduleBottomSheetRoute}>
-                    {schedule.departurePortName} → {schedule.arrivalPortName}
-                  </Text>
-                  <StatusPill label={statusLabel[schedule.status]} tone={statusTone[schedule.status]} />
-                </View>
-              </View>
-              <View style={styles.detailLine}>
-                <Text style={styles.detailLabel}>선박</Text>
-                <VesselNameButton vesselName={schedule.vesselName} onPress={onSelectVessel} />
-              </View>
-              <DetailLine label="운항일" value={schedule.sailingDate} />
-              <DetailLine label="출항시간" value={schedule.departureTime || '--:--'} />
-              <DetailLine label="항로" value={`${schedule.departurePortName} → ${schedule.arrivalPortName}`} />
-              <DetailLine label="상태" value={statusLabel[schedule.status]} />
-              {schedule.controlReason ? <DetailLine label="통제 사유" value={schedule.controlReason} /> : null}
-              {schedule.passengerCapacity ? <DetailLine label="정원" value={`${schedule.passengerCapacity.toLocaleString()}명`} /> : null}
-            </ScrollView>
-          ) : null}
         </View>
       </View>
     </Modal>
@@ -3580,43 +3519,6 @@ const styles = StyleSheet.create({
     gap: 14,
     maxHeight: '84%',
     padding: 16
-  },
-  scheduleBottomSheetPanel: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
-    gap: 14,
-    maxHeight: '78%',
-    padding: 16,
-    paddingBottom: 18
-  },
-  bottomSheetHandle: {
-    alignSelf: 'center',
-    backgroundColor: colors.border,
-    borderRadius: 999,
-    height: 4,
-    width: 44
-  },
-  scheduleBottomSheetHero: {
-    alignItems: 'center',
-    backgroundColor: colors.backgroundSoft,
-    borderColor: colors.border,
-    borderRadius: 8,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: 12,
-    padding: 12
-  },
-  scheduleBottomSheetDate: {
-    color: colors.primaryDark,
-    fontSize: 12,
-    fontWeight: '900'
-  },
-  scheduleBottomSheetRoute: {
-    color: colors.navy,
-    fontSize: 17,
-    fontWeight: '900',
-    lineHeight: 22
   },
   modalHeader: {
     alignItems: 'center',
