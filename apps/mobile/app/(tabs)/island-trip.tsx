@@ -305,7 +305,6 @@ export default function IslandTripScreen() {
   const [photoModalVisible, setPhotoModalVisible] = useState(false);
   const [unifiedSearchKeyword, setUnifiedSearchKeyword] = useState('');
   const [submittedUnifiedKeyword, setSubmittedUnifiedKeyword] = useState('');
-  const [unifiedSearchVisible, setUnifiedSearchVisible] = useState(false);
   const [isQuickPanelExpanded, setQuickPanelExpanded] = useState(false);
   const [favoriteIslands, setFavoriteIslands] = useState<SavedIslandSearch[]>(() => readSavedIslandSearches(ISLAND_TRIP_FAVORITES_KEY));
   const [recentIslandSearches, setRecentIslandSearches] = useState<SavedIslandSearch[]>(() => readSavedIslandSearches(ISLAND_TRIP_RECENTS_KEY));
@@ -551,8 +550,8 @@ export default function IslandTripScreen() {
     if (keyword.length < 2) return;
 
     setSubmittedUnifiedKeyword(keyword);
-    setUnifiedSearchVisible(true);
     setActiveSection('detail');
+    setPendingDetailScroll(true);
     addRecentKeyword(keyword);
   };
 
@@ -562,7 +561,8 @@ export default function IslandTripScreen() {
 
     setUnifiedSearchKeyword(keyword);
     setSubmittedUnifiedKeyword(keyword);
-    setUnifiedSearchVisible(true);
+    setActiveSection('detail');
+    setPendingDetailScroll(true);
     addRecentKeyword(keyword);
   };
 
@@ -574,7 +574,6 @@ export default function IslandTripScreen() {
 
     setFocusedTripId(null);
     setActiveDetailTab(result.tab);
-    setUnifiedSearchVisible(false);
     setActiveSection('detail');
     setPendingDetailScroll(true);
   };
@@ -595,7 +594,8 @@ export default function IslandTripScreen() {
       const keyword = item.keyword ?? item.islandName;
       setUnifiedSearchKeyword(keyword);
       setSubmittedUnifiedKeyword(keyword);
-      setUnifiedSearchVisible(true);
+      setActiveSection('detail');
+      setPendingDetailScroll(true);
       setQuickPanelExpanded(false);
       addRecentKeyword(keyword);
       return;
@@ -1045,6 +1045,16 @@ export default function IslandTripScreen() {
             ? `${detailIslandName}의 기본정보, 배편, 관광·체험, 걷기·트레킹, 해양레저, 맛집·시장, 숙박, 캠핑·야영, 갯벌·물때 정보를 함께 확인합니다.`
             : '통합검색이나 아래 검색창에서 섬을 찾고 관련 섬 목록에서 하나를 선택해 주세요.'}
         </Text>
+        {submittedUnifiedKeyword.trim().length >= 2 ? (
+          <UnifiedSearchInlinePanel
+            keyword={submittedUnifiedKeyword}
+            isLoading={unifiedSearchQuery.isFetching}
+            isError={unifiedSearchQuery.isError}
+            results={unifiedSearchResults}
+            onRetry={() => unifiedSearchQuery.refetch()}
+            onSelect={selectUnifiedSearchResult}
+          />
+        ) : null}
         <View style={styles.detailTabs}>
           {travelDetailTabs.map((tab) => {
             const selected = activeDetailTab === tab.key;
@@ -1230,16 +1240,6 @@ export default function IslandTripScreen() {
           setSelectedTravelItem(null);
           setPhotoModalVisible(true);
         }}
-      />
-      <UnifiedSearchModal
-        keyword={submittedUnifiedKeyword}
-        visible={unifiedSearchVisible}
-        isLoading={unifiedSearchQuery.isFetching}
-        isError={unifiedSearchQuery.isError}
-        results={unifiedSearchResults}
-        onClose={() => setUnifiedSearchVisible(false)}
-        onRetry={() => unifiedSearchQuery.refetch()}
-        onSelect={selectUnifiedSearchResult}
       />
       <FavoriteIslandNameModal
         visible={favoriteNameModalVisible}
@@ -1439,22 +1439,18 @@ function IslandQuickGroup({
   );
 }
 
-function UnifiedSearchModal({
+function UnifiedSearchInlinePanel({
   keyword,
-  visible,
   isLoading,
   isError,
   results,
-  onClose,
   onRetry,
   onSelect
 }: {
   keyword: string;
-  visible: boolean;
   isLoading: boolean;
   isError: boolean;
   results: UnifiedSearchResult[];
-  onClose: () => void;
   onRetry: () => void;
   onSelect: (result: UnifiedSearchResult) => void;
 }) {
@@ -1465,32 +1461,26 @@ function UnifiedSearchModal({
   const filteredGrouped = groupUnifiedResults(filteredResults);
 
   useEffect(() => {
-    if (!visible) {
-      setExpandedResultId(null);
-      setActiveFilter('전체');
-    }
-  }, [visible, keyword]);
+    setExpandedResultId(null);
+    setActiveFilter('전체');
+  }, [keyword]);
 
   useEffect(() => {
     setExpandedResultId(null);
   }, [activeFilter, keyword]);
 
   return (
-    <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <View style={styles.searchModalCard}>
-          <View style={styles.modalHeader}>
-            <View style={styles.modalTitleWrap}>
-              <Text style={styles.eyebrow}>통합검색 결과</Text>
-              <Text style={styles.modalTitle} numberOfLines={1}>
-                {keyword || '검색어'}
-              </Text>
-            </View>
-            <Pressable accessibilityRole="button" onPress={onClose} style={styles.closeButton}>
-              <X color={colors.navy} size={20} />
-            </Pressable>
-          </View>
-          <ScrollView contentContainerStyle={styles.searchResultStack} showsVerticalScrollIndicator={false}>
+    <View style={styles.inlineSearchPanel}>
+      <View style={styles.inlineSearchHeader}>
+        <View>
+          <Text style={styles.eyebrow}>통합검색 결과</Text>
+          <Text style={styles.inlineSearchTitle} numberOfLines={1}>
+            {keyword || '검색어'}
+          </Text>
+        </View>
+        <Text style={styles.quickSectionText}>{results.length}건</Text>
+      </View>
+      <View style={styles.searchResultStack}>
             <View style={styles.searchFilterStrip}>
               {unifiedSearchFilters.map((filter) => {
                 const selected = activeFilter === filter;
@@ -1511,7 +1501,7 @@ function UnifiedSearchModal({
               })}
             </View>
             {isLoading ? <UnifiedSearchProgress keyword={keyword} /> : null}
-            {isError ? <UnifiedSearchFailure keyword={keyword} onRetry={onRetry} onClose={onClose} /> : null}
+            {isError ? <UnifiedSearchFailure keyword={keyword} onRetry={onRetry} /> : null}
             {!isLoading && !isError && filteredGrouped.length === 0 ? <Text style={styles.travelInfoEmpty}>선택한 영역의 검색 결과가 없습니다.</Text> : null}
             {!isLoading && !isError
               ? filteredGrouped.map((group) => (
@@ -1576,7 +1566,7 @@ function UnifiedSearchModal({
                                 ) : null
                               )}
                               <Pressable accessibilityRole="button" onPress={() => onSelect(item)} style={styles.primaryActionButton}>
-                                <Text style={styles.primaryActionText}>섬상세에서 보기</Text>
+                                <Text style={styles.primaryActionText}>섬상세에 반영</Text>
                               </Pressable>
                             </View>
                           ) : null}
@@ -1586,10 +1576,8 @@ function UnifiedSearchModal({
                   </View>
                 ))
               : null}
-          </ScrollView>
-        </View>
       </View>
-    </Modal>
+    </View>
   );
 }
 
@@ -1629,7 +1617,7 @@ function UnifiedSearchProgress({ keyword }: { keyword: string }) {
   );
 }
 
-function UnifiedSearchFailure({ keyword, onRetry, onClose }: { keyword: string; onRetry: () => void; onClose: () => void }) {
+function UnifiedSearchFailure({ keyword, onRetry }: { keyword: string; onRetry: () => void }) {
   return (
     <View style={styles.searchFailurePanel}>
       <View style={styles.searchProgressHeader}>
@@ -1644,9 +1632,6 @@ function UnifiedSearchFailure({ keyword, onRetry, onClose }: { keyword: string; 
       <View style={styles.searchFailureActionRow}>
         <Pressable accessibilityRole="button" onPress={onRetry} style={styles.primaryActionButton}>
           <Text style={styles.primaryActionText}>다시 시도</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" onPress={onClose} style={styles.secondaryActionButton}>
-          <Text style={styles.secondaryActionText}>섬상세로 돌아가기</Text>
         </Pressable>
       </View>
     </View>
@@ -3523,6 +3508,25 @@ const styles = StyleSheet.create({
     gap: 14,
     maxHeight: '88%',
     padding: 18
+  },
+  inlineSearchPanel: {
+    backgroundColor: colors.surfaceBlue,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 12,
+    padding: 12
+  },
+  inlineSearchHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'space-between'
+  },
+  inlineSearchTitle: {
+    color: colors.navy,
+    fontSize: 16,
+    fontWeight: '900'
   },
   searchResultStack: {
     gap: 12,
