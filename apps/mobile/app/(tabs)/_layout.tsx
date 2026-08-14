@@ -1,5 +1,5 @@
 import { Tabs, usePathname } from 'expo-router';
-import { CalendarDays, Compass, Home, Map, Route, Ship, User } from 'lucide-react-native';
+import { Anchor, CalendarDays, Compass, Home, Map, Ship, User } from 'lucide-react-native';
 import type { ComponentType } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,7 +17,7 @@ const tabItems: TabItem[] = [
   { routeName: 'index', label: '섬똑', match: '/', Icon: Home },
   { routeName: 'schedule', label: '시간표', match: '/schedule', Icon: CalendarDays },
   { routeName: 'islands', params: { mode: 'trip' }, label: '섬찾기', match: '/islands:trip', Icon: Compass },
-  { routeName: 'islands', params: { mode: 'my-trip' }, label: '섬코스', match: '/islands:my-trip', Icon: Route },
+  { routeName: 'cruise', label: '크루즈', match: '/cruise', Icon: Anchor },
   { routeName: 'forecast', label: '예보', match: '/forecast', Icon: Ship },
   { routeName: 'profile', label: '내정보', match: '/profile', Icon: User }
 ];
@@ -47,6 +47,8 @@ export default function TabLayout() {
       <Tabs.Screen name="island-trip" options={{ title: '섬찾기' }} />
       <Tabs.Screen name="trip" options={{ href: null, title: '섬찾기' }} />
       <Tabs.Screen name="islands" options={{ title: '섬지도' }} />
+      <Tabs.Screen name="cruise" options={{ title: '크루즈' }} />
+      <Tabs.Screen name="my-trip" options={{ href: null, title: '섬코스' }} />
       <Tabs.Screen name="forecast" options={{ title: '예보' }} />
       <Tabs.Screen
         name="profile"
