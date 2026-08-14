@@ -451,6 +451,7 @@ export type CruiseOperatorLicense = {
   localGovernmentName: string | null;
   x: number | null;
   y: number | null;
+  detailFields?: IslandTravelDetailField[];
   sourceName: string;
   sourceUrl: string | null;
   collectedAt: string;

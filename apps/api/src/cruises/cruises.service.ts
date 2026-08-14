@@ -98,6 +98,7 @@ type CruiseOperatorLicenseRow = {
   local_government_name: string | null;
   x: unknown;
   y: unknown;
+  raw: Record<string, unknown> | null;
   source_name: string;
   source_url: string | null;
   collected_at: Date | string;
@@ -249,7 +250,7 @@ export class CruisesService {
           l.id, l.license_key, l.management_no, l.business_name, l.business_status, l.detail_status,
           l.road_address, l.lot_address, l.phone, l.permit_date, l.close_date,
           l.local_government_code, l.local_government_name, l.x, l.y,
-          l.source_name, l.source_url, l.collected_at,
+          l.raw, l.source_name, l.source_url, l.collected_at,
           p.id AS port_id, p.port_key, p.port_name, p.region_name, p.city_name, p.terminal_name,
           p.source_name AS port_source_name, p.source_url AS port_source_url
         FROM cruise_operator_license l
@@ -391,10 +392,69 @@ function toCruiseOperatorLicense(row: CruiseOperatorLicenseRow): CruiseOperatorL
     localGovernmentName: row.local_government_name,
     x: toNumber(row.x),
     y: toNumber(row.y),
+    detailFields: createOperatorDetailFields(row),
     sourceName: row.source_name,
     sourceUrl: row.source_url,
     collectedAt: new Date(row.collected_at).toISOString()
   };
+}
+
+function createOperatorDetailFields(row: CruiseOperatorLicenseRow) {
+  return compactDetailFields([
+    ['관리번호', row.management_no],
+    ['영업상태', row.business_status],
+    ['상세상태', row.detail_status],
+    ['업종', pickRaw(row.raw, 'CULTR_SPTS_TPBIZ_NM')],
+    ['문화사업자 구분', pickRaw(row.raw, 'CULTR_BZMN_SE_NM')],
+    ['도로명주소', row.road_address],
+    ['지번주소', row.lot_address],
+    ['도로명 우편번호', pickRaw(row.raw, 'ROAD_NM_ZIP')],
+    ['소재지 우편번호', pickRaw(row.raw, 'LCTN_ZIP')],
+    ['전화번호', row.phone],
+    ['인허가일', row.permit_date ? toDateString(row.permit_date) : null],
+    ['폐업일', row.close_date ? toDateString(row.close_date) : null],
+    ['인허가 취소일', pickRaw(row.raw, 'LCPMT_RTRCN_YMD')],
+    ['영업 시작일', pickRaw(row.raw, 'TCBIZ_BGNG_YMD')],
+    ['영업 종료일', pickRaw(row.raw, 'TCBIZ_END_YMD')],
+    ['자본금', formatNumberText(pickRaw(row.raw, 'CPTL'))],
+    ['시설규모', formatNumberText(pickRaw(row.raw, 'FCLT_SCL'))],
+    ['선박 수', formatNumberText(pickRaw(row.raw, 'VSL_SCNT_CNT'))],
+    ['선박 규격', pickRaw(row.raw, 'VSL_SPEC')],
+    ['선박 총톤수', formatNumberText(pickRaw(row.raw, 'VSL_TOTAL_TON'))],
+    ['좌석 수', formatNumberText(pickRaw(row.raw, 'SEAT_CNT'))],
+    ['보험 시작일', pickRaw(row.raw, 'INSRNC_BGNG_YMD')],
+    ['보험 종료일', pickRaw(row.raw, 'INSRNC_END_YMD')],
+    ['보험기관', pickRaw(row.raw, 'INSRNC_INST_NM')],
+    ['최종 수정', pickRaw(row.raw, 'LAST_MDFCN_PNT')],
+    ['데이터 갱신', pickRaw(row.raw, 'DAT_UPDT_PNT')],
+    ['좌표 X', row.x],
+    ['좌표 Y', row.y],
+    ['매칭 항만', row.port_name],
+    ['출처', row.source_name]
+  ]);
+}
+
+function compactDetailFields(entries: Array<[string, unknown]>) {
+  return entries
+    .map(([label, value]) => ({ label, value: cleanDetailValue(value) }))
+    .filter((entry): entry is { label: string; value: string } => Boolean(entry.value));
+}
+
+function pickRaw(raw: Record<string, unknown> | null, key: string) {
+  const value = raw?.[key];
+  if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+  return null;
+}
+
+function cleanDetailValue(value: unknown) {
+  if (value === null || value === undefined) return null;
+  const text = String(value).replace(/\s+/g, ' ').trim();
+  return text && text !== '-' ? text : null;
+}
+
+function formatNumberText(value: unknown) {
+  const number = toNumber(value);
+  return number === null ? value : number.toLocaleString('ko-KR');
 }
 
 function toDateString(value: Date | string) {

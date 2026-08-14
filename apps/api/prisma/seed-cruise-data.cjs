@@ -540,9 +540,9 @@ async function fetchTouristCruiseOperatorPage(serviceKey, pageNo, pageSize) {
 }
 
 async function upsertOperatorLicense(row, portId) {
-  const businessName = pick(row, ['bplcNm', '사업장명', 'businessName', 'BPLCNM']) || '이름 미상 관광유람선업';
-  const managementNo = pick(row, ['mgtNo', '관리번호', 'MGTNO']);
-  const licenseKey = normalizeKey(managementNo || `${businessName}:${pick(row, ['siteWhlAddr', 'rdnWhlAddr', '소재지전체주소'])}`);
+  const businessName = pick(row, ['BPLC_NM', 'bplcNm', '사업장명', 'businessName', 'BPLCNM']) || '이름 미상 관광유람선업';
+  const managementNo = pick(row, ['MNG_NO', 'mgtNo', '관리번호', 'MGTNO']);
+  const licenseKey = normalizeKey(managementNo || `${businessName}:${pick(row, ['LOTNO_ADDR', 'ROAD_NM_ADDR', 'siteWhlAddr', 'rdnWhlAddr', '소재지전체주소'])}`);
   await prisma.$executeRawUnsafe(
     `
       INSERT INTO cruise_operator_license (
@@ -579,17 +579,17 @@ async function upsertOperatorLicense(row, portId) {
     portId,
     managementNo,
     businessName,
-    pick(row, ['trdStateNm', '영업상태명', 'businessStatus']),
-    pick(row, ['dtlStateNm', '상세영업상태명', 'detailStatus']),
-    pick(row, ['rdnWhlAddr', '도로명전체주소', 'roadAddress']),
-    pick(row, ['siteWhlAddr', '소재지전체주소', 'lotAddress']),
-    pick(row, ['siteTel', '소재지전화', 'phone']),
-    ymdDate(pick(row, ['apvPermYmd', '인허가일자', 'permitDate'])),
-    ymdDate(pick(row, ['dcbYmd', '폐업일자', 'closeDate'])),
-    pick(row, ['opnSfTeamCode', '개방자치단체코드', 'localGovernmentCode']),
-    pick(row, ['siteArea', '관리기관명', 'localGovernmentName']),
-    numberValue(pick(row, ['x', '좌표정보(x)', 'X'])),
-    numberValue(pick(row, ['y', '좌표정보(y)', 'Y'])),
+    pick(row, ['SALS_STTS_NM', 'trdStateNm', '영업상태명', 'businessStatus']),
+    pick(row, ['DTL_SALS_STTS_NM', 'dtlStateNm', '상세영업상태명', 'detailStatus']),
+    pick(row, ['ROAD_NM_ADDR', 'rdnWhlAddr', '도로명전체주소', 'roadAddress']),
+    pick(row, ['LOTNO_ADDR', 'siteWhlAddr', '소재지전체주소', 'lotAddress']),
+    pick(row, ['TELNO', 'siteTel', '소재지전화', 'phone']),
+    ymdDate(pick(row, ['LCPMT_YMD', 'apvPermYmd', '인허가일자', 'permitDate'])),
+    ymdDate(pick(row, ['CLSBIZ_YMD', 'dcbYmd', '폐업일자', 'closeDate'])),
+    pick(row, ['OPN_ATMY_GRP_CD', 'opnSfTeamCode', '개방자치단체코드', 'localGovernmentCode']),
+    pick(row, ['RGN_SE_NM', '관리기관명', 'localGovernmentName']),
+    numberValue(pick(row, ['CRD_INFO_X', 'x', '좌표정보(x)', 'X'])),
+    numberValue(pick(row, ['CRD_INFO_Y', 'y', '좌표정보(y)', 'Y'])),
     SOURCES.operatorApi.name,
     SOURCES.operatorApi.url,
     JSON.stringify(row),
@@ -599,7 +599,7 @@ async function upsertOperatorLicense(row, portId) {
 }
 
 function matchOperatorPort(row, ports) {
-  const text = [pick(row, ['rdnWhlAddr', 'siteWhlAddr', '도로명전체주소', '소재지전체주소']), pick(row, ['bplcNm', '사업장명'])]
+  const text = [pick(row, ['ROAD_NM_ADDR', 'LOTNO_ADDR', 'rdnWhlAddr', 'siteWhlAddr', '도로명전체주소', '소재지전체주소']), pick(row, ['BPLC_NM', 'bplcNm', '사업장명'])]
     .filter(Boolean)
     .join(' ');
   const matched = ports.find((port) => {

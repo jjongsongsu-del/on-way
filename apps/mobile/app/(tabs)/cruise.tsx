@@ -31,6 +31,7 @@ type DateFilter = (typeof DATE_FILTERS)[number];
 export default function CruiseScreen() {
   const [selectedPortName, setSelectedPortName] = useState<string | null>(null);
   const [selectedScheduleId, setSelectedScheduleId] = useState<string | null>(null);
+  const [selectedOperator, setSelectedOperator] = useState<CruiseOperatorLicense | null>(null);
   const [keywordInput, setKeywordInput] = useState('');
   const [keyword, setKeyword] = useState('');
   const [dateFilter, setDateFilter] = useState<DateFilter>(DATE_FILTERS[0]);
@@ -181,7 +182,7 @@ export default function CruiseScreen() {
 
       <InfoCard title="등록 유람선 사업자" eyebrow={`${overview?.summary.totalOperatorLicenses ?? 0}건`}>
         {overview?.operatorLicenses.length ? (
-          overview.operatorLicenses.map((operator) => <OperatorCard key={operator.id} operator={operator} />)
+          overview.operatorLicenses.map((operator) => <OperatorCard key={operator.id} operator={operator} onPress={() => setSelectedOperator(operator)} />)
         ) : (
           <Text style={styles.emptyText}>관광유람선업 인허가 정보를 불러오고 있습니다.</Text>
         )}
@@ -198,6 +199,7 @@ export default function CruiseScreen() {
       </InfoCard>
 
       <ScheduleDetailModal schedule={selectedSchedule} loading={selectedScheduleQuery.isLoading} visible={Boolean(selectedScheduleId)} onClose={() => setSelectedScheduleId(null)} />
+      <OperatorDetailModal operator={selectedOperator} visible={Boolean(selectedOperator)} onClose={() => setSelectedOperator(null)} />
     </Screen>
   );
 }
@@ -293,9 +295,9 @@ function TourProductCard({ product }: { product: CruiseTourProduct }) {
   );
 }
 
-function OperatorCard({ operator }: { operator: CruiseOperatorLicense }) {
+function OperatorCard({ operator, onPress }: { operator: CruiseOperatorLicense; onPress: () => void }) {
   return (
-    <View style={styles.operatorCard}>
+    <Pressable accessibilityRole="button" onPress={onPress} style={styles.operatorCard}>
       <View style={styles.productHeader}>
         <Text style={styles.operatorTitle}>{operator.businessName}</Text>
         {operator.port?.portName ? <Text style={styles.blueBadge}>{operator.port.portName}</Text> : null}
@@ -310,7 +312,74 @@ function OperatorCard({ operator }: { operator: CruiseOperatorLicense }) {
           </Text>
         ))}
       </View>
-    </View>
+      <View style={styles.cardActionRow}>
+        <Text style={styles.cardActionText}>상세 보기</Text>
+        <ChevronRight color={colors.primary} size={16} strokeWidth={2.5} />
+      </View>
+    </Pressable>
+  );
+}
+
+function OperatorDetailModal({ operator, visible, onClose }: { operator: CruiseOperatorLicense | null; visible: boolean; onClose: () => void }) {
+  const detailFields = operator?.detailFields ?? [];
+  return (
+    <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.modalSheet}>
+          <View style={styles.modalHandle} />
+          <View style={styles.modalHeader}>
+            <View style={styles.modalTitleBox}>
+              <Text style={styles.modalEyebrow}>관광유람선업 원장</Text>
+              <Text style={styles.modalTitle}>{operator?.businessName ?? '사업자 상세'}</Text>
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel="닫기" onPress={onClose} style={styles.closeButton}>
+              <X color={colors.muted} size={20} strokeWidth={2.5} />
+            </Pressable>
+          </View>
+
+          <ScrollView contentContainerStyle={styles.modalContent}>
+            {operator ? (
+              <>
+                <View style={styles.detailHero}>
+                  <Text style={styles.detailHeroDate}>{operator.businessName}</Text>
+                  <Text style={styles.detailHeroText}>{operator.roadAddress ?? operator.lotAddress ?? '주소 확인 필요'}</Text>
+                  <View style={styles.inlineChips}>
+                    {[operator.businessStatus, operator.detailStatus, operator.port?.portName, operator.permitDate && `인허가 ${operator.permitDate}`].filter(Boolean).map((item) => (
+                      <Text key={item} style={styles.detailHeroBadge}>
+                        {item}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
+
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailSectionTitle}>기본 정보</Text>
+                  <DetailLine label="관리번호" value={operator.managementNo} />
+                  <DetailLine label="전화번호" value={operator.phone} />
+                  <DetailLine label="도로명주소" value={operator.roadAddress} />
+                  <DetailLine label="지번주소" value={operator.lotAddress} />
+                  <DetailLine label="관할코드" value={operator.localGovernmentCode} />
+                  <DetailLine label="좌표" value={operator.x && operator.y ? `${operator.x}, ${operator.y}` : null} />
+                </View>
+
+                {detailFields.length ? (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>원장 상세 항목</Text>
+                    {detailFields.map((field) => (
+                      <DetailLine key={`${field.label}-${field.value}`} label={field.label} value={field.value} />
+                    ))}
+                  </View>
+                ) : null}
+
+                <Text style={styles.detailSource}>출처: {operator.sourceName}</Text>
+              </>
+            ) : (
+              <Text style={styles.emptyText}>사업자 상세 정보를 찾지 못했습니다.</Text>
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -700,6 +769,17 @@ const styles = StyleSheet.create({
     color: colors.navy,
     flexShrink: 1,
     fontSize: 14,
+    fontWeight: '900'
+  },
+  cardActionRow: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    gap: 4
+  },
+  cardActionText: {
+    color: colors.primary,
+    fontSize: 12,
     fontWeight: '900'
   },
   greenBadge: {
