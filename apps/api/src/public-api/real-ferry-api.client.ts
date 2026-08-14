@@ -184,8 +184,8 @@ export class RealFerryApiClient implements PublicFerryApiClient {
     return this.result(
       routes.data.filter(
         (route) =>
-          (!departure || route.departurePortName.includes(departure) || route.operationRouteName.includes(departure)) &&
-          (!arrival || route.arrivalPortName.includes(arrival) || route.operationRouteName.includes(arrival))
+          (!departure || portTextMatches(route.departurePortName, departure) || route.operationRouteName.includes(departure)) &&
+          (!arrival || portTextMatches(route.arrivalPortName, arrival) || route.operationRouteName.includes(arrival))
       ),
       'KOMSA',
       'komsa-operation-route',
@@ -247,8 +247,8 @@ export class RealFerryApiClient implements PublicFerryApiClient {
           (!params.date || schedule.sailingDate === params.date) &&
           (routeContexts.length
             ? scheduleMatchesAnyRouteContext(schedule, routeContexts)
-            : (!params.departure || schedule.departurePortName.includes(params.departure)) &&
-              (!params.arrival || schedule.arrivalPortName.includes(params.arrival)))
+            : (!params.departure || portTextMatches(schedule.departurePortName, params.departure)) &&
+              (!params.arrival || portTextMatches(schedule.arrivalPortName, params.arrival)))
       )
       .map((schedule) => enrichScheduleWithRouteContext(schedule, routeContexts));
 
@@ -277,8 +277,8 @@ export class RealFerryApiClient implements PublicFerryApiClient {
         (schedule) =>
           (routeContexts.length
             ? scheduleMatchesAnyRouteContext(schedule, routeContexts)
-            : (!departure || schedule.departurePortName.includes(departure)) &&
-              (!arrival || schedule.arrivalPortName.includes(arrival))) &&
+            : (!departure || portTextMatches(schedule.departurePortName, departure)) &&
+              (!arrival || portTextMatches(schedule.arrivalPortName, arrival))) &&
           (!params.vesselName || (schedule.vesselName ?? '').includes(params.vesselName))
       )
       .map((schedule) => enrichScheduleWithRouteContext(schedule, routeContexts))
@@ -746,27 +746,41 @@ function normalizeRouteText(value: string) {
     .toLowerCase();
 }
 
+function normalizePortText(value: string) {
+  return normalizeRouteText(value)
+    .replace(/(여객선)?터미널$/g, '')
+    .replace(/항$/g, '')
+    .replace(/도$/g, '');
+}
+
+function portTextMatches(sourcePortName: string | null | undefined, targetPortName: string | null | undefined) {
+  const source = normalizePortText(sourcePortName ?? '');
+  const target = normalizePortText(targetPortName ?? '');
+
+  return Boolean(source && target && (source.includes(target) || target.includes(source)));
+}
+
 function candidateMatchesDeparture(candidate: ScheduleSearchCandidate, keyword: string) {
-  if (candidate.departurePortName?.includes(keyword)) {
+  if (portTextMatches(candidate.departurePortName, keyword)) {
     return true;
   }
 
   const [departure] = splitRouteName(candidate.licenseRouteName ?? '');
-  if (departure) {
-    return departure.includes(keyword);
+  if (departure && portTextMatches(departure, keyword)) {
+    return true;
   }
 
   return candidateMatches(candidate, keyword);
 }
 
 function candidateMatchesArrival(candidate: ScheduleSearchCandidate, keyword: string) {
-  if (candidate.arrivalPortName?.includes(keyword)) {
+  if (portTextMatches(candidate.arrivalPortName, keyword)) {
     return true;
   }
 
   const [, arrival] = splitRouteName(candidate.licenseRouteName ?? '');
-  if (arrival) {
-    return arrival.includes(keyword);
+  if (arrival && portTextMatches(arrival, keyword)) {
+    return true;
   }
 
   return candidateMatches(candidate, keyword);

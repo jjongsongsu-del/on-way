@@ -156,7 +156,7 @@ export class RoutesService {
       stopPortNames: route.stopPortNames
     }));
 
-    return this.createResult([...data, ...linkedIslandRouteOptions], 'komsa-csv-route-master:options');
+    return this.createResult(mergeRouteOptions(data, supplementalRouteOptions), 'komsa-csv-route-master:options');
   }
 
   private async getPortOptionsFromMaster(mode: 'departure' | 'arrival'): Promise<PublicApiResult<PortOption[]>> {
@@ -175,7 +175,7 @@ export class RoutesService {
     }));
 
     if (mode === 'arrival') {
-      linkedIslandArrivalPorts.forEach((portName) => {
+      supplementalArrivalPorts.forEach((portName) => {
         if (!data.some((port) => portMatches(port.portName, portName))) {
           data.push({
             id: makeStableId('port-option', ['linked-island', portName]),
@@ -202,7 +202,35 @@ export class RoutesService {
   }
 }
 
-const linkedIslandRouteOptions: RouteOption[] = [
+const supplementalRouteOptions: RouteOption[] = [
+  {
+    id: makeStableId('route-option', ['supplemental', 'incheon', 'baengnyeong']),
+    routeName: '\uC778\uCC9C-\uBC31\uB839\uB3C4',
+    departurePortName: '\uC778\uCC9C',
+    arrivalPortName: '\uBC31\uB839\uB3C4',
+    stopPortNames: ['\uC778\uCC9C', '\uBC31\uB839', '\uBC31\uB839\uB3C4']
+  },
+  {
+    id: makeStableId('route-option', ['supplemental', 'incheon', 'daecheong']),
+    routeName: '\uC778\uCC9C-\uB300\uCCAD\uB3C4',
+    departurePortName: '\uC778\uCC9C',
+    arrivalPortName: '\uB300\uCCAD\uB3C4',
+    stopPortNames: ['\uC778\uCC9C', '\uB300\uCCAD', '\uB300\uCCAD\uB3C4']
+  },
+  {
+    id: makeStableId('route-option', ['supplemental', 'incheon', 'socheong']),
+    routeName: '\uC778\uCC9C-\uC18C\uCCAD\uB3C4',
+    departurePortName: '\uC778\uCC9C',
+    arrivalPortName: '\uC18C\uCCAD\uB3C4',
+    stopPortNames: ['\uC778\uCC9C', '\uC18C\uCCAD', '\uC18C\uCCAD\uB3C4']
+  },
+  {
+    id: makeStableId('route-option', ['supplemental', 'incheon', 'yeonpyeong']),
+    routeName: '\uC778\uCC9C-\uC5F0\uD3C9\uB3C4',
+    departurePortName: '\uC778\uCC9C',
+    arrivalPortName: '\uC5F0\uD3C9\uB3C4',
+    stopPortNames: ['\uC778\uCC9C', '\uC5F0\uD3C9', '\uC5F0\uD3C9\uB3C4']
+  },
   {
     id: makeStableId('route-option', ['linked-island', 'incheon', 'guleop']),
     routeName: '\uC778\uCC9C-\uB355\uC801-\uAD74\uC5C5\uB3C4',
@@ -240,7 +268,26 @@ const linkedIslandRouteOptions: RouteOption[] = [
   }
 ];
 
-const linkedIslandArrivalPorts = linkedIslandRouteOptions.map((route) => route.arrivalPortName);
+const supplementalArrivalPorts = supplementalRouteOptions.map((route) => route.arrivalPortName);
+
+function mergeRouteOptions(routeOptions: RouteOption[], supplementalOptions: RouteOption[]) {
+  const merged = [...routeOptions];
+
+  supplementalOptions.forEach((option) => {
+    const existing = merged.find(
+      (route) => portMatches(route.departurePortName, option.departurePortName) && portMatches(route.arrivalPortName, option.arrivalPortName)
+    );
+
+    if (existing) {
+      existing.stopPortNames = [...new Set([...existing.stopPortNames, ...option.stopPortNames])];
+      return;
+    }
+
+    merged.push(option);
+  });
+
+  return merged;
+}
 
 function portMatches(sourcePortName: string, targetPortName: string) {
   const source = normalizePortName(sourcePortName);
