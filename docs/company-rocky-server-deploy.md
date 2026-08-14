@@ -114,6 +114,6 @@ build-release-apk.bat
 To build for the domain later:
 
 ```bat
-set EXPO_PUBLIC_API_BASE_URL=http://seaload.aodata.co.kr:8093/api/v1
+set EXPO_PUBLIC_API_BASE_URL=https://seaload.aodata.co.kr/api/v1
 build-release-apk.bat
 ```
