@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type LayoutChangeEvent } from 'react-native';
 import {
@@ -2248,6 +2248,14 @@ function TravelInfoItemModal({
   if (!item) return null;
 
   const visibleRows = (item.detailRows ?? []).filter((row) => Boolean(row.value));
+  const locationRows = [
+    { label: '주소', value: item.address },
+    { label: '전화', value: item.tel }
+  ].filter((row): row is { label: string; value: string } => Boolean(row.value));
+  const metaRows = [
+    { label: '분류', value: item.badge ?? item.group },
+    { label: '출처', value: item.source }
+  ].filter((row): row is { label: string; value: string } => Boolean(row.value));
 
   return (
     <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
@@ -2263,16 +2271,30 @@ function TravelInfoItemModal({
             </Pressable>
           </View>
           {item.imageUrl ? <Image source={{ uri: item.imageUrl }} style={styles.travelItemModalImage} resizeMode="cover" /> : null}
-          <Text style={styles.modalDescription}>{item.description}</Text>
-          <View style={styles.travelItemDetailList}>
-            {item.badge ? <DetailRow label="상태" value={item.badge} /> : null}
-            {item.address ? <DetailRow label="주소" value={item.address} /> : null}
-            {item.tel ? <DetailRow label="전화" value={item.tel} /> : null}
-            {visibleRows.map((row) => (
-              <DetailRow key={`${row.label}-${row.value}`} label={row.label} value={row.value ?? ''} />
-            ))}
-            {item.source ? <DetailRow label="출처" value={item.source} /> : null}
+          <View style={styles.modalSummaryBox}>
+            <Text style={styles.modalDescription}>{item.description}</Text>
           </View>
+          {locationRows.length > 0 ? (
+            <DetailSection title="위치·연락">
+              {locationRows.map((row) => (
+                <DetailRow key={`${row.label}-${row.value}`} label={row.label} value={row.value} />
+              ))}
+            </DetailSection>
+          ) : null}
+          {visibleRows.length > 0 ? (
+            <DetailSection title="상세 항목">
+              {visibleRows.map((row) => (
+                <DetailRow key={`${row.label}-${row.value}`} label={row.label} value={row.value ?? ''} />
+              ))}
+            </DetailSection>
+          ) : null}
+          {metaRows.length > 0 ? (
+            <DetailSection title="데이터 정보">
+              {metaRows.map((row) => (
+                <DetailRow key={`${row.label}-${row.value}`} label={row.label} value={row.value} />
+              ))}
+            </DetailSection>
+          ) : null}
           <View style={styles.nextActionPanel}>
             <Pressable accessibilityRole="button" onPress={onOpenPhotos} style={styles.secondaryActionButton}>
               <Images color={colors.primary} size={17} />
@@ -2288,6 +2310,15 @@ function TravelInfoItemModal({
         </View>
       </View>
     </Modal>
+  );
+}
+
+function DetailSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <View style={styles.travelItemDetailSection}>
+      <Text style={styles.travelItemDetailSectionTitle}>{title}</Text>
+      <View style={styles.travelItemDetailList}>{children}</View>
+    </View>
   );
 }
 
@@ -2958,11 +2989,16 @@ function buildUnifiedSearchResults(
       address: asset.address,
       source: asset.sourceTitle,
       detailRows: [
+        { label: '카테고리', value: asset.category },
         { label: '데이터 유형', value: mapped.badge },
         { label: '여행권역', value: asset.travelRegionName },
         { label: '관련 섬', value: asset.matchedIslandName },
+        { label: '태그', value: asset.tags?.join(', ') },
         { label: '수집 키워드', value: asset.sourceKeywords?.join(', ') },
-        { label: '추천 근거', value: asset.reasons.join(' · ') }
+        { label: '추천 근거', value: asset.reasons.join(' · ') },
+        { label: '매칭 점수', value: String(asset.matchScore) },
+        { label: '추천 점수', value: String(asset.recommendationScore) },
+        { label: '데이터셋 PK', value: asset.sourceDatasetPk }
       ]
     });
   });
@@ -4880,6 +4916,21 @@ const styles = StyleSheet.create({
     aspectRatio: 1.7,
     borderRadius: 8,
     width: '100%'
+  },
+  modalSummaryBox: {
+    backgroundColor: colors.surfaceBlue,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 12
+  },
+  travelItemDetailSection: {
+    gap: 7
+  },
+  travelItemDetailSectionTitle: {
+    color: colors.navy,
+    fontSize: 13,
+    fontWeight: '900'
   },
   travelItemDetailList: {
     backgroundColor: colors.backgroundSoft,
