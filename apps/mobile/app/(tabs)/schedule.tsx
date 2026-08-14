@@ -1167,6 +1167,17 @@ export default function ScheduleScreen() {
         </View>
       </View>
 
+      <InfoCard title="운항 일정 검색" eyebrow="서브 조회">
+        <View style={styles.weeklySummaryRow}>
+          <CalendarRange color={colors.primary} size={22} />
+          <Text style={styles.weeklySummaryText}>출발지 기준 또는 도착지 기준으로 기간별 운항 일정을 따로 조회합니다.</Text>
+        </View>
+        <Pressable accessibilityRole="button" onPress={openWeeklyModal} style={({ pressed }) => [styles.outlineButton, pressed ? styles.secondaryButtonPressed : null]}>
+          <Text style={styles.outlineButtonText}>출발지·도착지 기준 조회</Text>
+          <ChevronRight color={colors.primary} size={18} />
+        </Pressable>
+      </InfoCard>
+
       <View onLayout={(event) => { candidateSectionY.current = event.nativeEvent.layout.y; }}>
         <InfoCard title="운항 일정" eyebrow={`${submittedFilters.date} 기준`}>
           {!hasSearched ? <Message text="날짜와 출발·도착지를 선택해 주세요. 출발지만 선택해도 후보를 찾고, 도착지를 추가하면 더 정확해집니다." /> : null}
@@ -1346,17 +1357,6 @@ export default function ScheduleScreen() {
           ) : null}
         </InfoCard>
       </View>
-
-      <InfoCard title="운항 일정 검색" eyebrow="서브 조회">
-        <View style={styles.weeklySummaryRow}>
-          <CalendarRange color={colors.primary} size={22} />
-          <Text style={styles.weeklySummaryText}>DB 항구 마스터에서 기준 항구를 선택하고, 실제 운항 일정은 공공 API로 조회합니다.</Text>
-        </View>
-        <Pressable accessibilityRole="button" onPress={openWeeklyModal} style={({ pressed }) => [styles.outlineButton, pressed ? styles.secondaryButtonPressed : null]}>
-          <Text style={styles.outlineButtonText}>일정 조회하기</Text>
-          <ChevronRight color={colors.primary} size={18} />
-        </Pressable>
-      </InfoCard>
 
       {selectedCandidate ? (
         <InfoCard
