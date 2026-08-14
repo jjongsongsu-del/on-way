@@ -57,9 +57,9 @@ fi
 
 echo "[8/8] Summary"
 run_api node apps/api/prisma/seed-travel-recommendation-assets.cjs --summary || true
-curl -fsS "http://127.0.0.1:${SEA_LOAD_PORT:-8093}/api/v1/islands?keyword=%EC%9A%B8%EB%A6%89%EB%8F%84"
+curl -fsS "http://127.0.0.1:${SEA_LOAD_PORT:-8094}/api/v1/islands?keyword=%EC%9A%B8%EB%A6%89%EB%8F%84"
 echo
-curl -fsS "http://127.0.0.1:${SEA_LOAD_PORT:-8093}/api/v1/island-trips/recommended-islands?limit=3"
+curl -fsS "http://127.0.0.1:${SEA_LOAD_PORT:-8094}/api/v1/island-trips/recommended-islands?limit=3"
 echo
-curl -fsS "http://127.0.0.1:${SEA_LOAD_PORT:-8093}/api/v1/island-trips/recommendations?limit=3"
+curl -fsS "http://127.0.0.1:${SEA_LOAD_PORT:-8094}/api/v1/island-trips/recommendations?limit=3"
 echo

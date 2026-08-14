@@ -2,7 +2,7 @@
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/home/seaload/sea-load}"
-APP_PORT="${APP_PORT:-8093}"
+APP_PORT="${APP_PORT:-8094}"
 USE_REGISTRY="${USE_REGISTRY:-0}"
 NO_CACHE="${NO_CACHE:-0}"
 

@@ -3,7 +3,7 @@ set -euo pipefail
 
 APP_USER="${APP_USER:-seaload}"
 APP_DIR="${APP_DIR:-/home/seaload/sea-load}"
-APP_PORT="${APP_PORT:-8093}"
+APP_PORT="${APP_PORT:-8094}"
 APP_DOMAIN="${APP_DOMAIN:-seaload.aodata.co.kr}"
 GIT_REPO="${GIT_REPO:-https://github.com/jjongsongsu-del/on-way.git}"
 REGISTRY_IMAGE_PREFIX="${REGISTRY_IMAGE_PREFIX:-ghcr.io/jjongsongsu-del}"
