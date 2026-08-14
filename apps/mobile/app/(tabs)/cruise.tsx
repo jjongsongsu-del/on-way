@@ -4,6 +4,7 @@ import {
   Anchor,
   Building2,
   CalendarDays,
+  ChevronDown,
   ChevronRight,
   RefreshCcw,
   Search,
@@ -35,6 +36,7 @@ export default function CruiseScreen() {
   const [keywordInput, setKeywordInput] = useState('');
   const [keyword, setKeyword] = useState('');
   const [dateFilter, setDateFilter] = useState<DateFilter>(DATE_FILTERS[0]);
+  const [collapsedScheduleMonths, setCollapsedScheduleMonths] = useState<Set<string>>(() => new Set());
 
   const overviewQuery = useQuery({
     queryKey: ['cruise-overview'],
@@ -77,6 +79,18 @@ export default function CruiseScreen() {
     setKeyword('');
     setSelectedPortName(null);
     setDateFilter(DATE_FILTERS[0]);
+    setCollapsedScheduleMonths(new Set());
+  };
+  const toggleScheduleMonth = (label: string) => {
+    setCollapsedScheduleMonths((current) => {
+      const next = new Set(current);
+      if (next.has(label)) {
+        next.delete(label);
+      } else {
+        next.add(label);
+      }
+      return next;
+    });
   };
 
   return (
@@ -159,14 +173,31 @@ export default function CruiseScreen() {
         {schedulesQuery.isError ? (
           <Text style={styles.emptyText}>크루즈 일정을 불러오지 못했습니다.</Text>
         ) : groupedSchedules.length > 0 ? (
-          groupedSchedules.map((group) => (
-            <View key={group.label} style={styles.scheduleGroup}>
-              <Text style={styles.scheduleMonth}>{group.label}</Text>
-              {group.items.map((schedule) => (
-                <ScheduleRow key={schedule.id} schedule={schedule} onPress={() => setSelectedScheduleId(schedule.id)} />
-              ))}
-            </View>
-          ))
+          groupedSchedules.map((group) => {
+            const collapsed = collapsedScheduleMonths.has(group.label);
+
+            return (
+              <View key={group.label} style={styles.scheduleGroup}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: !collapsed }}
+                  onPress={() => toggleScheduleMonth(group.label)}
+                  style={styles.scheduleMonthButton}
+                >
+                  <View style={styles.scheduleMonthCopy}>
+                    <Text style={styles.scheduleMonth}>{group.label}</Text>
+                    <Text style={styles.scheduleMonthCount}>{group.items.length.toLocaleString()}건</Text>
+                  </View>
+                  {collapsed ? <ChevronRight color={colors.primary} size={18} strokeWidth={2.5} /> : <ChevronDown color={colors.primary} size={18} strokeWidth={2.5} />}
+                </Pressable>
+                {collapsed
+                  ? null
+                  : group.items.map((schedule) => (
+                      <ScheduleRow key={schedule.id} schedule={schedule} onPress={() => setSelectedScheduleId(schedule.id)} />
+                    ))}
+              </View>
+            );
+          })
         ) : (
           <Text style={styles.emptyText}>조건에 맞는 입항 일정이 없습니다.</Text>
         )}
@@ -633,10 +664,31 @@ const styles = StyleSheet.create({
   scheduleGroup: {
     gap: 8
   },
+  scheduleMonthButton: {
+    alignItems: 'center',
+    backgroundColor: colors.backgroundSoft,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10
+  },
+  scheduleMonthCopy: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8
+  },
   scheduleMonth: {
     color: colors.primary,
     fontSize: 13,
     fontWeight: '900'
+  },
+  scheduleMonthCount: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '800'
   },
   scheduleRow: {
     alignItems: 'center',
