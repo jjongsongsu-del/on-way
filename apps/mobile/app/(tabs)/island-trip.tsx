@@ -666,7 +666,7 @@ export default function IslandTripScreen() {
 
   return (
     <Screen
-      title="섬찾기"
+      title="섬관광"
       subtitle="섬 하나를 검색하고, 배편·예보·지도·숙박·식당·캠핑·사진 정보를 이어서 확인합니다."
       mascotSource={require('../../assets/mascot/boogi_bg6.png')}
       scrollRef={scrollViewRef}
@@ -731,7 +731,7 @@ export default function IslandTripScreen() {
       <View style={styles.subMenuPanel}>
         <View style={styles.sectionHeader}>
           <View>
-            <Text style={styles.eyebrow}>섬찾기 메뉴</Text>
+            <Text style={styles.eyebrow}>섬관광 메뉴</Text>
             <Text style={styles.subMenuTitle}>검색한 섬을 중심으로 확인하세요</Text>
           </View>
           <Compass color={colors.primary} size={22} />
