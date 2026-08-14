@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AdminModule } from './admin/admin.module';
+import { CruisesModule } from './cruises/cruises.module';
 import { DatabaseModule } from './database/database.module';
 import { ForecastsModule } from './forecasts/forecasts.module';
 import { HealthModule } from './health/health.module';
@@ -20,6 +21,7 @@ import { VesselsModule } from './vessels/vessels.module';
     }),
     DatabaseModule,
     AdminModule,
+    CruisesModule,
     HealthModule,
     IslandsModule,
     IslandTripsModule,

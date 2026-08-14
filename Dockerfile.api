@@ -17,6 +17,7 @@ RUN --mount=type=cache,id=sea-load-pnpm-store,target=/pnpm/store \
 
 COPY apps/api apps/api
 COPY packages/shared packages/shared
+COPY ref_api/크루즈 ref_api/크루즈
 
 RUN pnpm --filter @badagil/shared build
 RUN pnpm --filter @badagil/api db:generate
@@ -35,6 +36,7 @@ COPY --from=builder /workspace/apps/api/dist ./apps/api/dist
 COPY --from=builder /workspace/apps/api/prisma ./apps/api/prisma
 COPY --from=builder /workspace/apps/api/package.json ./apps/api/package.json
 COPY --from=builder /workspace/packages/shared ./packages/shared
+COPY --from=builder /workspace/ref_api ./ref_api
 COPY --from=builder /workspace/package.json ./package.json
 
 EXPOSE 4000

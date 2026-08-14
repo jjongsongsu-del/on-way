@@ -1,6 +1,10 @@
-import { Anchor, CalendarDays, Database, FileText, MapPin, Ship, Waves } from 'lucide-react-native';
+import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { CalendarDays, Database, FileText, MapPin, Search, Ship, Waves } from 'lucide-react-native';
 import type { ComponentType } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import type { CruiseSchedule } from '@badagil/shared';
+import { fetchCruiseOverview, fetchCruiseSchedules } from '@/api/cruises';
 import { InfoCard } from '@/components/InfoCard';
 import { MascotBanner } from '@/components/MascotBanner';
 import { Screen } from '@/components/Screen';
@@ -76,6 +80,23 @@ const cruiseSections: CruiseSection[] = [
 ];
 
 export default function CruiseScreen() {
+  const [selectedPortName, setSelectedPortName] = useState<string | null>(null);
+  const overviewQuery = useQuery({
+    queryKey: ['cruise-overview'],
+    queryFn: () => fetchCruiseOverview(12),
+    staleTime: 10 * 60 * 1000
+  });
+  const schedulesQuery = useQuery({
+    queryKey: ['cruise-schedules', selectedPortName],
+    queryFn: () => fetchCruiseSchedules({ portName: selectedPortName, from: todayDateString(), limit: 40 }),
+    staleTime: 10 * 60 * 1000
+  });
+  const overview = overviewQuery.data;
+  const ports = overview?.ports ?? [];
+  const schedules = schedulesQuery.data ?? overview?.upcomingSchedules ?? [];
+  const selectedPortLabel = selectedPortName ?? '전체 항만';
+  const groupedSchedules = useMemo(() => groupSchedulesByMonth(schedules), [schedules]);
+
   return (
     <Screen title="크루즈" subtitle="국내 항만 크루즈 스케줄과 연안 관광 크루즈 정보를 준비하고 있어요.">
       <MascotBanner
@@ -98,6 +119,97 @@ export default function CruiseScreen() {
                 <Text style={styles.featureDescription}>{description}</Text>
               </View>
             </View>
+          ))}
+        </View>
+      </InfoCard>
+
+      <InfoCard title="항만 선택" eyebrow={overviewQuery.isLoading ? '데이터 조회 중' : `${ports.length}개 항만`}>
+        <View style={styles.portWrap}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={!selectedPortName ? { selected: true } : undefined}
+            onPress={() => setSelectedPortName(null)}
+            style={[styles.portChip, !selectedPortName && styles.portChipActive]}
+          >
+            <Text style={[styles.portChipText, !selectedPortName && styles.portChipTextActive]}>전체</Text>
+          </Pressable>
+          {ports.map((port) => {
+            const active = selectedPortName === port.portName;
+            return (
+              <Pressable
+                key={port.id}
+                accessibilityRole="button"
+                accessibilityState={active ? { selected: true } : undefined}
+                onPress={() => setSelectedPortName(port.portName)}
+                style={[styles.portChip, active && styles.portChipActive]}
+              >
+                <Text style={[styles.portChipText, active && styles.portChipTextActive]}>{port.portName}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </InfoCard>
+
+      <InfoCard
+        title="입항 일정"
+        eyebrow={schedulesQuery.isLoading ? `${selectedPortLabel} 조회 중` : `${selectedPortLabel} ${schedules.length}건`}
+      >
+        {schedulesQuery.isError ? (
+          <Text style={styles.emptyText}>크루즈 일정을 불러오지 못했습니다.</Text>
+        ) : groupedSchedules.length > 0 ? (
+          groupedSchedules.map((group) => (
+            <View key={group.label} style={styles.scheduleGroup}>
+              <Text style={styles.scheduleMonth}>{group.label}</Text>
+              {group.items.map((schedule) => (
+                <ScheduleRow key={schedule.id} schedule={schedule} />
+              ))}
+            </View>
+          ))
+        ) : (
+          <Text style={styles.emptyText}>오늘 이후 등록된 크루즈 입항 일정이 없습니다.</Text>
+        )}
+      </InfoCard>
+
+      <InfoCard
+        title="관광 크루즈"
+        eyebrow={overviewQuery.isLoading ? '조회 중' : `${overview?.tourProducts.length ?? 0}건`}
+      >
+        {overview?.tourProducts.length ? (
+          overview.tourProducts.map((product) => (
+            <View key={product.id} style={styles.productRow}>
+              <View style={styles.productHeader}>
+                <Text style={styles.productTitle}>{product.productName}</Text>
+                {product.port?.portName ? <Text style={styles.productPort}>{product.port.portName}</Text> : null}
+              </View>
+              <Text style={styles.sourceDescription}>{product.description ?? '관광형 크루즈 상품입니다.'}</Text>
+              <View style={styles.fieldWrap}>
+                {[product.priceText, product.operatingHours, product.travelTimeText, product.imageIncluded ? '이미지 있음' : null]
+                  .filter(Boolean)
+                  .map((item) => (
+                    <Text key={item} style={styles.fieldChip}>
+                      {item}
+                    </Text>
+                  ))}
+              </View>
+            </View>
+          ))
+        ) : (
+          <Text style={styles.emptyText}>관광 크루즈 상품 데이터를 적재하면 여기에 표시됩니다.</Text>
+        )}
+      </InfoCard>
+
+      <InfoCard title="데이터 현황" eyebrow={overview?.updatedAt ? formatDate(overview.updatedAt) : '적재 대기'}>
+        <View style={styles.summaryGrid}>
+          <SummaryCell label="항만" value={overview?.summary.totalPorts ?? 0} />
+          <SummaryCell label="선박" value={overview?.summary.totalVessels ?? 0} />
+          <SummaryCell label="일정" value={overview?.summary.totalSchedules ?? 0} />
+          <SummaryCell label="관광상품" value={overview?.summary.totalTourProducts ?? 0} />
+        </View>
+        <View style={styles.sourceWrap}>
+          {(overview?.summary.sourceNames ?? cruiseSources.map((source) => source.title)).map((sourceName) => (
+            <Text key={sourceName} style={styles.sourceNameChip}>
+              {sourceName}
+            </Text>
           ))}
         </View>
       </InfoCard>
@@ -138,12 +250,63 @@ export default function CruiseScreen() {
           <Text style={styles.nextItem}>4. 섬찾기와 크루즈 관광 코스 추천 연결</Text>
         </View>
         <Pressable style={styles.disabledButton} accessibilityRole="button" disabled>
-          <Anchor color={colors.muted} size={18} strokeWidth={2.5} />
-          <Text style={styles.disabledButtonText}>크루즈 검색 준비 중</Text>
+          <Search color={colors.muted} size={18} strokeWidth={2.5} />
+          <Text style={styles.disabledButtonText}>상세 검색 준비 중</Text>
         </Pressable>
       </InfoCard>
     </Screen>
   );
+}
+
+function ScheduleRow({ schedule }: { schedule: CruiseSchedule }) {
+  return (
+    <View style={styles.scheduleRow}>
+      <View style={styles.scheduleDateBox}>
+        <Text style={styles.scheduleDay}>{schedule.arrivalDate.slice(5).replace('-', '.')}</Text>
+        <Text style={styles.scheduleTime}>{schedule.arrivalTime ?? '시간 확인'}</Text>
+      </View>
+      <View style={styles.scheduleCopy}>
+        <View style={styles.scheduleTitleRow}>
+          <Text style={styles.scheduleTitle}>{schedule.vesselName}</Text>
+          {schedule.scheduleType ? <Text style={styles.scheduleType}>{schedule.scheduleType}</Text> : null}
+        </View>
+        <Text style={styles.scheduleMeta}>
+          {[schedule.port.portName, schedule.operatorName, schedule.departureTime && `출항 ${schedule.departureTime}`].filter(Boolean).join(' · ')}
+        </Text>
+        <Text style={styles.scheduleRoute}>
+          {[schedule.previousPortName && `전항 ${schedule.previousPortName}`, schedule.nextPortName && `차항 ${schedule.nextPortName}`]
+            .filter(Boolean)
+            .join(' · ') || schedule.berthName || schedule.sourceName}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function SummaryCell({ label, value }: { label: string; value: number }) {
+  return (
+    <View style={styles.summaryCell}>
+      <Text style={styles.summaryValue}>{value.toLocaleString()}</Text>
+      <Text style={styles.summaryLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function groupSchedulesByMonth(schedules: CruiseSchedule[]) {
+  const groups = new Map<string, CruiseSchedule[]>();
+  schedules.forEach((schedule) => {
+    const label = `${schedule.arrivalDate.slice(0, 4)}년 ${Number(schedule.arrivalDate.slice(5, 7))}월`;
+    groups.set(label, [...(groups.get(label) ?? []), schedule]);
+  });
+  return [...groups.entries()].map(([label, items]) => ({ label, items }));
+}
+
+function todayDateString() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 const styles = StyleSheet.create({
@@ -186,6 +349,174 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     gap: 8,
     paddingBottom: 12
+  },
+  portWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8
+  },
+  portChip: {
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 9
+  },
+  portChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary
+  },
+  portChipText: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '800'
+  },
+  portChipTextActive: {
+    color: colors.surface
+  },
+  scheduleGroup: {
+    gap: 8
+  },
+  scheduleMonth: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '900'
+  },
+  scheduleRow: {
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    padding: 12
+  },
+  scheduleDateBox: {
+    alignItems: 'center',
+    backgroundColor: colors.backgroundSoft,
+    borderRadius: 8,
+    justifyContent: 'center',
+    minHeight: 58,
+    width: 64
+  },
+  scheduleDay: {
+    color: colors.navy,
+    fontSize: 15,
+    fontWeight: '900'
+  },
+  scheduleTime: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 2
+  },
+  scheduleCopy: {
+    flex: 1,
+    gap: 4
+  },
+  scheduleTitleRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6
+  },
+  scheduleTitle: {
+    color: colors.navy,
+    flexShrink: 1,
+    fontSize: 15,
+    fontWeight: '900'
+  },
+  scheduleType: {
+    backgroundColor: colors.primarySoft,
+    borderRadius: 8,
+    color: colors.primary,
+    fontSize: 11,
+    fontWeight: '900',
+    paddingHorizontal: 7,
+    paddingVertical: 4
+  },
+  scheduleMeta: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 18
+  },
+  scheduleRoute: {
+    color: colors.muted,
+    fontSize: 12,
+    lineHeight: 18
+  },
+  productRow: {
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 8,
+    padding: 12
+  },
+  productHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8
+  },
+  productTitle: {
+    color: colors.navy,
+    fontSize: 15,
+    fontWeight: '900'
+  },
+  productPort: {
+    backgroundColor: '#ddf8f1',
+    borderRadius: 8,
+    color: colors.good,
+    fontSize: 11,
+    fontWeight: '900',
+    paddingHorizontal: 7,
+    paddingVertical: 4
+  },
+  emptyText: {
+    color: colors.muted,
+    fontSize: 13,
+    lineHeight: 20
+  },
+  summaryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8
+  },
+  summaryCell: {
+    backgroundColor: colors.backgroundSoft,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexBasis: '47%',
+    flexGrow: 1,
+    padding: 12
+  },
+  summaryValue: {
+    color: colors.navy,
+    fontSize: 20,
+    fontWeight: '900'
+  },
+  summaryLabel: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '800',
+    marginTop: 2
+  },
+  sourceWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6
+  },
+  sourceNameChip: {
+    backgroundColor: colors.surfaceBlue,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    color: colors.primaryDark,
+    fontSize: 11,
+    fontWeight: '800',
+    paddingHorizontal: 8,
+    paddingVertical: 5
   },
   sourceHeader: {
     alignItems: 'center',

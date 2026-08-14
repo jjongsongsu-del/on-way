@@ -31,13 +31,16 @@ fi
 echo "[3/6] Starting services"
 docker compose "${COMPOSE_FILES[@]}" --env-file .env.production up -d
 
-echo "[4/6] Running migrations"
+echo "[4/7] Running migrations"
 docker compose "${COMPOSE_FILES[@]}" --env-file .env.production exec -T api ./apps/api/node_modules/.bin/prisma migrate deploy --schema apps/api/prisma/schema.prisma
 
-echo "[5/6] Service status"
+echo "[5/7] Seeding cruise data"
+docker compose "${COMPOSE_FILES[@]}" --env-file .env.production exec -T api node apps/api/prisma/seed-cruise-data.cjs
+
+echo "[6/7] Service status"
 docker compose "${COMPOSE_FILES[@]}" --env-file .env.production ps
 
-echo "[6/6] Health check"
+echo "[7/7] Health check"
 curl -fsS "http://127.0.0.1:${APP_PORT}/api/v1/health"
 echo
 echo "Done. Test URL: http://121.162.171.85:${APP_PORT}/"

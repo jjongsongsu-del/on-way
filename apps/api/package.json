@@ -19,6 +19,7 @@
     "db:seed:forecast-locations": "node prisma/seed-forecast-location-master.cjs",
     "db:seed:travel-regions": "node prisma/seed-island-travel-region-master.cjs",
     "db:seed:recommended-islands": "node prisma/seed-recommended-islands.cjs",
+    "db:seed:cruises": "node prisma/seed-cruise-data.cjs",
     "db:seed:vworld-islands": "node prisma/seed-vworld-island-features.cjs",
     "data:collect:travel-files": "node prisma/collect-data-go-kr-travel-files.cjs",
     "data:extract:travel-columns": "node prisma/extract-data-go-kr-column-info.cjs",

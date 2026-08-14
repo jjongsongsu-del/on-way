@@ -364,6 +364,91 @@ export type RecommendedIsland = {
   photo: IslandTravelPhoto | null;
 };
 
+export type CruisePort = {
+  id: string;
+  portKey: string;
+  portName: string;
+  regionName: string | null;
+  cityName: string | null;
+  terminalName: string | null;
+  sourceName: string;
+  sourceUrl: string | null;
+};
+
+export type CruiseVessel = {
+  id: string;
+  vesselKey: string;
+  vesselName: string;
+  operatorName: string | null;
+  registryCountry: string | null;
+  grossTonnage: number | null;
+  lengthMeter: number | null;
+  maxDraftMeter: number | null;
+  airDraftMeter: number | null;
+  crewCount: number | null;
+  passengerCapacity: number | null;
+  sourceName: string;
+};
+
+export type CruiseSchedule = {
+  id: string;
+  scheduleKey: string;
+  port: CruisePort;
+  vessel: CruiseVessel | null;
+  vesselName: string;
+  operatorName: string | null;
+  arrivalDate: string;
+  arrivalTime: string | null;
+  departureDate: string | null;
+  departureTime: string | null;
+  homePortCode: string | null;
+  homePortName: string | null;
+  previousPortCode: string | null;
+  previousPortName: string | null;
+  nextPortCode: string | null;
+  nextPortName: string | null;
+  berthName: string | null;
+  scheduleType: string | null;
+  agentName: string | null;
+  agentTel: string | null;
+  sourceName: string;
+  sourceUrl: string | null;
+  collectedAt: string;
+};
+
+export type CruiseTourProduct = {
+  id: string;
+  productKey: string;
+  port: CruisePort | null;
+  productName: string;
+  address: string | null;
+  priceText: string | null;
+  operatingHours: string | null;
+  closedDays: string | null;
+  travelTimeText: string | null;
+  imageIncluded: boolean;
+  accessibility: Record<string, unknown> | null;
+  description: string | null;
+  sourceName: string;
+  sourceUrl: string | null;
+  referenceDate: string | null;
+};
+
+export type CruiseOverview = {
+  ports: CruisePort[];
+  upcomingSchedules: CruiseSchedule[];
+  tourProducts: CruiseTourProduct[];
+  summary: {
+    totalPorts: number;
+    totalVessels: number;
+    totalSchedules: number;
+    upcomingSchedules: number;
+    totalTourProducts: number;
+    sourceNames: string[];
+  };
+  updatedAt: string;
+};
+
 export type TodayStatusSummary = {
   route: RouteSummary;
   status: SailingStatus;

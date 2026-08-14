@@ -819,6 +819,114 @@ model RecommendedIsland {
   @@map("recommended_island")
 }
 
+model CruisePort {
+  id              String   @id @default(cuid())
+  portKey         String   @unique @map("port_key")
+  portName        String   @map("port_name")
+  regionName      String?  @map("region_name")
+  cityName        String?  @map("city_name")
+  terminalName    String?  @map("terminal_name")
+  sourceName      String   @map("source_name")
+  sourceUrl       String?  @map("source_url")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  schedules       CruiseSchedule[]
+  tourProducts    CruiseTourProduct[]
+
+  @@index([portName])
+  @@index([regionName])
+  @@map("cruise_port")
+}
+
+model CruiseVessel {
+  id                String   @id @default(cuid())
+  vesselKey         String   @unique @map("vessel_key")
+  vesselName        String   @map("vessel_name")
+  operatorName      String?  @map("operator_name")
+  registryCountry   String?  @map("registry_country")
+  grossTonnage      Decimal? @map("gross_tonnage") @db.Decimal(14, 3)
+  lengthMeter       Decimal? @map("length_meter") @db.Decimal(10, 3)
+  maxDraftMeter     Decimal? @map("max_draft_meter") @db.Decimal(10, 3)
+  airDraftMeter     Decimal? @map("air_draft_meter") @db.Decimal(10, 3)
+  crewCount         Int?     @map("crew_count")
+  passengerCapacity Int?     @map("passenger_capacity")
+  sourceName        String   @map("source_name")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  schedules         CruiseSchedule[]
+
+  @@index([vesselName])
+  @@index([operatorName])
+  @@map("cruise_vessel")
+}
+
+model CruiseSchedule {
+  id             String        @id @default(cuid())
+  scheduleKey    String        @unique @map("schedule_key")
+  portId         String        @map("port_id")
+  vesselId       String?       @map("vessel_id")
+  vesselName     String        @map("vessel_name")
+  operatorName   String?       @map("operator_name")
+  arrivalDate    DateTime      @map("arrival_date") @db.Date
+  arrivalTime    String?       @map("arrival_time")
+  departureDate  DateTime?     @map("departure_date") @db.Date
+  departureTime  String?       @map("departure_time")
+  homePortCode   String?       @map("home_port_code")
+  homePortName   String?       @map("home_port_name")
+  previousPortCode String?     @map("previous_port_code")
+  previousPortName String?     @map("previous_port_name")
+  nextPortCode   String?       @map("next_port_code")
+  nextPortName   String?       @map("next_port_name")
+  berthName      String?       @map("berth_name")
+  scheduleType   String?       @map("schedule_type")
+  agentName      String?       @map("agent_name")
+  agentTel       String?       @map("agent_tel")
+  sourceName     String        @map("source_name")
+  sourceUrl      String?       @map("source_url")
+  raw            Json?
+  collectedAt    DateTime      @map("collected_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  port           CruisePort    @relation(fields: [portId], references: [id], onDelete: Cascade)
+  vessel         CruiseVessel? @relation(fields: [vesselId], references: [id])
+
+  @@index([arrivalDate])
+  @@index([portId, arrivalDate])
+  @@index([vesselName])
+  @@index([scheduleType])
+  @@map("cruise_schedule")
+}
+
+model CruiseTourProduct {
+  id                 String     @id @default(cuid())
+  productKey         String     @unique @map("product_key")
+  portId             String?    @map("port_id")
+  productName        String     @map("product_name")
+  address            String?
+  priceText          String?    @map("price_text")
+  operatingHours     String?    @map("operating_hours")
+  closedDays         String?    @map("closed_days")
+  travelTimeText     String?    @map("travel_time_text")
+  imageIncluded      Boolean    @default(false) @map("image_included")
+  accessibility      Json?
+  description        String?
+  sourceName         String     @map("source_name")
+  sourceUrl          String?    @map("source_url")
+  referenceDate      DateTime?  @map("reference_date") @db.Date
+  raw                Json?
+  createdAt          DateTime   @default(now()) @map("created_at")
+  updatedAt          DateTime   @updatedAt @map("updated_at")
+
+  port               CruisePort? @relation(fields: [portId], references: [id])
+
+  @@index([productName])
+  @@index([address])
+  @@map("cruise_tour_product")
+}
+
 enum SailingStatusCode {
   NORMAL
   SCHEDULED
