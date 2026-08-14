@@ -16,7 +16,7 @@ type TabItem = {
 const tabItems: TabItem[] = [
   { routeName: 'index', label: '섬똑', match: '/', Icon: Home },
   { routeName: 'schedule', label: '시간표', match: '/schedule', Icon: CalendarDays },
-  { routeName: 'islands', params: { mode: 'trip' }, label: '섬관광', match: '/islands:trip', Icon: Compass },
+  { routeName: 'islands', params: { mode: 'trip' }, label: '섬여행', match: '/islands:trip', Icon: Compass },
   { routeName: 'cruise', label: '크루즈', match: '/cruise', Icon: Anchor },
   { routeName: 'forecast', label: '예보', match: '/forecast', Icon: Ship },
   { routeName: 'profile', label: '내정보', match: '/profile', Icon: User }
@@ -44,8 +44,8 @@ export default function TabLayout() {
     >
       <Tabs.Screen name="index" options={{ title: '섬똑' }} />
       <Tabs.Screen name="schedule" options={{ title: '시간표' }} />
-      <Tabs.Screen name="island-trip" options={{ title: '섬관광' }} />
-      <Tabs.Screen name="trip" options={{ href: null, title: '섬관광' }} />
+      <Tabs.Screen name="island-trip" options={{ title: '섬여행' }} />
+      <Tabs.Screen name="trip" options={{ href: null, title: '섬여행' }} />
       <Tabs.Screen name="islands" options={{ title: '섬지도' }} />
       <Tabs.Screen name="cruise" options={{ title: '크루즈' }} />
       <Tabs.Screen name="my-trip" options={{ href: null, title: '섬코스' }} />

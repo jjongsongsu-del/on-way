@@ -1836,15 +1836,9 @@ const PHOTO_KEYS = {
 } as const;
 
 const ATTRACTION_DETAIL_FIELDS = [
-  { label: '콘텐츠ID', keys: ['contentid', 'contentId'] },
-  { label: '콘텐츠유형', keys: ['contenttypeid', 'contentTypeId'] },
-  { label: '대분류', keys: ['cat1'] },
-  { label: '중분류', keys: ['cat2'] },
-  { label: '소분류', keys: ['cat3'] },
   { label: '도로명주소', keys: ['addr2'] },
   { label: '우편번호', keys: ['zipcode'] },
-  { label: '전화', keys: ['tel'] },
-  { label: '좌표', keys: ['mapx', 'mapX', 'mapy', 'mapY'], combine: true }
+  { label: '전화', keys: ['tel'] }
 ] as const;
 
 const CAMP_DETAIL_FIELDS = [

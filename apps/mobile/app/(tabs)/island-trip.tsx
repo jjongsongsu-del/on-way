@@ -660,7 +660,7 @@ export default function IslandTripScreen() {
 
   return (
     <Screen
-      title="섬관광"
+      title="섬여행"
       subtitle="섬 하나를 검색하고, 배편·예보·지도·숙박·식당·캠핑·사진 정보를 이어서 확인합니다."
       mascotSource={require('../../assets/mascot/boogi_bg6.png')}
       scrollRef={scrollViewRef}
@@ -725,7 +725,7 @@ export default function IslandTripScreen() {
       <View style={styles.subMenuPanel}>
         <View style={styles.sectionHeader}>
           <View>
-            <Text style={styles.eyebrow}>섬관광 메뉴</Text>
+            <Text style={styles.eyebrow}>섬여행 메뉴</Text>
             <Text style={styles.subMenuTitle}>검색한 섬을 중심으로 확인하세요</Text>
           </View>
           <Compass color={colors.primary} size={22} />
@@ -2961,11 +2961,7 @@ function buildUnifiedSearchResults(
       address: item.address,
       imageUrl: item.imageUrl,
       source: attractionSourceLabel(item.source),
-      detailRows: [
-        { label: '분류', value: item.category },
-        { label: '좌표', value: item.mapX && item.mapY ? `${item.mapY}, ${item.mapX}` : null },
-        ...(item.detailFields ?? [])
-      ]
+      detailRows: item.detailFields ?? []
     });
   });
   travelInfo.camps.forEach((item) =>
