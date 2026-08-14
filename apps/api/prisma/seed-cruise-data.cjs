@@ -77,7 +77,7 @@ async function main() {
   };
 
   const ports = {};
-  for (const source of Object.values(SOURCES)) {
+  for (const source of Object.values(SOURCES).filter((item) => item.port)) {
     ports[source.port.key] = await upsertPort(source);
     summary.ports += 1;
   }
