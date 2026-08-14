@@ -1,166 +1,160 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { CalendarDays, Database, FileText, MapPin, Search, Ship, Waves, X } from 'lucide-react-native';
-import type { ComponentType } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import type { CruiseSchedule } from '@badagil/shared';
+import {
+  Anchor,
+  Building2,
+  CalendarDays,
+  ChevronRight,
+  RefreshCcw,
+  Search,
+  Ship,
+  Ticket,
+  X
+} from 'lucide-react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import type { CruiseOperatorLicense, CruiseSchedule, CruiseTourProduct } from '@badagil/shared';
 import { fetchCruiseOverview, fetchCruiseScheduleDetail, fetchCruiseSchedules } from '@/api/cruises';
 import { InfoCard } from '@/components/InfoCard';
 import { MascotBanner } from '@/components/MascotBanner';
 import { Screen } from '@/components/Screen';
 import { colors } from '@/theme/colors';
 
-type CruiseSource = {
-  title: string;
-  kind: 'API' | '파일';
-  description: string;
-  fields: string[];
-};
+const DATE_FILTERS = [
+  { label: '오늘부터', days: 0 },
+  { label: '7일', days: 7 },
+  { label: '30일', days: 30 },
+  { label: '올해', days: null }
+] as const;
 
-type CruiseSection = {
-  title: string;
-  description: string;
-  Icon: ComponentType<{ color: string; size: number; strokeWidth?: number }>;
-};
-
-const cruiseSources: CruiseSource[] = [
-  {
-    title: '부산항 크루즈 스케줄',
-    kind: '파일',
-    description: '2024년 공공데이터 CSV와 2026·2027년 부산 여객 크루즈 XLSX를 통합한 입출항 정보',
-    fields: ['선명', '입항부두', '승객정원수', '입항예정일', '출항예정일', '이전항']
-  },
-  {
-    title: '여수항 크루즈선 정보',
-    kind: '파일',
-    description: '여수항 입항 크루즈의 선박 제원과 여정 정보를 확인하는 기준 데이터',
-    fields: ['선박', '운항사', '총톤수', '승객수', '입항예정일', '전항지']
-  },
-  {
-    title: '여수항 크루즈 입항 스케줄',
-    kind: '파일',
-    description: '입항·출항 시간, 이전 항구와 다음 항구, 대리점 연락처 중심의 스케줄 데이터',
-    fields: ['선박', '입항예정일', '출항예정일', '이전항', '다음항', '연락처']
-  },
-  {
-    title: '포항운하크루즈',
-    kind: '파일',
-    description: '포항운하크루즈 기본정보, 추천 코스, 상세 설명, 이미지 보유 여부',
-    fields: ['코스', '주소', '이용시간', '이용요금', '추천순서', '이미지']
-  },
-  {
-    title: '크루즈 공공 API',
-    kind: 'API',
-    description: 'ref_api/크루즈의 API 안내 자료를 기준으로 호출 항목을 정리해 연동 예정',
-    fields: ['스케줄', '항만', '선박', '운항', '기항지']
-  }
-];
-
-const cruiseSections: CruiseSection[] = [
-  {
-    title: '입출항 스케줄',
-    description: '항만별 입항·출항 일시와 선석을 한 번에 확인',
-    Icon: CalendarDays
-  },
-  {
-    title: '크루즈 선박',
-    description: '선명, 선사, 국적, 총톤수, 승객 규모 중심의 선박 상세',
-    Icon: Ship
-  },
-  {
-    title: '기항지·항만',
-    description: '전항지, 차항지, 국내 항만 위치를 지도 정보와 연결',
-    Icon: MapPin
-  },
-  {
-    title: '연안 크루즈',
-    description: '포항운하처럼 관광 코스형 크루즈를 여행 화면과 연결',
-    Icon: Waves
-  }
-];
+type DateFilter = (typeof DATE_FILTERS)[number];
 
 export default function CruiseScreen() {
   const [selectedPortName, setSelectedPortName] = useState<string | null>(null);
   const [selectedScheduleId, setSelectedScheduleId] = useState<string | null>(null);
+  const [keywordInput, setKeywordInput] = useState('');
+  const [keyword, setKeyword] = useState('');
+  const [dateFilter, setDateFilter] = useState<DateFilter>(DATE_FILTERS[0]);
+
   const overviewQuery = useQuery({
     queryKey: ['cruise-overview'],
     queryFn: () => fetchCruiseOverview(12),
     staleTime: 10 * 60 * 1000
   });
+
+  const scheduleRange = useMemo(() => getScheduleRange(dateFilter), [dateFilter]);
   const schedulesQuery = useQuery({
-    queryKey: ['cruise-schedules', selectedPortName],
-    queryFn: () => fetchCruiseSchedules({ portName: selectedPortName, from: todayDateString(), limit: 40 }),
+    queryKey: ['cruise-schedules', selectedPortName, keyword, scheduleRange.from, scheduleRange.to],
+    queryFn: () =>
+      fetchCruiseSchedules({
+        portName: selectedPortName,
+        keyword,
+        from: scheduleRange.from,
+        to: scheduleRange.to,
+        limit: 80
+      }),
     staleTime: 10 * 60 * 1000
   });
-  const overview = overviewQuery.data;
+
   const selectedScheduleQuery = useQuery({
     queryKey: ['cruise-schedule-detail', selectedScheduleId],
     queryFn: () => fetchCruiseScheduleDetail(selectedScheduleId ?? ''),
     enabled: Boolean(selectedScheduleId),
     staleTime: 10 * 60 * 1000
   });
+
+  const overview = overviewQuery.data;
   const ports = overview?.ports ?? [];
   const schedules = schedulesQuery.data ?? overview?.upcomingSchedules ?? [];
-  const selectedPortLabel = selectedPortName ?? '전체 항만';
   const groupedSchedules = useMemo(() => groupSchedulesByMonth(schedules), [schedules]);
+  const selectedSchedule = selectedScheduleQuery.data ?? schedules.find((schedule) => schedule.id === selectedScheduleId) ?? null;
+  const featuredSchedule = schedules[0] ?? overview?.upcomingSchedules?.[0] ?? null;
+  const selectedPortLabel = selectedPortName ?? '전체 항만';
+
+  const submitSearch = () => setKeyword(keywordInput.trim());
+  const resetSearch = () => {
+    setKeywordInput('');
+    setKeyword('');
+    setSelectedPortName(null);
+    setDateFilter(DATE_FILTERS[0]);
+  };
 
   return (
-    <Screen title="크루즈" subtitle="국내 항만 크루즈 스케줄과 연안 관광 크루즈 정보를 준비하고 있어요.">
+    <Screen title="크루즈" subtitle="입항 일정, 선박 규모, 항만 정보와 연안 관광 크루즈를 한 번에 확인합니다.">
       <MascotBanner
         imageSource={require('../../assets/mascot/boogi-routes.png')}
-        eyebrow="공공데이터 기반"
-        title="크루즈 일정과 선박 정보를 한 화면으로"
-        description="부산항, 여수항, 포항운하크루즈 데이터를 시작점으로 입출항 일정과 선박 상세를 연결합니다."
+        eyebrow="크루즈 일정 안내"
+        title={featuredSchedule ? `${featuredSchedule.port.portName} ${featuredSchedule.vesselName}` : '국내 크루즈 정보를 모아봅니다'}
+        description={
+          featuredSchedule
+            ? `${formatShortDate(featuredSchedule.arrivalDate)} ${featuredSchedule.arrivalTime ?? ''} 입항 예정 · ${featuredSchedule.nextPortName ? `다음 항 ${featuredSchedule.nextPortName}` : '상세 일정 확인 가능'}`
+            : '부산항, 인천항, 여수항, 포항운하 데이터를 기준으로 크루즈 이용 정보를 제공합니다.'
+        }
         tone="blue"
       />
 
-      <InfoCard title="제공할 정보" eyebrow="크루즈 메뉴 1차 범위">
-        <View style={styles.sectionGrid}>
-          {cruiseSections.map(({ title, description, Icon }) => (
-            <View key={title} style={styles.featureItem}>
-              <View style={styles.featureIcon}>
-                <Icon color={colors.primary} size={19} strokeWidth={2.5} />
-              </View>
-              <View style={styles.featureCopy}>
-                <Text style={styles.featureTitle}>{title}</Text>
-                <Text style={styles.featureDescription}>{description}</Text>
-              </View>
-            </View>
-          ))}
-        </View>
-      </InfoCard>
+      <View style={styles.heroStats}>
+        <HeroStat icon={Anchor} label="항만" value={overview?.summary.totalPorts ?? 0} />
+        <HeroStat icon={Ship} label="선박" value={overview?.summary.totalVessels ?? 0} />
+        <HeroStat icon={CalendarDays} label="일정" value={overview?.summary.totalSchedules ?? 0} />
+        <HeroStat icon={Building2} label="사업자" value={overview?.summary.totalOperatorLicenses ?? 0} />
+      </View>
 
-      <InfoCard title="항만 선택" eyebrow={overviewQuery.isLoading ? '데이터 조회 중' : `${ports.length}개 항만`}>
-        <View style={styles.portWrap}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={!selectedPortName ? { selected: true } : undefined}
-            onPress={() => setSelectedPortName(null)}
-            style={[styles.portChip, !selectedPortName && styles.portChipActive]}
-          >
-            <Text style={[styles.portChipText, !selectedPortName && styles.portChipTextActive]}>전체</Text>
+      <InfoCard title="크루즈 찾기" eyebrow={schedulesQuery.isFetching ? '조회 중' : `${selectedPortLabel} · ${schedules.length}건`}>
+        <View style={styles.searchBox}>
+          <Search color={colors.muted} size={18} strokeWidth={2.5} />
+          <TextInput
+            value={keywordInput}
+            onChangeText={setKeywordInput}
+            onSubmitEditing={submitSearch}
+            placeholder="선박명, 항만, 이전항, 다음항 검색"
+            placeholderTextColor={colors.muted}
+            returnKeyType="search"
+            style={styles.searchInput}
+          />
+          {keywordInput ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="검색어 지우기" onPress={() => setKeywordInput('')} style={styles.iconButton}>
+              <X color={colors.muted} size={17} strokeWidth={2.5} />
+            </Pressable>
+          ) : null}
+        </View>
+
+        <View style={styles.actionRow}>
+          <Pressable accessibilityRole="button" onPress={submitSearch} style={styles.primaryButton}>
+            <Search color={colors.surface} size={17} strokeWidth={2.5} />
+            <Text style={styles.primaryButtonText}>검색</Text>
           </Pressable>
-          {ports.map((port) => {
-            const active = selectedPortName === port.portName;
-            return (
-              <Pressable
+          <Pressable accessibilityRole="button" onPress={resetSearch} style={styles.secondaryButton}>
+            <RefreshCcw color={colors.primary} size={16} strokeWidth={2.5} />
+            <Text style={styles.secondaryButtonText}>초기화</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.filterBlock}>
+          <Text style={styles.filterLabel}>항만</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScroller}>
+            <FilterChip label="전체" active={!selectedPortName} onPress={() => setSelectedPortName(null)} />
+            {ports.map((port) => (
+              <FilterChip
                 key={port.id}
-                accessibilityRole="button"
-                accessibilityState={active ? { selected: true } : undefined}
+                label={port.portName}
+                active={selectedPortName === port.portName}
                 onPress={() => setSelectedPortName(port.portName)}
-                style={[styles.portChip, active && styles.portChipActive]}
-              >
-                <Text style={[styles.portChipText, active && styles.portChipTextActive]}>{port.portName}</Text>
-              </Pressable>
-            );
-          })}
+              />
+            ))}
+          </ScrollView>
+        </View>
+
+        <View style={styles.filterBlock}>
+          <Text style={styles.filterLabel}>기간</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScroller}>
+            {DATE_FILTERS.map((option) => (
+              <FilterChip key={option.label} label={option.label} active={dateFilter.label === option.label} onPress={() => setDateFilter(option)} />
+            ))}
+          </ScrollView>
         </View>
       </InfoCard>
 
-      <InfoCard
-        title="입항 일정"
-        eyebrow={schedulesQuery.isLoading ? `${selectedPortLabel} 조회 중` : `${selectedPortLabel} ${schedules.length}건`}
-      >
+      <InfoCard title="입항 일정" eyebrow={keyword ? `"${keyword}" 검색 결과` : selectedPortLabel}>
         {schedulesQuery.isError ? (
           <Text style={styles.emptyText}>크루즈 일정을 불러오지 못했습니다.</Text>
         ) : groupedSchedules.length > 0 ? (
@@ -173,156 +167,150 @@ export default function CruiseScreen() {
             </View>
           ))
         ) : (
-          <Text style={styles.emptyText}>오늘 이후 등록된 크루즈 입항 일정이 없습니다.</Text>
+          <Text style={styles.emptyText}>조건에 맞는 입항 일정이 없습니다.</Text>
         )}
       </InfoCard>
 
-      <InfoCard
-        title="관광 크루즈"
-        eyebrow={overviewQuery.isLoading ? '조회 중' : `${overview?.tourProducts.length ?? 0}건`}
-      >
+      <InfoCard title="관광 크루즈" eyebrow={`${overview?.tourProducts.length ?? 0}건`}>
         {overview?.tourProducts.length ? (
-          overview.tourProducts.map((product) => (
-            <View key={product.id} style={styles.productRow}>
-              <View style={styles.productHeader}>
-                <Text style={styles.productTitle}>{product.productName}</Text>
-                {product.port?.portName ? <Text style={styles.productPort}>{product.port.portName}</Text> : null}
-              </View>
-              <Text style={styles.sourceDescription}>{product.description ?? '관광형 크루즈 상품입니다.'}</Text>
-              <View style={styles.fieldWrap}>
-                {[product.priceText, product.operatingHours, product.travelTimeText, product.imageIncluded ? '이미지 있음' : null]
-                  .filter(Boolean)
-                  .map((item) => (
-                    <Text key={item} style={styles.fieldChip}>
-                      {item}
-                    </Text>
-                  ))}
-              </View>
-            </View>
-          ))
+          overview.tourProducts.map((product) => <TourProductCard key={product.id} product={product} />)
         ) : (
-          <Text style={styles.emptyText}>관광 크루즈 상품 데이터를 적재하면 여기에 표시됩니다.</Text>
+          <Text style={styles.emptyText}>관광 크루즈 상품 데이터가 준비되면 여기에 표시됩니다.</Text>
         )}
       </InfoCard>
 
-      <InfoCard
-        title="등록 유람선 사업자"
-        eyebrow={overviewQuery.isLoading ? '조회 중' : `${overview?.summary.totalOperatorLicenses ?? 0}건 · 영업 ${overview?.summary.activeOperatorLicenses ?? 0}건`}
-      >
+      <InfoCard title="등록 유람선 사업자" eyebrow={`${overview?.summary.totalOperatorLicenses ?? 0}건`}>
         {overview?.operatorLicenses.length ? (
-          overview.operatorLicenses.map((operator) => (
-            <View key={operator.id} style={styles.operatorRow}>
-              <View style={styles.productHeader}>
-                <Text style={styles.productTitle}>{operator.businessName}</Text>
-                {operator.businessStatus ? <Text style={styles.operatorStatus}>{operator.businessStatus}</Text> : null}
-              </View>
-              <Text style={styles.sourceDescription}>{operator.roadAddress ?? operator.lotAddress ?? '주소 확인 필요'}</Text>
-              <View style={styles.fieldWrap}>
-                {[operator.port?.portName, operator.detailStatus, operator.permitDate && `인허가 ${operator.permitDate}`]
-                  .filter(Boolean)
-                  .map((item) => (
-                    <Text key={item} style={styles.fieldChip}>
-                      {item}
-                    </Text>
-                  ))}
-              </View>
-            </View>
-          ))
+          overview.operatorLicenses.map((operator) => <OperatorCard key={operator.id} operator={operator} />)
         ) : (
-          <Text style={styles.emptyText}>행안부 관광유람선업 API 인증키가 연결되면 등록 사업자 원장이 표시됩니다.</Text>
+          <Text style={styles.emptyText}>관광유람선업 인허가 정보를 불러오고 있습니다.</Text>
         )}
       </InfoCard>
 
-      <InfoCard title="데이터 현황" eyebrow={overview?.updatedAt ? formatDate(overview.updatedAt) : '적재 대기'}>
-        <View style={styles.summaryGrid}>
-          <SummaryCell label="항만" value={overview?.summary.totalPorts ?? 0} />
-          <SummaryCell label="선박" value={overview?.summary.totalVessels ?? 0} />
-          <SummaryCell label="일정" value={overview?.summary.totalSchedules ?? 0} />
-          <SummaryCell label="관광상품" value={overview?.summary.totalTourProducts ?? 0} />
-          <SummaryCell label="사업자" value={overview?.summary.totalOperatorLicenses ?? 0} />
-        </View>
+      <InfoCard title="데이터 갱신" eyebrow={overview?.updatedAt ? formatDateTime(overview.updatedAt) : '확인 중'}>
         <View style={styles.sourceWrap}>
-          {(overview?.summary.sourceNames ?? cruiseSources.map((source) => source.title)).map((sourceName) => (
-            <Text key={sourceName} style={styles.sourceNameChip}>
-              {sourceName}
+          {(overview?.summary.sourceNames ?? []).map((sourceName) => (
+            <Text key={sourceName} style={styles.sourceChip}>
+              {sourceName.replace('행정안전부_문화_', '행안부 ')}
             </Text>
           ))}
         </View>
       </InfoCard>
 
-      <InfoCard title="수집 기준 데이터" eyebrow="ref_api/크루즈">
-        {cruiseSources.map((source) => (
-          <View key={source.title} style={styles.sourceRow}>
-            <View style={styles.sourceHeader}>
-              <View style={[styles.sourceBadge, source.kind === 'API' ? styles.apiBadge : styles.fileBadge]}>
-                {source.kind === 'API' ? (
-                  <Database color={colors.primary} size={14} strokeWidth={2.5} />
-                ) : (
-                  <FileText color={colors.good} size={14} strokeWidth={2.5} />
-                )}
-                <Text style={[styles.sourceBadgeText, source.kind === 'API' ? styles.apiBadgeText : styles.fileBadgeText]}>
-                  {source.kind}
-                </Text>
-              </View>
-              <Text style={styles.sourceTitle}>{source.title}</Text>
-            </View>
-            <Text style={styles.sourceDescription}>{source.description}</Text>
-            <View style={styles.fieldWrap}>
-              {source.fields.map((field) => (
-                <Text key={field} style={styles.fieldChip}>
-                  {field}
-                </Text>
-              ))}
-            </View>
-          </View>
-        ))}
-      </InfoCard>
-
-      <InfoCard title="다음 연결 작업" eyebrow="데이터 적재 후">
-        <View style={styles.nextList}>
-          <Text style={styles.nextItem}>1. 크루즈 API 호출 테스트와 응답 항목 표준화</Text>
-          <Text style={styles.nextItem}>2. 파일 데이터 인코딩 보정 후 DB 마스터 적재</Text>
-          <Text style={styles.nextItem}>3. 항만·선박·스케줄 상세 화면 연결</Text>
-          <Text style={styles.nextItem}>4. 섬찾기와 크루즈 관광 코스 추천 연결</Text>
-        </View>
-        <Pressable style={styles.disabledButton} accessibilityRole="button" disabled>
-          <Search color={colors.muted} size={18} strokeWidth={2.5} />
-          <Text style={styles.disabledButtonText}>상세 검색 준비 중</Text>
-        </Pressable>
-      </InfoCard>
-
-      <ScheduleDetailModal
-        schedule={selectedScheduleQuery.data ?? schedules.find((schedule) => schedule.id === selectedScheduleId) ?? null}
-        loading={selectedScheduleQuery.isLoading}
-        visible={Boolean(selectedScheduleId)}
-        onClose={() => setSelectedScheduleId(null)}
-      />
+      <ScheduleDetailModal schedule={selectedSchedule} loading={selectedScheduleQuery.isLoading} visible={Boolean(selectedScheduleId)} onClose={() => setSelectedScheduleId(null)} />
     </Screen>
   );
 }
 
+function HeroStat({
+  icon: Icon,
+  label,
+  value
+}: {
+  icon: typeof Anchor;
+  label: string;
+  value: number;
+}) {
+  return (
+    <View style={styles.heroStat}>
+      <Icon color={colors.primary} size={18} strokeWidth={2.5} />
+      <Text style={styles.heroStatValue}>{value.toLocaleString()}</Text>
+      <Text style={styles.heroStatLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityState={active ? { selected: true } : undefined} onPress={onPress} style={[styles.filterChip, active && styles.filterChipActive]}>
+      <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{label}</Text>
+    </Pressable>
+  );
+}
+
 function ScheduleRow({ schedule, onPress }: { schedule: CruiseSchedule; onPress: () => void }) {
+  const passengerText = schedule.vessel?.passengerCapacity ? `${schedule.vessel.passengerCapacity.toLocaleString()}명` : null;
+  const vesselSizeText = schedule.vessel?.grossTonnage ? `${schedule.vessel.grossTonnage.toLocaleString()}GT` : null;
   return (
     <Pressable accessibilityRole="button" onPress={onPress} style={styles.scheduleRow}>
       <View style={styles.scheduleDateBox}>
-        <Text style={styles.scheduleDay}>{schedule.arrivalDate.slice(5).replace('-', '.')}</Text>
-        <Text style={styles.scheduleTime}>{schedule.arrivalTime ?? '시간 확인'}</Text>
+        <Text style={styles.scheduleDay}>{formatScheduleDay(schedule.arrivalDate)}</Text>
+        <Text style={styles.scheduleTime}>{schedule.arrivalTime ?? '확인'}</Text>
       </View>
       <View style={styles.scheduleCopy}>
         <View style={styles.scheduleTitleRow}>
-          <Text style={styles.scheduleTitle}>{schedule.vesselName}</Text>
+          <Text style={styles.scheduleTitle} numberOfLines={2}>
+            {schedule.vesselName}
+          </Text>
           {schedule.scheduleType ? <Text style={styles.scheduleType}>{schedule.scheduleType}</Text> : null}
         </View>
-        <Text style={styles.scheduleMeta}>
-          {[schedule.port.portName, schedule.operatorName, schedule.departureTime && `출항 ${schedule.departureTime}`].filter(Boolean).join(' · ')}
+        <Text style={styles.scheduleMeta} numberOfLines={2}>
+          {[schedule.port.portName, schedule.berthName, schedule.departureTime && `출항 ${schedule.departureTime}`].filter(Boolean).join(' · ')}
         </Text>
-        <Text style={styles.scheduleRoute}>
-          {[schedule.previousPortName && `전항 ${schedule.previousPortName}`, schedule.nextPortName && `차항 ${schedule.nextPortName}`]
-            .filter(Boolean)
-            .join(' · ') || schedule.berthName || schedule.sourceName}
+        <Text style={styles.scheduleRoute} numberOfLines={2}>
+          {[schedule.previousPortName && `전항 ${schedule.previousPortName}`, schedule.nextPortName && `차항 ${schedule.nextPortName}`].filter(Boolean).join(' · ') ||
+            schedule.operatorName ||
+            schedule.sourceName}
         </Text>
+        <View style={styles.inlineChips}>
+          {[passengerText, vesselSizeText, schedule.operatorName].filter(Boolean).map((item) => (
+            <Text key={item} style={styles.smallChip}>
+              {item}
+            </Text>
+          ))}
+        </View>
       </View>
+      <ChevronRight color={colors.primary} size={18} strokeWidth={2.5} />
     </Pressable>
+  );
+}
+
+function TourProductCard({ product }: { product: CruiseTourProduct }) {
+  return (
+    <View style={styles.productCard}>
+      <View style={styles.productIconBox}>
+        <Ticket color={colors.good} size={20} strokeWidth={2.5} />
+      </View>
+      <View style={styles.productCopy}>
+        <View style={styles.productHeader}>
+          <Text style={styles.productTitle}>{product.productName}</Text>
+          {product.port?.portName ? <Text style={styles.greenBadge}>{product.port.portName}</Text> : null}
+        </View>
+        <Text style={styles.productDescription} numberOfLines={3}>
+          {product.description ?? product.address ?? '연안 관광 크루즈 상품입니다.'}
+        </Text>
+        <View style={styles.inlineChips}>
+          {[product.priceText, product.operatingHours, product.travelTimeText && `${product.travelTimeText}시간`, product.imageIncluded ? '사진 정보' : null]
+            .filter(Boolean)
+            .map((item) => (
+              <Text key={item} style={styles.smallChip}>
+                {item}
+              </Text>
+            ))}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function OperatorCard({ operator }: { operator: CruiseOperatorLicense }) {
+  return (
+    <View style={styles.operatorCard}>
+      <View style={styles.productHeader}>
+        <Text style={styles.operatorTitle}>{operator.businessName}</Text>
+        {operator.port?.portName ? <Text style={styles.blueBadge}>{operator.port.portName}</Text> : null}
+      </View>
+      <Text style={styles.productDescription} numberOfLines={2}>
+        {operator.roadAddress ?? operator.lotAddress ?? operator.localGovernmentName ?? '주소 확인 필요'}
+      </Text>
+      <View style={styles.inlineChips}>
+        {[operator.businessStatus, operator.detailStatus, operator.phone, operator.permitDate && `인허가 ${operator.permitDate}`].filter(Boolean).map((item) => (
+          <Text key={item} style={styles.smallChip}>
+            {item}
+          </Text>
+        ))}
+      </View>
+    </View>
   );
 }
 
@@ -356,27 +344,39 @@ function ScheduleDetailModal({
             {schedule ? (
               <>
                 <View style={styles.detailHero}>
-                  <Text style={styles.detailHeroDate}>{schedule.arrivalDate}</Text>
+                  <Text style={styles.detailHeroDate}>{formatLongDate(schedule.arrivalDate)}</Text>
                   <Text style={styles.detailHeroText}>
                     입항 {schedule.arrivalTime ?? '확인 필요'} · 출항 {schedule.departureDate ?? schedule.arrivalDate} {schedule.departureTime ?? '확인 필요'}
                   </Text>
-                  {schedule.scheduleType ? <Text style={styles.detailHeroBadge}>{schedule.scheduleType}</Text> : null}
+                  <View style={styles.inlineChips}>
+                    {[schedule.scheduleType, schedule.berthName, schedule.operatorName].filter(Boolean).map((item) => (
+                      <Text key={item} style={styles.detailHeroBadge}>
+                        {item}
+                      </Text>
+                    ))}
+                  </View>
                 </View>
 
-                <View style={styles.detailGrid}>
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailSectionTitle}>선박 정보</Text>
                   <DetailLine label="선사" value={schedule.operatorName} />
-                  <DetailLine label="승객수" value={schedule.vessel?.passengerCapacity ? `${schedule.vessel.passengerCapacity.toLocaleString()}명` : null} />
+                  <DetailLine label="승객 정원" value={schedule.vessel?.passengerCapacity ? `${schedule.vessel.passengerCapacity.toLocaleString()}명` : null} />
                   <DetailLine label="총톤수" value={schedule.vessel?.grossTonnage ? `${schedule.vessel.grossTonnage.toLocaleString()} GT` : null} />
                   <DetailLine label="선박 길이" value={schedule.vessel?.lengthMeter ? `${schedule.vessel.lengthMeter} m` : null} />
-                  <DetailLine label="선석" value={schedule.berthName} />
+                  <DetailLine label="승무원" value={schedule.vessel?.crewCount ? `${schedule.vessel.crewCount.toLocaleString()}명` : null} />
+                </View>
+
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailSectionTitle}>운항 경로</Text>
                   <DetailLine label="터미널" value={schedule.port.terminalName} />
                   <DetailLine label="출항지" value={schedule.homePortName} />
                   <DetailLine label="전항지" value={schedule.previousPortName} />
                   <DetailLine label="차항지" value={schedule.nextPortName} />
                   <DetailLine label="대리점" value={schedule.agentName} />
                   <DetailLine label="연락처" value={schedule.agentTel} />
-                  <DetailLine label="출처" value={schedule.sourceName} />
                 </View>
+
+                <Text style={styles.detailSource}>출처: {schedule.sourceName}</Text>
               </>
             ) : (
               <Text style={styles.emptyText}>{loading ? '상세 정보를 불러오는 중입니다.' : '상세 정보를 찾지 못했습니다.'}</Text>
@@ -397,15 +397,6 @@ function DetailLine({ label, value }: { label: string; value: string | number | 
   );
 }
 
-function SummaryCell({ label, value }: { label: string; value: number }) {
-  return (
-    <View style={styles.summaryCell}>
-      <Text style={styles.summaryValue}>{value.toLocaleString()}</Text>
-      <Text style={styles.summaryLabel}>{label}</Text>
-    </View>
-  );
-}
-
 function groupSchedulesByMonth(schedules: CruiseSchedule[]) {
   const groups = new Map<string, CruiseSchedule[]>();
   schedules.forEach((schedule) => {
@@ -415,77 +406,159 @@ function groupSchedulesByMonth(schedules: CruiseSchedule[]) {
   return [...groups.entries()].map(([label, items]) => ({ label, items }));
 }
 
+function getScheduleRange(filter: DateFilter) {
+  const from = todayDateString();
+  if (filter.days === null) {
+    return { from, to: `${new Date().getFullYear()}-12-31` };
+  }
+  if (filter.days === 0) {
+    return { from, to: null };
+  }
+  const toDate = new Date();
+  toDate.setDate(toDate.getDate() + filter.days);
+  return { from, to: toDate.toISOString().slice(0, 10) };
+}
+
 function todayDateString() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function formatDate(value: string) {
+function formatScheduleDay(value: string) {
+  return value.slice(5).replace('-', '.');
+}
+
+function formatShortDate(value: string) {
+  return new Date(`${value}T00:00:00`).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
+}
+
+function formatLongDate(value: string) {
+  return new Date(`${value}T00:00:00`).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
+}
+
+function formatDateTime(value: string) {
   return new Date(value).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 const styles = StyleSheet.create({
-  sectionGrid: {
-    gap: 10
-  },
-  featureItem: {
-    alignItems: 'center',
-    borderColor: colors.border,
-    borderRadius: 8,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: 10,
-    padding: 12
-  },
-  featureIcon: {
-    alignItems: 'center',
-    backgroundColor: colors.primarySoft,
-    borderRadius: 8,
-    height: 38,
-    justifyContent: 'center',
-    width: 38
-  },
-  featureCopy: {
-    flex: 1,
-    gap: 3
-  },
-  featureTitle: {
-    color: colors.navy,
-    fontSize: 14,
-    fontWeight: '800'
-  },
-  featureDescription: {
-    color: colors.muted,
-    fontSize: 12,
-    lineHeight: 18
-  },
-  sourceRow: {
-    borderBottomColor: colors.border,
-    borderBottomWidth: 1,
-    gap: 8,
-    paddingBottom: 12
-  },
-  portWrap: {
+  heroStats: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8
   },
-  portChip: {
+  heroStat: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexBasis: '23%',
+    flexGrow: 1,
+    gap: 4,
+    minWidth: 74,
+    paddingHorizontal: 8,
+    paddingVertical: 12
+  },
+  heroStatValue: {
+    color: colors.navy,
+    fontSize: 18,
+    fontWeight: '900'
+  },
+  heroStatLabel: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '800'
+  },
+  searchBox: {
+    alignItems: 'center',
+    backgroundColor: colors.backgroundSoft,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    minHeight: 48,
+    paddingHorizontal: 12
+  },
+  searchInput: {
+    color: colors.navy,
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
+    minWidth: 0,
+    paddingVertical: 10
+  },
+  iconButton: {
+    alignItems: 'center',
+    height: 32,
+    justifyContent: 'center',
+    width: 32
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 8
+  },
+  primaryButton: {
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    flexDirection: 'row',
+    gap: 6,
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: 14
+  },
+  primaryButtonText: {
+    color: colors.surface,
+    fontSize: 14,
+    fontWeight: '900'
+  },
+  secondaryButton: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 6,
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: 14
+  },
+  secondaryButtonText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '900'
+  },
+  filterBlock: {
+    gap: 8
+  },
+  filterLabel: {
+    color: colors.navy,
+    fontSize: 13,
+    fontWeight: '900'
+  },
+  chipScroller: {
+    gap: 8,
+    paddingRight: 4
+  },
+  filterChip: {
+    backgroundColor: colors.backgroundSoft,
     borderColor: colors.border,
     borderRadius: 8,
     borderWidth: 1,
     paddingHorizontal: 12,
     paddingVertical: 9
   },
-  portChipActive: {
+  filterChipActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primary
   },
-  portChipText: {
+  filterChipText: {
     color: colors.text,
     fontSize: 13,
     fontWeight: '800'
   },
-  portChipTextActive: {
+  filterChipTextActive: {
     color: colors.surface
   },
   scheduleGroup: {
@@ -497,6 +570,7 @@ const styles = StyleSheet.create({
     fontWeight: '900'
   },
   scheduleRow: {
+    alignItems: 'center',
     borderColor: colors.border,
     borderRadius: 8,
     borderWidth: 1,
@@ -509,7 +583,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.backgroundSoft,
     borderRadius: 8,
     justifyContent: 'center',
-    minHeight: 58,
+    minHeight: 62,
     width: 64
   },
   scheduleDay: {
@@ -525,7 +599,8 @@ const styles = StyleSheet.create({
   },
   scheduleCopy: {
     flex: 1,
-    gap: 4
+    gap: 5,
+    minWidth: 0
   },
   scheduleTitleRow: {
     alignItems: 'center',
@@ -537,7 +612,8 @@ const styles = StyleSheet.create({
     color: colors.navy,
     flexShrink: 1,
     fontSize: 15,
-    fontWeight: '900'
+    fontWeight: '900',
+    minWidth: 0
   },
   scheduleType: {
     backgroundColor: colors.primarySoft,
@@ -559,28 +635,42 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18
   },
-  productRow: {
+  inlineChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6
+  },
+  smallChip: {
+    backgroundColor: colors.backgroundSoft,
     borderColor: colors.border,
     borderRadius: 8,
     borderWidth: 1,
-    gap: 8,
-    padding: 12
-  },
-  operatorRow: {
-    borderColor: colors.border,
-    borderRadius: 8,
-    borderWidth: 1,
-    gap: 8,
-    padding: 12
-  },
-  operatorStatus: {
-    backgroundColor: colors.primarySoft,
-    borderRadius: 8,
-    color: colors.primary,
+    color: colors.text,
     fontSize: 11,
-    fontWeight: '900',
-    paddingHorizontal: 7,
-    paddingVertical: 4
+    fontWeight: '800',
+    paddingHorizontal: 8,
+    paddingVertical: 5
+  },
+  productCard: {
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    padding: 12
+  },
+  productIconBox: {
+    alignItems: 'center',
+    backgroundColor: '#ddf8f1',
+    borderRadius: 8,
+    height: 42,
+    justifyContent: 'center',
+    width: 42
+  },
+  productCopy: {
+    flex: 1,
+    gap: 8,
+    minWidth: 0
   },
   productHeader: {
     alignItems: 'center',
@@ -590,13 +680,41 @@ const styles = StyleSheet.create({
   },
   productTitle: {
     color: colors.navy,
+    flexShrink: 1,
     fontSize: 15,
     fontWeight: '900'
   },
-  productPort: {
+  productDescription: {
+    color: colors.text,
+    fontSize: 13,
+    lineHeight: 19
+  },
+  operatorCard: {
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 8,
+    padding: 12
+  },
+  operatorTitle: {
+    color: colors.navy,
+    flexShrink: 1,
+    fontSize: 14,
+    fontWeight: '900'
+  },
+  greenBadge: {
     backgroundColor: '#ddf8f1',
     borderRadius: 8,
     color: colors.good,
+    fontSize: 11,
+    fontWeight: '900',
+    paddingHorizontal: 7,
+    paddingVertical: 4
+  },
+  blueBadge: {
+    backgroundColor: colors.primarySoft,
+    borderRadius: 8,
+    color: colors.primary,
     fontSize: 11,
     fontWeight: '900',
     paddingHorizontal: 7,
@@ -607,37 +725,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 20
   },
-  summaryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8
-  },
-  summaryCell: {
-    backgroundColor: colors.backgroundSoft,
-    borderColor: colors.border,
-    borderRadius: 8,
-    borderWidth: 1,
-    flexBasis: '47%',
-    flexGrow: 1,
-    padding: 12
-  },
-  summaryValue: {
-    color: colors.navy,
-    fontSize: 20,
-    fontWeight: '900'
-  },
-  summaryLabel: {
-    color: colors.muted,
-    fontSize: 12,
-    fontWeight: '800',
-    marginTop: 2
-  },
   sourceWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6
   },
-  sourceNameChip: {
+  sourceChip: {
     backgroundColor: colors.surfaceBlue,
     borderColor: colors.border,
     borderRadius: 8,
@@ -647,89 +740,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     paddingHorizontal: 8,
     paddingVertical: 5
-  },
-  sourceHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8
-  },
-  sourceBadge: {
-    alignItems: 'center',
-    borderRadius: 8,
-    flexDirection: 'row',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 5
-  },
-  apiBadge: {
-    backgroundColor: colors.primarySoft
-  },
-  fileBadge: {
-    backgroundColor: '#ddf8f1'
-  },
-  sourceBadgeText: {
-    fontSize: 11,
-    fontWeight: '900'
-  },
-  apiBadgeText: {
-    color: colors.primary
-  },
-  fileBadgeText: {
-    color: colors.good
-  },
-  sourceTitle: {
-    color: colors.navy,
-    flexShrink: 1,
-    fontSize: 15,
-    fontWeight: '800'
-  },
-  sourceDescription: {
-    color: colors.text,
-    fontSize: 13,
-    lineHeight: 19
-  },
-  fieldWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6
-  },
-  fieldChip: {
-    backgroundColor: colors.backgroundSoft,
-    borderColor: colors.border,
-    borderRadius: 8,
-    borderWidth: 1,
-    color: colors.text,
-    fontSize: 11,
-    fontWeight: '700',
-    paddingHorizontal: 8,
-    paddingVertical: 5
-  },
-  nextList: {
-    gap: 6
-  },
-  nextItem: {
-    color: colors.text,
-    fontSize: 13,
-    lineHeight: 19
-  },
-  disabledButton: {
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: colors.backgroundSoft,
-    borderColor: colors.border,
-    borderRadius: 8,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: 6,
-    marginTop: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 10
-  },
-  disabledButtonText: {
-    color: colors.muted,
-    fontSize: 13,
-    fontWeight: '800'
   },
   modalBackdrop: {
     backgroundColor: 'rgba(16, 42, 67, 0.36)',
@@ -757,12 +767,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     flexDirection: 'row',
     gap: 12,
-    paddingHorizontal: 18,
-    paddingBottom: 14
+    paddingBottom: 14,
+    paddingHorizontal: 18
   },
   modalTitleBox: {
     flex: 1,
-    gap: 3
+    gap: 3,
+    minWidth: 0
   },
   modalEyebrow: {
     color: colors.primary,
@@ -793,7 +804,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 8,
     borderWidth: 1,
-    gap: 6,
+    gap: 8,
     padding: 14
   },
   detailHeroDate: {
@@ -808,17 +819,23 @@ const styles = StyleSheet.create({
     lineHeight: 19
   },
   detailHeroBadge: {
-    alignSelf: 'flex-start',
     backgroundColor: colors.surface,
+    borderColor: colors.border,
     borderRadius: 8,
+    borderWidth: 1,
     color: colors.primary,
     fontSize: 12,
     fontWeight: '900',
     paddingHorizontal: 8,
     paddingVertical: 5
   },
-  detailGrid: {
+  detailSection: {
     gap: 8
+  },
+  detailSectionTitle: {
+    color: colors.navy,
+    fontSize: 15,
+    fontWeight: '900'
   },
   detailLine: {
     borderColor: colors.border,
@@ -837,5 +854,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     lineHeight: 20
+  },
+  detailSource: {
+    color: colors.muted,
+    fontSize: 12,
+    lineHeight: 18
   }
 });
