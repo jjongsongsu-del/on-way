@@ -566,16 +566,8 @@ export default function IslandTripScreen() {
     addRecentKeyword(keyword);
   };
 
-  const selectUnifiedSearchResult = (result: UnifiedSearchResult) => {
-    if (result.island) {
-      setDetailIslandOverride(result.island);
-      addRecentIsland(result.island);
-    }
-
-    setFocusedTripId(null);
-    setActiveDetailTab(result.tab);
-    setActiveSection('detail');
-    setPendingDetailScroll(true);
+  const openUnifiedSearchDetail = (result: UnifiedSearchResult) => {
+    setSelectedTravelItem(mapUnifiedSearchResultToTravelItem(result));
   };
 
   const addRecentIsland = (island: IslandSummary) => {
@@ -1052,42 +1044,9 @@ export default function IslandTripScreen() {
             isError={unifiedSearchQuery.isError}
             results={unifiedSearchResults}
             onRetry={() => unifiedSearchQuery.refetch()}
-            onSelect={selectUnifiedSearchResult}
+            onOpenDetail={openUnifiedSearchDetail}
           />
         ) : null}
-        <View style={styles.detailTabs}>
-          {travelDetailTabs.map((tab) => {
-            const selected = activeDetailTab === tab.key;
-            const count = getTravelDetailTabCount(tab.key, travelInfo, detailIslandOverride ? null : primaryTrip);
-            const label = count === null ? tab.label : `${tab.label}(${count}건)`;
-
-            return (
-              <Pressable
-                key={tab.key}
-                accessibilityRole="button"
-                onPress={() => setActiveDetailTab(tab.key)}
-                style={[styles.detailTab, selected && styles.detailTabSelected]}
-              >
-                <Text style={[styles.detailTabText, selected && styles.detailTabTextSelected]}>{label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        <View style={styles.travelInfoGrid}>
-          <TravelDetailContent
-            tab={activeDetailTab}
-            trip={detailIslandOverride ? null : primaryTrip}
-            island={detailIsland}
-            islandName={detailIslandName}
-            travelInfo={travelInfo}
-            forecast={detailForecastQuery.data}
-            forecastLoading={detailForecastQuery.isFetching}
-            forecastError={detailForecastQuery.isError}
-            onSelectItem={setSelectedTravelItem}
-            onOpenSearch={openUnifiedSearchForDetail}
-            onOpenPhotos={() => setPhotoModalVisible(true)}
-          />
-        </View>
         <View style={styles.nextActionPanel}>
           {detailIslandName ? (
             <Link
@@ -1445,14 +1404,14 @@ function UnifiedSearchInlinePanel({
   isError,
   results,
   onRetry,
-  onSelect
+  onOpenDetail
 }: {
   keyword: string;
   isLoading: boolean;
   isError: boolean;
   results: UnifiedSearchResult[];
   onRetry: () => void;
-  onSelect: (result: UnifiedSearchResult) => void;
+  onOpenDetail: (result: UnifiedSearchResult) => void;
 }) {
   const grouped = groupUnifiedResults(results);
   const [expandedResultId, setExpandedResultId] = useState<string | null>(null);
@@ -1565,8 +1524,8 @@ function UnifiedSearchInlinePanel({
                                   </View>
                                 ) : null
                               )}
-                              <Pressable accessibilityRole="button" onPress={() => onSelect(item)} style={styles.primaryActionButton}>
-                                <Text style={styles.primaryActionText}>섬상세에 반영</Text>
+                              <Pressable accessibilityRole="button" onPress={() => onOpenDetail(item)} style={styles.primaryActionButton}>
+                                <Text style={styles.primaryActionText}>상세 정보 조회</Text>
                               </Pressable>
                             </View>
                           ) : null}
@@ -2339,6 +2298,23 @@ function DetailRow({ label, value }: { label: string; value: string }) {
       <Text style={styles.travelItemDetailValue}>{value}</Text>
     </View>
   );
+}
+
+function mapUnifiedSearchResultToTravelItem(result: UnifiedSearchResult): TravelInfoCardItem {
+  return {
+    id: result.id,
+    tab: result.tab,
+    group: result.group,
+    title: result.title,
+    description: result.description || '상세 설명이 없습니다.',
+    badge: result.badge ?? result.group,
+    address: result.address,
+    source: result.source,
+    detailRows: [
+      { label: '연결 섬', value: [result.island?.islandName, result.island?.provinceName, result.island?.cityName].filter(Boolean).join(' · ') || undefined },
+      ...(result.detailRows ?? [])
+    ]
+  };
 }
 
 function PurposeRecommendationPanel({
