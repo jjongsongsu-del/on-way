@@ -99,6 +99,8 @@ type UnifiedSearchResult = {
   island: IslandSummary | null;
   badge?: string | null;
   address?: string | null;
+  imageUrl?: string | null;
+  tel?: string | null;
   source?: string | null;
   detailRows?: { label: string; value: string | null | undefined }[];
 };
@@ -2252,10 +2254,6 @@ function TravelInfoItemModal({
     { label: '주소', value: item.address },
     { label: '전화', value: item.tel }
   ].filter((row): row is { label: string; value: string } => Boolean(row.value));
-  const metaRows = [
-    { label: '분류', value: item.badge ?? item.group },
-    { label: '출처', value: item.source }
-  ].filter((row): row is { label: string; value: string } => Boolean(row.value));
 
   return (
     <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
@@ -2285,13 +2283,6 @@ function TravelInfoItemModal({
             <DetailSection title="상세 항목">
               {visibleRows.map((row) => (
                 <DetailRow key={`${row.label}-${row.value}`} label={row.label} value={row.value ?? ''} />
-              ))}
-            </DetailSection>
-          ) : null}
-          {metaRows.length > 0 ? (
-            <DetailSection title="데이터 정보">
-              {metaRows.map((row) => (
-                <DetailRow key={`${row.label}-${row.value}`} label={row.label} value={row.value} />
               ))}
             </DetailSection>
           ) : null}
@@ -2340,6 +2331,8 @@ function mapUnifiedSearchResultToTravelItem(result: UnifiedSearchResult): Travel
     description: result.description || '상세 설명이 없습니다.',
     badge: result.badge ?? result.group,
     address: result.address,
+    imageUrl: result.imageUrl,
+    tel: result.tel,
     source: result.source,
     detailRows: [
       { label: '연결 섬', value: [result.island?.islandName, result.island?.provinceName, result.island?.cityName].filter(Boolean).join(' · ') || undefined },
@@ -2904,6 +2897,11 @@ function campSourceLabel(source: 'GOCAMPING' | 'CULTURE_CAMPING' | 'LOCAL_CAMPGR
   return null;
 }
 
+function attractionSourceLabel(source: 'TOUR_API' | 'MOCK') {
+  if (source === 'TOUR_API') return '한국관광공사 관광정보';
+  return null;
+}
+
 function getIslandSourceLabel(source: IslandSummary['source'] | undefined) {
   if (source === 'LOCAL_ISLAND_MASTER') return '행정안전부 도서지역 데이터';
   if (source === 'VWORLD') return 'VWorld 도서정보';
@@ -2949,15 +2947,26 @@ function buildUnifiedSearchResults(
     id: string,
     title: string,
     description: string,
-    tab: TravelDetailTab
+    tab: TravelDetailTab,
+    extra: Partial<UnifiedSearchResult> = {}
   ) => {
     if (!matchesUnifiedKeyword([title, description], normalizedKeyword)) return;
-    results.push({ id, group, title, description, tab, island: primaryIsland });
+    results.push({ id, group, title, description, tab, island: primaryIsland, ...extra });
   };
 
   travelInfo.attractions.forEach((item) => {
     const mapped = mapTextToUnifiedSearchGroup([item.title, item.category, item.address].filter(Boolean).join(' '));
-    push(mapped.group, `attraction-${item.id}`, item.title, item.address ?? item.category ?? '관광지 정보', mapped.tab);
+    push(mapped.group, `attraction-${item.id}`, item.title, [item.category, item.address].filter(Boolean).join(' · ') || '관광지 정보', mapped.tab, {
+      badge: item.category ?? mapped.badge,
+      address: item.address,
+      imageUrl: item.imageUrl,
+      source: attractionSourceLabel(item.source),
+      detailRows: [
+        { label: '분류', value: item.category },
+        { label: '좌표', value: item.mapX && item.mapY ? `${item.mapY}, ${item.mapX}` : null },
+        ...(item.detailFields ?? [])
+      ]
+    });
   });
   travelInfo.camps.forEach((item) =>
     push('캠핑·야영', `camp-${item.id}`, item.name, [campStatusLabel(item.status), item.address, item.facilitySummary].filter(Boolean).join(' · '), 'camping')
