@@ -19,6 +19,7 @@ const delayMs = Number(args['delay-ms'] || 120);
 const dryRun = args['dry-run'] === true;
 const discoverOnly = args.discover === true;
 const includeDetails = args.details === true || args.details === 'true';
+const debugDetails = args['debug-details'] === true || args['debug-details'] === 'true';
 
 async function main() {
   if (!apiKey && !discoverOnly) throw new Error('GGTOUR_API_KEY is required. Add it to .env or the server environment.');
@@ -144,13 +145,35 @@ function buildGgTourListBody(page) {
 async function fetchGgTourDetail(item, warnings) {
   const cotId = pick(item, ['cot_id', 'cotId', 'contentId', 'contentsId', 'id']);
   if (!cotId) return null;
-  try {
-    const response = await postJson('/api/v1/contents/info', { cot_id: cotId });
-    return response && typeof response === 'object' && response.data && typeof response.data === 'object' ? response.data : null;
-  } catch (error) {
-    warnings.push(`/api/v1/contents/info:${cotId}: ${error.message}`);
-    return null;
+
+  const attempts = [
+    { label: 'json:cot_id', body: { cot_id: cotId }, mode: 'json' },
+    { label: 'json:cotId', body: { cotId }, mode: 'json' },
+    { label: 'json:id', body: { id: cotId }, mode: 'json' },
+    { label: 'form:cot_id', body: { cot_id: cotId }, mode: 'form' },
+    { label: 'query:cot_id', body: { cot_id: cotId }, mode: 'query' }
+  ];
+
+  const errors = [];
+  for (const attempt of attempts) {
+    try {
+      const response = attempt.mode === 'query'
+        ? await fetchJson('/api/v1/contents/info', attempt.body)
+        : await postJson('/api/v1/contents/info', attempt.body, { mode: attempt.mode });
+      if (debugDetails) console.log(`[detail-ok] ${cotId} ${attempt.label}`);
+      return response && typeof response === 'object' && response.data && typeof response.data === 'object' ? response.data : null;
+    } catch (error) {
+      errors.push(`${attempt.label}=${error.message}`);
+    }
   }
+
+  const sampleKeys = Object.keys(item).filter((key) => !key.startsWith('__')).slice(0, 20).join(',');
+  warnings.push(`/api/v1/contents/info:${cotId}: ${errors.join(' | ')} keys=${sampleKeys}`);
+  if (debugDetails) {
+    console.log(`[detail-fail] ${cotId}`);
+    console.log(JSON.stringify({ title: pick(item, ['title', 'cot_conts_name']), keys: sampleKeys, errors }, null, 2));
+  }
+  return null;
 }
 
 function discoverGetPaths(spec) {
@@ -217,21 +240,28 @@ function buildParams(candidate, page) {
   return params;
 }
 
-async function postJson(apiPath, body = {}) {
+async function postJson(apiPath, body = {}, options = {}) {
   const pathValue = String(apiPath);
   const url = createGgTourUrl(pathValue);
+  const mode = options.mode || 'json';
+  const headers = {
+    ...(apiKey ? { 'GGTOUR-API-KEY': apiKey } : {}),
+    'Accept': 'application/json'
+  };
+  const requestBody = mode === 'form'
+    ? new URLSearchParams(Object.entries(body).map(([key, value]) => [key, String(value)])).toString()
+    : JSON.stringify(body);
+  headers['Content-Type'] = mode === 'form' ? 'application/x-www-form-urlencoded;charset=UTF-8' : 'application/json;charset=UTF-8';
+
   const response = await fetch(url, {
     method: 'POST',
-    headers: {
-      ...(apiKey ? { 'GGTOUR-API-KEY': apiKey } : {}),
-      'Content-Type': 'application/json;charset=UTF-8',
-      'Accept': 'application/json'
-    },
-    body: JSON.stringify(body),
+    headers,
+    body: requestBody,
     signal: AbortSignal.timeout(20000)
   });
-  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-  const json = await response.json();
+  const text = await response.text();
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText} ${truncate(text, 240)}`.trim());
+  const json = parseJsonText(text);
   if (json && typeof json === 'object' && json.result_code && Number(json.result_code) !== 200) {
     throw new Error(`${json.result_code} ${json.result_message || 'GGTOUR API error'}`);
   }
@@ -245,12 +275,23 @@ async function fetchJson(apiPath, params = {}, options = {}) {
     if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, String(value));
   });
   const response = await fetch(url, { headers: { ...(apiKey ? { 'GGTOUR-API-KEY': apiKey } : {}), 'Accept': 'application/json' }, signal: AbortSignal.timeout(20000) });
-  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-  const json = await response.json();
+  const text = await response.text();
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText} ${truncate(text, 240)}`.trim());
+  const json = parseJsonText(text);
   if (json && typeof json === 'object' && json.result_code && Number(json.result_code) !== 200) {
     throw new Error(`${json.result_code} ${json.result_message || 'GGTOUR API error'}`);
   }
   return json;
+}
+
+
+function parseJsonText(text) {
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new Error(`Invalid JSON response ${truncate(text, 240)}`);
+  }
 }
 
 function normalizeContent(item) {
