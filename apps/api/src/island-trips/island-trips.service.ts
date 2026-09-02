@@ -747,7 +747,7 @@ export class IslandTripsService {
   }
 
   private async getGgTourContents(params: TravelInfoParams): Promise<GgTourContentRow[]> {
-    const keywordParts = createTravelKeywordParts(params);
+    const keywordParts = createGgTourKeywordParts(params);
     const values: unknown[] = [];
     const clauses: string[] = [];
 
@@ -792,7 +792,7 @@ export class IslandTripsService {
     );
 
     return rows
-      .filter((row) => isTravelItemRelevantToParams([row.title, row.address, row.sigungu_name, row.summary, row.description], params))
+      .filter((row) => isGgTourContentRelevantToParams(row, params))
       .slice(0, 8);
   }
 
@@ -2024,6 +2024,49 @@ function matchesKeyword(item: IslandTravelCamp, keyword: string) {
     .some((part) => target.includes(part) || part.includes(target.slice(0, 2)));
 }
 
+
+function createGgTourKeywordParts(params: TravelInfoParams) {
+  const islandName = normalizeIslandName(params.islandName);
+  const islandStem = islandName.replace(/[도섬]$/, '');
+  const cityName = params.cityName?.split(/\s+/)[0];
+  return [...new Set([
+    islandName,
+    islandStem,
+    islandStem ? `${islandStem}도` : null,
+    islandStem ? `${islandStem}면` : null,
+    cityName
+  ].filter((value): value is string => Boolean(value && value.trim().length >= 2)))];
+}
+
+function isGgTourContentRelevantToParams(row: GgTourContentRow, params: TravelInfoParams) {
+  const text = normalizeCompact([row.title, row.address, row.sigungu_name, row.summary, row.description].filter(Boolean).join(' '));
+  if (!text) return false;
+
+  const textProvince = findKoreanProvince(text);
+  const requestedProvince = findKoreanProvince(normalizeCompact(params.provinceName));
+  if (textProvince && requestedProvince && textProvince !== requestedProvince) return false;
+
+  const islandName = normalizeCompact(normalizeIslandName(params.islandName));
+  const islandStem = islandName.replace(/[도섬]$/, '');
+  const cityParts = normalizeCompact(params.cityName).split(/(?=시|군|구)/).filter(Boolean);
+  const cityName = normalizeCompact(params.cityName);
+
+  if (islandName && text.includes(islandName)) return true;
+  if (islandStem && islandStem.length >= 2 && text.includes(islandStem)) return true;
+  if (cityName && text.includes(cityName)) return true;
+  if (cityParts.some((part) => part.length >= 2 && text.includes(part))) return true;
+
+  if (
+    params.latitude !== undefined && params.longitude !== undefined &&
+    row.latitude !== null && row.longitude !== null &&
+    distanceKm(params.latitude, params.longitude, row.latitude, row.longitude) <= 20
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 function createTravelKeyword(params: TravelInfoParams) {
   return createTravelKeywordParts(params).join(' ');
 }
@@ -2089,6 +2132,15 @@ function isTravelItemRelevantToParams(values: Array<string | null | undefined>, 
   if (requestedProvince && text.includes(requestedProvince)) return true;
 
   return !textProvince;
+}
+
+
+function distanceKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const toRad = (value: number) => value * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 function findKoreanProvince(value: string) {
