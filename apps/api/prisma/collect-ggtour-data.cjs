@@ -77,6 +77,7 @@ async function main() {
   await upsertGgTourSiguguns(siguguns);
   await upsertGgTourRows(rows);
   await upsertTravelDataSource();
+  await clearGgTourTravelAssets();
   await upsertTravelAssets(assetRows);
   await upsertTravelAssetMatches(matchRows);
 
@@ -495,6 +496,17 @@ async function upsertGgTourSiguguns(rows) {
     ['id', 'id'], ['code', 'code'], ['name', 'name'], ['raw', 'raw', '::jsonb']
   ];
   await insertRows('ggtour_sigugun', columns, rows);
+}
+
+
+async function clearGgTourTravelAssets() {
+  await prisma.$executeRawUnsafe(`
+    DELETE FROM travel_asset_match
+    WHERE travel_asset_id IN (
+      SELECT id FROM travel_asset WHERE source_dataset_pk = 'GGTOUR_OPEN_API'
+    )
+  `);
+  await prisma.$executeRawUnsafe(`DELETE FROM travel_asset WHERE source_dataset_pk = 'GGTOUR_OPEN_API'`);
 }
 
 async function upsertGgTourRows(rows) {
