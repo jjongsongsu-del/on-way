@@ -473,8 +473,9 @@ function findMatchedIsland(row, islands) {
     const name = normalize(island.island_name || '');
     const stem = name.replace(/[도섬]$/, '');
     if (!name) return false;
-    if (titleText.includes(name) || locationText.includes(name)) return true;
-    return stem.length >= 2 && (titleText.includes(stem) || locationText.includes(stem));
+    if (text.includes(name)) return true;
+    if (stem.length >= 2 && titleText.includes(stem)) return true;
+    return stem.length >= 2 && hasIslandPlaceStem(locationText, stem);
   });
   if (direct) return direct;
 
@@ -627,6 +628,16 @@ function inferTags(row) {
   ];
   rules.forEach(([tag, pattern]) => { if (pattern.test(text)) tags.push(tag); });
   return [...new Set(tags)];
+}
+
+
+function hasIslandPlaceStem(text, islandStem) {
+  const escapedStem = escapeRegExp(islandStem);
+  return new RegExp(`${escapedStem}(도|섬|동|리|면|항|해변|해수욕장|해솔|방아머리|구봉|탄도|선착장)`, 'u').test(text);
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function pick(item, keys) {
