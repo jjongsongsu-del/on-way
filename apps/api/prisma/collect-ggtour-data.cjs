@@ -473,7 +473,7 @@ function findMatchedIsland(row, islands) {
     const name = normalize(island.island_name || '');
     const stem = name.replace(/[도섬]$/, '');
     if (!name) return false;
-    if (text.includes(name)) return true;
+    if (hasIslandNameOccurrence(text, name)) return true;
     if (stem.length >= 2 && titleText.includes(stem)) return true;
     return stem.length >= 2 && hasIslandPlaceStem(locationText, stem);
   });
@@ -630,6 +630,11 @@ function inferTags(row) {
   return [...new Set(tags)];
 }
 
+
+function hasIslandNameOccurrence(text, islandName) {
+  const escapedName = escapeRegExp(islandName);
+  return new RegExp(`${escapedName}($|[^가-힣A-Za-z0-9]|도|섬|동|리|면|항|길|해상|해안|해변|해수욕장|산책로|어촌|전망대|펜션|캠핑|축제|체험|마을|먹거리|칼국수|방아머리|해솔|모세|아트|워터|경관|탑재산)`, 'u').test(text);
+}
 
 function hasIslandPlaceStem(text, islandStem) {
   const escapedStem = escapeRegExp(islandStem);

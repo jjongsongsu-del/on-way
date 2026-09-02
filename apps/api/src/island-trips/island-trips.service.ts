@@ -2014,6 +2014,11 @@ function normalizeCompact(value: string | null | undefined) {
   return (value ?? '').replace(/\s+/g, '').trim();
 }
 
+function hasIslandNameOccurrence(text: string, islandName: string) {
+  const escapedName = escapeRegExp(islandName);
+  return new RegExp(`${escapedName}($|[^가-힣A-Za-z0-9]|도|섬|동|리|면|항|길|해상|해안|해변|해수욕장|산책로|어촌|전망대|펜션|캠핑|축제|체험|마을|먹거리|칼국수|방아머리|해솔|모세|아트|워터|경관|탑재산)`, 'u').test(text);
+}
+
 function hasIslandPlaceStem(text: string, islandStem: string) {
   const escapedStem = escapeRegExp(islandStem);
   return new RegExp(`${escapedStem}(도|섬|동|리|면|항|해변|해수욕장|해솔|방아머리|구봉|탄도|선착장)`, 'u').test(text);
@@ -2063,7 +2068,7 @@ function isGgTourContentRelevantToParams(row: GgTourContentRow, params: TravelIn
   const cityName = normalizeCompact(params.cityName);
   const cityBase = cityName.match(/^(.+?[시군])/u)?.[1] ?? cityName.split(/[\s,]+/)[0] ?? '';
 
-  if (islandName && text.includes(islandName)) return true;
+  if (islandName && hasIslandNameOccurrence(text, islandName)) return true;
   if (islandStem && islandStem.length >= 2 && titleText.includes(islandStem)) return true;
   if (islandStem && islandStem.length >= 2 && hasIslandPlaceStem(locationText, islandStem)) return true;
 
@@ -2138,7 +2143,7 @@ function isTravelItemRelevantToParams(values: Array<string | null | undefined>, 
   const islandName = normalizeCompact(normalizeIslandName(params.islandName));
   const islandStem = islandName.replace(/[도섬]$/, '');
   if (cityName && text.includes(cityName)) return true;
-  if (islandName && text.includes(islandName)) return true;
+  if (islandName && hasIslandNameOccurrence(text, islandName)) return true;
   if (islandStem && islandStem.length >= 2 && text.includes(islandStem)) return true;
   if (requestedProvince && text.includes(requestedProvince)) return true;
 
