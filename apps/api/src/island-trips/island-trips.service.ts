@@ -90,6 +90,25 @@ type TravelAssetRow = {
   tags: string[];
 };
 
+
+type GgTourContentRow = {
+  id: string;
+  content_id: string | null;
+  title: string;
+  category: string | null;
+  sigungu_name: string | null;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  tel: string | null;
+  homepage_url: string | null;
+  image_url: string | null;
+  summary: string | null;
+  description: string | null;
+  source_url: string | null;
+  raw: Record<string, unknown> | null;
+};
+
 type RecommendedIslandRow = {
   id: string;
   island_name: string;
@@ -329,7 +348,8 @@ export class IslandTripsService {
       mudFlatVillages,
       photos,
       boryeongPhotos,
-      licensePlaces
+      licensePlaces,
+      ggTourContents
     ] = await Promise.all([
       this.safeFetch(() => this.tourismApiClient.searchTourAttractions(islandName)),
       this.safeFetch(async () => {
@@ -351,10 +371,13 @@ export class IslandTripsService {
         return items.length > 0 ? response : this.tourismApiClient.getPhotoGalleryList();
       }),
       this.safeFetch(() => this.tourismApiClient.getBoryeongIslandPhotos()),
-      this.safeFetch(() => this.getLicensePlaces(params))
+      this.safeFetch(() => this.getLicensePlaces(params)),
+      this.safeFetch(() => this.getGgTourContents(params))
     ]);
 
-    const attractionItems = attractions.ok ? this.toAttractions(attractions.data, islandName) : [];
+    const tourismAttractionItems = attractions.ok ? this.toAttractions(attractions.data, islandName) : [];
+    const ggTourAttractionItems = ggTourContents.ok ? this.toGgTourAttractions(ggTourContents.data) : [];
+    const attractionItems = uniqueById([...tourismAttractionItems, ...ggTourAttractionItems]).slice(0, 10);
     const campItems = this.toCamps(goCamping.ok ? goCamping.data : null, cultureCamping.ok ? cultureCamping.data : null, generalCamping.ok ? generalCamping.data : null, params);
     const licenseItems = licensePlaces.ok ? licensePlaces.data : [];
     const localCampItems = this.toLicenseCamps(licenseItems);
@@ -383,7 +406,7 @@ export class IslandTripsService {
       safetyIndexes: safetyItems,
       photos: photoItems,
       sourceSummary: {
-        tourism: '한국관광공사 국문 관광정보',
+        tourism: '한국관광공사 국문 관광정보·경기관광 OPEN API',
         camping: '고캠핑·문화캠핑·일반야영장업',
         lodging: '행정안전부 문화 숙박업',
         pension: '행정안전부 문화 관광펜션업',
@@ -393,7 +416,7 @@ export class IslandTripsService {
         photo: '한국관광공사 관광사진·충청남도 보령시 섬사진'
       },
       apiStatus: {
-        tourism: createApiStatus(attractions, attractionItems.length, '관광정보가 존재하지 않습니다.'),
+        tourism: createApiStatus(combineFetchResults([attractions, ggTourContents]), attractionItems.length, '관광정보가 존재하지 않습니다.'),
         camping: createApiStatus(combineFetchResults([goCamping, cultureCamping, generalCamping]), campItems.length, '캠핑/차박정보가 존재하지 않습니다.'),
         lodging: createApiStatus(lodgings, lodgingItems.length, '숙박정보가 존재하지 않습니다.'),
         pension: createApiStatus(pensions, pensionItems.length, '펜션정보가 존재하지 않습니다.'),
@@ -713,6 +736,70 @@ export class IslandTripsService {
         detailFields: createLocalBusinessDetailFields(row),
         source: 'LOCAL_FACILITY' as const
       }));
+  }
+
+  private async getGgTourContents(params: TravelInfoParams): Promise<GgTourContentRow[]> {
+    const keywordParts = createTravelKeywordParts(params);
+    const values: unknown[] = [];
+    const clauses: string[] = [];
+
+    keywordParts.forEach((part) => {
+      values.push(`%${part}%`);
+      clauses.push(`(
+        title ILIKE $${values.length}
+        OR COALESCE(address, '') ILIKE $${values.length}
+        OR COALESCE(sigungu_name, '') ILIKE $${values.length}
+        OR COALESCE(summary, '') ILIKE $${values.length}
+        OR COALESCE(description, '') ILIKE $${values.length}
+      )`);
+    });
+
+    if (params.latitude !== undefined && params.longitude !== undefined) {
+      values.push(params.latitude, params.longitude);
+      const latIndex = values.length - 1;
+      const lonIndex = values.length;
+      clauses.push(`(
+        latitude IS NOT NULL AND longitude IS NOT NULL
+        AND (6371 * acos(least(1, greatest(-1,
+          cos(radians($${latIndex})) * cos(radians(latitude)) * cos(radians(longitude) - radians($${lonIndex}))
+          + sin(radians($${latIndex})) * sin(radians(latitude))
+        )))) <= 20
+      )`);
+    }
+
+    if (clauses.length === 0) return [];
+
+    const rows = await this.prismaService.$queryRawUnsafe<GgTourContentRow[]>(
+      `
+        SELECT id, content_id, title, category, sigungu_name, address, latitude, longitude,
+               tel, homepage_url, image_url, summary, description, source_url, raw
+        FROM ggtour_content
+        WHERE ${clauses.join(' OR ')}
+        ORDER BY
+          CASE WHEN COALESCE(address, '') ILIKE '%경기도%' THEN 0 ELSE 1 END,
+          title ASC
+        LIMIT 20
+      `,
+      ...values
+    );
+
+    return rows
+      .filter((row) => isTravelItemRelevantToParams([row.title, row.address, row.sigungu_name, row.summary, row.description], params))
+      .slice(0, 8);
+  }
+
+  private toGgTourAttractions(rows: GgTourContentRow[]): IslandTravelAttraction[] {
+    return rows.map((row) => ({
+      id: `ggtour-${row.id}`,
+      title: row.title,
+      category: row.category ?? '경기관광',
+      address: row.address,
+      imageUrl: row.image_url,
+      mapX: row.longitude,
+      mapY: row.latitude,
+      detailFields: createGgTourDetailFields(row),
+      source: 'GGTOUR' as const
+    }));
   }
 
   private toAttractions(response: unknown, islandName: string): IslandTravelAttraction[] {
@@ -2019,6 +2106,18 @@ function findKoreanProvince(value: string) {
     '제주특별자치도',
     '제주도'
   ].find((province) => value.includes(province)) ?? null;
+}
+
+
+function createGgTourDetailFields(row: GgTourContentRow): IslandTravelDetailField[] {
+  return [
+    { label: '요약', value: row.summary },
+    { label: '상세내용', value: row.description },
+    { label: '주소', value: row.address },
+    { label: '문의처', value: row.tel },
+    { label: '홈페이지', value: row.homepage_url },
+    { label: '출처', value: row.source_url }
+  ].filter((field): field is IslandTravelDetailField => Boolean(field.value));
 }
 
 function createLocalBusinessDetailFields(row: LicensePlaceRow): IslandTravelDetailField[] {

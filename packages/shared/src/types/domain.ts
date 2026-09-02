@@ -129,7 +129,7 @@ export type IslandTravelAttraction = {
   mapX: number | null;
   mapY: number | null;
   detailFields?: IslandTravelDetailField[];
-  source: 'TOUR_API' | 'MOCK';
+  source: 'TOUR_API' | 'GGTOUR' | 'MOCK';
 };
 
 export type IslandTravelDetailField = {

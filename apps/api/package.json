@@ -26,7 +26,8 @@
     "data:extract:travel-columns:pages": "node prisma/extract-data-go-kr-columns-from-pages.cjs",
     "data:analyze:travel-recommendation": "node prisma/analyze-travel-recommendation-data.cjs",
     "db:seed:travel-recommendation": "node prisma/seed-travel-recommendation-assets.cjs",
-    "data:collect:boryeong-recommended-islands": "node prisma/collect-boryeong-recommended-islands.cjs"
+    "data:collect:boryeong-recommended-islands": "node prisma/collect-boryeong-recommended-islands.cjs",
+    "data:collect:ggtour": "node prisma/collect-ggtour-data.cjs"
   },
   "dependencies": {
     "@badagil/shared": "workspace:*",

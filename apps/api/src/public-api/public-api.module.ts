@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { GgTourApiClient } from './clients/ggtour-api.client';
 import { IncheonPortApiClient } from './clients/incheon-port-api.client';
 import { KomsaApiClient } from './clients/komsa-api.client';
 import { PublicApiHttpClient } from './clients/public-api-http.client';
@@ -14,6 +15,7 @@ import { RealFerryApiClient } from './real-ferry-api.client';
   providers: [
     PublicApiHttpClient,
     TourismApiClient,
+    GgTourApiClient,
     VworldIslandApiClient,
     KomsaApiClient,
     IncheonPortApiClient,
@@ -42,6 +44,7 @@ import { RealFerryApiClient } from './real-ferry-api.client';
     FERRY_API_CLIENT,
     PublicApiHttpClient,
     TourismApiClient,
+    GgTourApiClient,
     KomsaApiClient,
     IncheonPortApiClient,
     TagoShipApiClient,
