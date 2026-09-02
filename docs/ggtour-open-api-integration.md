@@ -43,3 +43,20 @@ corepack pnpm --filter @badagil/api data:collect:ggtour -- --pages 1 --dry-run
 - 섬명, 섬명 어간, 시군구, 주소, 요약/상세내용 키워드로 1차 매칭
 - 좌표가 있으면 섬 기준 약 20km 이내 콘텐츠를 보조 매칭
 - 경기도 서해권 관련 키워드만 추천 자원에 반영: 안산, 화성, 시흥, 평택, 김포, 대부도, 제부도, 풍도, 육도, 국화도 등
+
+
+## 전체 API 수집
+카테고리, 시군구, 콘텐츠 목록, 콘텐츠 상세를 한 번에 수집하려면 다음 명령을 사용한다. 상세 조회는 콘텐츠 목록에서 받은 `cot_id`를 그대로 `POST /api/v1/contents/info`의 JSON body에 넣어 호출한다.
+
+```bash
+node apps/api/prisma/collect-ggtour-data.cjs --all-apis --delay-ms 150
+```
+
+운영 컨테이너에서는 다음과 같이 실행한다.
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.production exec api \
+  node apps/api/prisma/collect-ggtour-data.cjs --all-apis --delay-ms 150
+```
+
+일부 콘텐츠 상세 API가 경기관광 서버에서 500을 반환하면 해당 콘텐츠는 목록 정보만 저장하고 다음 콘텐츠를 계속 수집한다.

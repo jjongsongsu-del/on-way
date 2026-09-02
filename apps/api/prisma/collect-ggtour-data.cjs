@@ -12,15 +12,17 @@ const baseUrl = String(process.env.GGTOUR_API_BASE_URL || 'https://ggtour.or.kr/
 const apiKey = process.env.GGTOUR_API_KEY;
 const selectedPath = args.path || process.env.GGTOUR_API_PATH || '/api/v1/contents/list';
 const specPath = args['spec-path'] || process.env.GGTOUR_OPENAPI_SPEC_PATH || null;
-const pages = args.pages === 'all' ? 'all' : Number(args.pages || 1);
+const allApis = args['all-apis'] === true || args['all-apis'] === 'true';
+const pages = args.pages === 'all' || allApis ? 'all' : Number(args.pages || 1);
 const pageSize = Number(args['page-size'] || 100);
 const limit = args.limit ? Number(args.limit) : null;
 const delayMs = Number(args['delay-ms'] || 120);
 const dryRun = args['dry-run'] === true;
 const discoverOnly = args.discover === true;
-const includeDetails = args.details === true || args.details === 'true';
+const includeDetails = args.details === true || args.details === 'true' || allApis;
 const debugDetails = args['debug-details'] === true || args['debug-details'] === 'true';
-const detailsAll = args['details-all'] === true || args['details-all'] === 'true';
+const detailsAll = args['details-all'] === true || args['details-all'] === 'true' || allApis;
+const collectMasters = args.masters !== 'false';
 
 async function main() {
   if (!apiKey && !discoverOnly) throw new Error('GGTOUR_API_KEY is required. Add it to .env or the server environment.');
@@ -33,8 +35,11 @@ async function main() {
     return;
   }
 
-  const collected = [];
   const warnings = [];
+  const categories = collectMasters ? await collectGgTourCategories(warnings) : [];
+  const siguguns = collectMasters ? await collectGgTourSiguguns(warnings) : [];
+
+  const collected = [];
   for (const candidate of candidates) {
     const pathRecords = await collectPath(candidate, warnings);
     collected.push(...pathRecords);
@@ -49,8 +54,12 @@ async function main() {
   const matchRows = assetRows.flatMap((asset) => toMatchRows(asset));
 
   const summary = {
+    categories: categories.length,
+    siguguns: siguguns.length,
     fetched: collected.length,
     normalized: rows.length,
+    detailed: collected.filter((item) => Boolean(item.__detailFetched)).length,
+    detailFailures: warnings.filter((warning) => warning.startsWith('/api/v1/contents/info:')).length,
     relevantToSeaLoad: relevantRows.length,
     travelAssets: assetRows.length,
     matches: matchRows.length,
@@ -64,6 +73,8 @@ async function main() {
     return;
   }
 
+  await upsertGgTourCategories(categories);
+  await upsertGgTourSiguguns(siguguns);
   await upsertGgTourRows(rows);
   await upsertTravelDataSource();
   await upsertTravelAssets(assetRows);
@@ -72,6 +83,27 @@ async function main() {
   console.log(JSON.stringify(summary, null, 2));
 }
 
+
+
+async function collectGgTourCategories(warnings) {
+  try {
+    const response = await fetchJson('/api/v1/category/list');
+    return extractItems(response).map(normalizeCategory).filter((row) => row.categorySn && row.name);
+  } catch (error) {
+    warnings.push(`/api/v1/category/list: ${error.message}`);
+    return [];
+  }
+}
+
+async function collectGgTourSiguguns(warnings) {
+  try {
+    const response = await fetchJson('/api/v1/code/sigugun');
+    return extractItems(response).map(normalizeSigugun).filter((row) => row.code && row.name);
+  } catch (error) {
+    warnings.push(`/api/v1/code/sigugun: ${error.message}`);
+    return [];
+  }
+}
 
 async function fetchOpenApiSpec() {
   const paths = specPath
@@ -122,12 +154,13 @@ async function collectPath(candidate, warnings) {
       const listRow = normalizeContent(item);
       const shouldFetchDetail = includeDetails && (detailsAll || isRelevantToGyeonggiSea(listRow));
       const detail = shouldFetchDetail ? await fetchGgTourDetail(item, warnings) : null;
-      records.push({ ...item, ...(detail || {}), __sourcePath: candidate.path, __page: page, __index: index });
+      records.push({ ...item, ...(detail || {}), __detailFetched: Boolean(detail), __sourcePath: candidate.path, __page: page, __index: index });
       if (shouldFetchDetail) await sleep(Math.max(40, Math.floor(delayMs / 2)));
     }
 
     if (limit && records.length >= limit) break;
-    const totalPages = Number(response?.paging?.total_page_count || response?.paging?.totalPageCount || response?.paging?.totalPages || 0);
+    const pageInfo = response?.paging || {};
+    const totalPages = Number(pageInfo.total_page_count || pageInfo.totalPageCount || pageInfo.totalPages || (pageInfo.total_count && pageInfo.page_size ? Math.ceil(Number(pageInfo.total_count) / Number(pageInfo.page_size)) : 0));
     if (totalPages && page >= totalPages) break;
     if (items.length === 0) break;
     if (page < maxPages) await sleep(delayMs);
@@ -309,15 +342,39 @@ function parseJsonText(text) {
   }
 }
 
+
+function normalizeCategory(item) {
+  const categorySn = pick(item, ['ctgry_sn']);
+  return {
+    id: hash(`ggtour-category:${categorySn || pick(item, ['ctgry_nm'])}`),
+    categorySn: categorySn || '',
+    name: pick(item, ['ctgry_nm']) || '',
+    path: pick(item, ['ctgry_path']),
+    level: pickNumber(item, ['ctgry_level']),
+    sortNo: pickNumber(item, ['sort_no']),
+    raw: stripInternal(item)
+  };
+}
+
+function normalizeSigugun(item) {
+  const code = pick(item, ['comm_cd']);
+  return {
+    id: hash(`ggtour-sigugun:${code || pick(item, ['comm_cd_nm'])}`),
+    code: code || '',
+    name: pick(item, ['comm_cd_nm']) || '',
+    raw: stripInternal(item)
+  };
+}
+
 function normalizeContent(item) {
   const raw = stripInternal(item);
-  const title = pick(item, ['cot_conts_name', 'title', 'name', 'contentTitle', 'contentName', 'touristSpotName', 'placeName', 'facltNm', '업소명', '관광지명', '명칭', '제목']);
+  const title = pick(item, ['title', 'cot_conts_name', 'cot_conts_nm', 'name', 'contentTitle', 'contentName', 'touristSpotName', 'placeName', 'facltNm', '업소명', '관광지명', '명칭', '제목']);
   const address = pick(item, ['addr1', 'addr2', 'cot_addr_full_new', 'cot_addr_full_old', 'address', 'addr', 'roadAddress', 'jibunAddress', 'refineRoadnmAddr', 'refineLotnoAddr', '소재지', '주소', '도로명주소']);
-  const category = pick(item, ['category_nm', 'ctgry_nm', 'category', 'catName', 'contentType', 'contentTypeName', 'themeName', 'type', '분류', '콘텐츠유형']);
+  const category = pick(item, ['ctgry_nm', 'category_nm', 'category', 'catName', 'contentType', 'contentTypeName', 'themeName', 'type', '분류', '콘텐츠유형']);
   const contentId = pick(item, ['cot_id', 'contentId', 'contentsId', 'id', 'seq', 'idx', '관광지ID', '콘텐츠ID']);
-  const sigunguName = pick(item, ['sigugun_nm', 'sigunguName', 'sigungu', 'cityName', 'signguNm', 'areaName', '시군명', '시군구']);
-  const lat = pickNumber(item, ['lat', 'latitude', 'mapY', 'y', 'refineWgs84Lat', '위도']);
-  const lng = pickNumber(item, ['lng', 'longitude', 'lon', 'mapX', 'x', 'refineWgs84Logt', '경도']);
+  const sigunguName = pick(item, ['sigugun_name', 'sigugun_nm', 'sigunguName', 'sigungu', 'cityName', 'signguNm', 'areaName', '시군명', '시군구']);
+  const lat = pickNumber(item, ['mapy', 'lat', 'latitude', 'mapY', 'y', 'refineWgs84Lat', '위도']);
+  const lng = pickNumber(item, ['mapx', 'lng', 'longitude', 'lon', 'mapX', 'x', 'refineWgs84Logt', '경도']);
   return {
     id: hash(['ggtour', contentId, title, address].filter(Boolean).join(':')),
     contentId,
@@ -329,8 +386,8 @@ function normalizeContent(item) {
     longitude: lng,
     tel: pick(item, ['telno', 'tel', 'telephone', 'phone', 'contact', '문의처', '전화번호']),
     homepageUrl: pick(item, ['homepage_url', 'homepage', 'homepageUrl', 'url', 'website', '홈페이지']),
-    imageUrl: pick(item, ['img_url', 'image_url', 'imageUrl', 'firstImage', 'firstimage', 'thumbnailUrl', 'imgUrl', 'mainImage', '이미지URL']),
-    summary: pick(item, ['cot_summary', 'summary', 'subtitle', 'overview', 'intro', 'description', '소개', '개요', '요약']),
+    imageUrl: pick(item, ['main_thumb', 'img_url', 'image_url', 'imageUrl', 'firstImage', 'firstimage', 'thumbnailUrl', 'imgUrl', 'mainImage', '이미지URL']),
+    summary: pick(item, ['over_view', 'cot_summary', 'summary', 'subtitle', 'overview', 'intro', 'description', '소개', '개요', '요약']),
     description: pick(item, ['cot_conts', 'description', 'content', 'contents', 'detail', 'body', '상세내용', '내용']),
     sourceUrl: pick(item, ['sourceUrl', 'detailUrl', 'url', 'homepageUrl']),
     raw
@@ -422,6 +479,22 @@ function findMatchedIsland(row, islands) {
       .sort((a, b) => a.km - b.km)[0]?.island || null;
   }
   return null;
+}
+
+
+async function upsertGgTourCategories(rows) {
+  const columns = [
+    ['id', 'id'], ['categorySn', 'category_sn'], ['name', 'name'], ['path', 'path'],
+    ['level', 'category_level'], ['sortNo', 'sort_no'], ['raw', 'raw', '::jsonb']
+  ];
+  await insertRows('ggtour_category', columns, rows);
+}
+
+async function upsertGgTourSiguguns(rows) {
+  const columns = [
+    ['id', 'id'], ['code', 'code'], ['name', 'name'], ['raw', 'raw', '::jsonb']
+  ];
+  await insertRows('ggtour_sigugun', columns, rows);
 }
 
 async function upsertGgTourRows(rows) {
