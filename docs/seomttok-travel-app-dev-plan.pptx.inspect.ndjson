@@ -1,0 +1,228 @@
+{"kind":"deck","id":"pr/05ec7h","name":"Deck"}
+{"kind":"layout","layoutId":"e341efe5-2fc2-407d-9202-9b29c966bbb2","name":"Master","type":"master"}
+{"kind":"layout","layoutId":"825a1a91-550c-4d58-b5b9-734e499d21a8","name":"Title Slide","type":"title"}
+{"kind":"slide","id":"sl/x8n13j","slide":1,"title":"섬똑","textShapes":5}
+{"kind":"textbox","id":"sh/sva5s7i1","slide":1,"text":"섬똑","textPreview":"섬똑","textChars":2,"textLines":1,"bbox":[64,178,400,70]}
+{"kind":"textbox","id":"sh/jqhov214","slide":1,"text":"섬으로 가는 길을 한 번에 확인하는 여행앱","textPreview":"섬으로 가는 길을 한 번에 확인하는 여행앱","textChars":23,"textLines":1,"bbox":[68,258,530,38]}
+{"kind":"textbox","id":"sh/ip8nmx0z","slide":1,"text":"여객선 시간표, 해양 예보, 섬여행, 크루즈 정보를 연결해 사용자가 실제 여행 준비 흐름대로 확인할 수 있게 합니다.","textPreview":"여객선 시간표, 해양 예보, 섬여행, 크루즈 정보를 연결해 사용자가 실제 여행 준비 흐름대로 확인할 수 있게 합니다.","textChars":65,"textLines":1,"bbox":[68,314,520,96]}
+{"kind":"shape","id":"sh/5sz6xcja","slide":1,"bbox":[68,500,280,74]}
+{"kind":"textbox","id":"sh/krq5o7ip","slide":1,"text":"개발 기획서","textPreview":"개발 기획서","textChars":6,"textLines":1,"bbox":[92,516,210,26]}
+{"kind":"textbox","id":"sh/vmxori18","slide":1,"text":"v1.0 · 2026.08","textPreview":"v1.0 · 2026.08","textChars":14,"textLines":1,"bbox":[92,546,210,24]}
+{"kind":"image","id":"im/j2t4jetk","slide":1,"name":"","geometry":"roundRect","alt":"seomttok-feature-graphic-1024x500.png","bbox":[602,82,552,270]}
+{"kind":"image","id":"im/432lcjap","slide":1,"name":"","geometry":"roundRect","alt":"seomttok-play-icon-512.png","bbox":[64,74,82,82]}
+{"kind":"notes","id":"nt/x8n13j","slide":1,"text":"[Sources]\nLocal project context: C:/dev/sea-load apps/mobile and apps/api\nVisual asset: docs/play-store/assets/seomttok-feature-graphic-1024x500.png"}
+{"kind":"slide","id":"sl/xbk6q1","slide":2,"title":"문제 정의","textShapes":12}
+{"kind":"textbox","id":"sh/9wbat0ba","slide":2,"text":"문제 정의","textPreview":"문제 정의","textChars":5,"textLines":1,"bbox":[64,42,360,26]}
+{"kind":"textbox","id":"sh/m9kbi5cj","slide":2,"text":"섬 여행 준비는 정보가 흩어져 있어 결정이 늦어집니다","textPreview":"섬 여행 준비는 정보가 흩어져 있어 결정이 늦어집니다","textChars":29,"textLines":1,"bbox":[64,78,880,58]}
+{"kind":"textbox","id":"sh/nutsrqt4","slide":2,"text":"시간표, 날씨, 섬 정보, 현장 편의 정보를 각각 찾아야 하는 불편을 하나의 흐름으로 줄입니다.","textPreview":"시간표, 날씨, 섬 정보, 현장 편의 정보를 각각 찾아야 하는 불편을 하나의 흐름으로 줄입니다.","textChars":53,"textLines":1,"bbox":[64,140,920,44]}
+{"kind":"shape","id":"sh/wzmtofu1","slide":2,"bbox":[70,238,330,230]}
+{"kind":"shape","id":"sh/x0vaxkbm","slide":2,"bbox":[476,238,330,230]}
+{"kind":"shape","id":"sh/axkbm5cv","slide":2,"bbox":[882,238,330,230]}
+{"kind":"textbox","id":"sh/vytsvatg","slide":2,"text":"운항 정보","textPreview":"운항 정보","textChars":5,"textLines":1,"bbox":[102,272,260,32]}
+{"kind":"textbox","id":"sh/k3mtsfux","slide":2,"text":"출발지·도착지별 시간표와 선박 상세가 여러 경로에 흩어져 있습니다.","textPreview":"출발지·도착지별 시간표와 선박 상세가 여러 경로에 흩어져 있습니다.","textChars":37,"textLines":1,"bbox":[102,326,250,86]}
+{"kind":"textbox","id":"sh/54vu1kbi","slide":2,"text":"해양 위험","textPreview":"해양 위험","textChars":5,"textLines":1,"bbox":[508,272,260,32]}
+{"kind":"textbox","id":"sh/1sri1o7u","slide":2,"text":"풍속, 파고, 조석, 특보를 여행 일정과 함께 판단하기 어렵습니다.","textPreview":"풍속, 파고, 조석, 특보를 여행 일정과 함께 판단하기 어렵습니다.","textChars":37,"textLines":1,"bbox":[508,326,250,86]}
+{"kind":"textbox","id":"sh/0ri1s3q9","slide":2,"text":"여행 맥락","textPreview":"여행 맥락","textChars":5,"textLines":1,"bbox":[914,272,260,32]}
+{"kind":"textbox","id":"sh/zq90zypo","slide":2,"text":"관광지, 식당, 숙박, 캠핑, 갯벌 등 목적별 정보가 섬과 잘 연결되지 않습니다.","textPreview":"관광지, 식당, 숙박, 캠핑, 갯벌 등 목적별 정보가 섬과 잘 연결되지 않습니다.","textChars":45,"textLines":1,"bbox":[914,326,250,104]}
+{"kind":"textbox","id":"sh/ep0jqt83","slide":2,"text":"기획의 핵심은 정보 통합이 아니라 여행 의사결정 순서를 앱 안에서 재구성하는 것입니다.","textPreview":"기획의 핵심은 정보 통합이 아니라 여행 의사결정 순서를 앱 안에서 재구성하는 것입니다.","textChars":48,"textLines":1,"bbox":[132,558,1016,40]}
+{"kind":"textbox","id":"sh/9gbi587q","slide":2,"text":"섬똑 여행앱 개발 기획서","textPreview":"섬똑 여행앱 개발 기획서","textChars":13,"textLines":1,"bbox":[64,682,360,20]}
+{"kind":"textbox","id":"sh/ofi1w3q5","slide":2,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[1160,682,56,20]}
+{"kind":"notes","id":"nt/xbk6q1","slide":2,"text":"[Sources]\nLocal app flows: apps/mobile/app/(tabs)/schedule.tsx, forecast.tsx, island-trip.tsx, cruise.tsx\nNo external statistics used."}
+{"kind":"slide","id":"sl/3qn6aj","slide":3,"title":"제품 구조","textShapes":17}
+{"kind":"textbox","id":"sh/3uloj6xg","slide":3,"text":"제품 구조","textPreview":"제품 구조","textChars":5,"textLines":1,"bbox":[64,42,360,26]}
+{"kind":"textbox","id":"sh/4vepsbe1","slide":3,"text":"섬똑은 네 가지 핵심 메뉴로 여행 준비 흐름을 연결합니다","textPreview":"섬똑은 네 가지 핵심 메뉴로 여행 준비 흐름을 연결합니다","textChars":31,"textLines":1,"bbox":[64,78,880,58]}
+{"kind":"textbox","id":"sh/pwn6lgfm","slide":3,"text":"홈에서 오늘의 바닷길을 보고, 시간표·예보·섬여행·크루즈로 이어지는 구조입니다.","textPreview":"홈에서 오늘의 바닷길을 보고, 시간표·예보·섬여행·크루즈로 이어지는 구조입니다.","textChars":44,"textLines":1,"bbox":[64,140,920,44]}
+{"kind":"shape","id":"sh/qxw7ulw7","slide":3,"bbox":[72,245,250,242]}
+{"kind":"textbox","id":"sh/ry5onqxc","slide":3,"text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[96,270,58,36]}
+{"kind":"textbox","id":"sh/czepwvex","slide":3,"text":"시간표","textPreview":"시간표","textChars":3,"textLines":1,"bbox":[96,324,190,34]}
+{"kind":"textbox","id":"sh/d0n6p0fi","slide":3,"text":"출발·도착 항로 검색, 운항 일정, 선박 상세 정보","textPreview":"출발·도착 항로 검색, 운항 일정, 선박 상세 정보","textChars":28,"textLines":1,"bbox":[96,384,198,86]}
+{"kind":"shape","id":"sh/61snihwn","slide":3,"bbox":[364,245,250,242]}
+{"kind":"textbox","id":"sh/721obmx8","slide":3,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[388,270,58,36]}
+{"kind":"textbox","id":"sh/z2hczu50","slide":3,"text":"예보","textPreview":"예보","textChars":2,"textLines":1,"bbox":[388,324,190,34]}
+{"kind":"textbox","id":"sh/y18v6pof","slide":3,"text":"조회 권역별 풍속·파고·강수·수온·조석·특보","textPreview":"조회 권역별 풍속·파고·강수·수온·조석·특보","textChars":24,"textLines":1,"bbox":[388,384,198,86]}
+{"kind":"shape","id":"sh/l4je14n6","slide":3,"bbox":[656,245,250,242]}
+{"kind":"textbox","id":"sh/03adsz6l","slide":3,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[680,270,58,36]}
+{"kind":"textbox","id":"sh/rehcvup4","slide":3,"text":"섬여행","textPreview":"섬여행","textChars":3,"textLines":1,"bbox":[680,324,190,34]}
+{"kind":"textbox","id":"sh/qd8v2poj","slide":3,"text":"섬 통합검색, 추천권역, 관광·체험·숙박·식당 상세","textPreview":"섬 통합검색, 추천권역, 관광·체험·숙박·식당 상세","textChars":28,"textLines":1,"bbox":[680,384,198,86]}
+{"kind":"shape","id":"sh/d0zux47u","slide":3,"bbox":[948,245,250,242]}
+{"kind":"textbox","id":"sh/czqd4z6p","slide":3,"text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[972,270,58,36]}
+{"kind":"textbox","id":"sh/3axcraps","slide":3,"text":"크루즈","textPreview":"크루즈","textChars":3,"textLines":1,"bbox":[972,324,190,34]}
+{"kind":"textbox","id":"sh/29ovy5o7","slide":3,"text":"항만별 입항 일정, 월별 접기/펼치기, 선박·사업자 상세","textPreview":"항만별 입항 일정, 월별 접기/펼치기, 선박·사업자 상세","textChars":31,"textLines":1,"bbox":[972,384,198,86]}
+{"kind":"textbox","id":"sh/65ova58f","slide":3,"text":"섬똑 여행앱 개발 기획서","textPreview":"섬똑 여행앱 개발 기획서","textChars":13,"textLines":1,"bbox":[64,682,360,20]}
+{"kind":"textbox","id":"sh/76xw3a90","slide":3,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[1160,682,56,20]}
+{"kind":"notes","id":"nt/3qn6aj","slide":3,"text":"[Sources]\nNavigation source: apps/mobile/app/(tabs)/_layout.tsx\nMenu screens: schedule.tsx, forecast.tsx, island-trip.tsx, cruise.tsx"}
+{"kind":"slide","id":"sl/r8wqhs","slide":4,"title":"현재 구현","textShapes":12}
+{"kind":"textbox","id":"sh/fmt876l8","slide":4,"text":"현재 구현","textPreview":"현재 구현","textChars":5,"textLines":1,"bbox":[64,42,360,26]}
+{"kind":"textbox","id":"sh/gn29grmd","slide":4,"text":"홈은 사용자의 다음 행동을 빠르게 제안합니다","textPreview":"홈은 사용자의 다음 행동을 빠르게 제안합니다","textChars":24,"textLines":1,"bbox":[64,78,880,58]}
+{"kind":"textbox","id":"sh/1obq9w3y","slide":4,"text":"오늘의 항로, 알림, 추천 섬여행, 사진·관광지 연결을 한 화면에서 요약합니다.","textPreview":"오늘의 항로, 알림, 추천 섬여행, 사진·관광지 연결을 한 화면에서 요약합니다.","textChars":44,"textLines":1,"bbox":[64,140,920,44]}
+{"kind":"textbox","id":"sh/3qt8b6l4","slide":4,"text":"Today","textPreview":"Today","textChars":5,"textLines":1,"bbox":[86,246,170,48]}
+{"kind":"textbox","id":"sh/or29kbmp","slide":4,"text":"오늘 내 항로와 위험 신호","textPreview":"오늘 내 항로와 위험 신호","textChars":14,"textLines":1,"bbox":[86,298,190,40]}
+{"kind":"textbox","id":"sh/psvqdg3a","slide":4,"text":"Next","textPreview":"Next","textChars":4,"textLines":1,"bbox":[86,374,170,48]}
+{"kind":"textbox","id":"sh/qt4rmlkv","slide":4,"text":"시간표·예보·섬여행으로 연결","textPreview":"시간표·예보·섬여행으로 연결","textChars":15,"textLines":1,"bbox":[86,426,190,40]}
+{"kind":"textbox","id":"sh/bud8fql0","slide":4,"text":"Saved","textPreview":"Saved","textChars":5,"textLines":1,"bbox":[86,502,170,48]}
+{"kind":"textbox","id":"sh/vuxkbu1k","slide":4,"text":"즐겨찾기와 최근 조회 기반 개인화","textPreview":"즐겨찾기와 최근 조회 기반 개인화","textChars":18,"textLines":1,"bbox":[86,554,190,40]}
+{"kind":"textbox","id":"sh/utojip0z","slide":4,"text":"출시 전 홈의 역할은 모든 기능을 설명하는 것이 아니라, 사용자가 지금 확인할 것을 줄여주는 것입니다.","textPreview":"출시 전 홈의 역할은 모든 기능을 설명하는 것이 아니라, 사용자가 지금 확인할 것을 줄여주는 것입니다.","textChars":57,"textLines":1,"bbox":[310,270,360,150]}
+{"kind":"textbox","id":"sh/hwf2d4jq","slide":4,"text":"섬똑 여행앱 개발 기획서","textPreview":"섬똑 여행앱 개발 기획서","textChars":13,"textLines":1,"bbox":[64,682,360,20]}
+{"kind":"textbox","id":"sh/gv61kzi5","slide":4,"text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[1160,682,56,20]}
+{"kind":"image","id":"im/ba183a9o","slide":4,"name":"","geometry":"roundRect","alt":"01-home.png","bbox":[790,78,315,560]}
+{"kind":"notes","id":"nt/r8wqhs","slide":4,"text":"[Sources]\nScreenshot: docs/play-store/screenshots/phone/01-home.png\nHome screen source: apps/mobile/app/(tabs)/index.tsx"}
+{"kind":"slide","id":"sl/gvl5jc","slide":5,"title":"핵심 기능 1","textShapes":11}
+{"kind":"textbox","id":"sh/58vy1sru","slide":5,"text":"핵심 기능 1","textPreview":"핵심 기능 1","textChars":7,"textLines":1,"bbox":[64,42,360,26]}
+{"kind":"textbox","id":"sh/i54fqdsj","slide":5,"text":"시간표는 실제 이동 준비의 시작점입니다","textPreview":"시간표는 실제 이동 준비의 시작점입니다","textChars":21,"textLines":1,"bbox":[64,78,880,58]}
+{"kind":"textbox","id":"sh/36dgzi94","slide":5,"text":"출발지·도착지·날짜를 기준으로 운항 일정을 찾고, 선택한 일정에서 선박 상세로 이어집니다.","textPreview":"출발지·도착지·날짜를 기준으로 운항 일정을 찾고, 선택한 일정에서 선박 상세로 이어집니다.","textChars":50,"textLines":1,"bbox":[64,140,920,44]}
+{"kind":"shape","id":"sh/dcfy5cr6","slide":5,"bbox":[500,172,610,370]}
+{"kind":"shape","id":"sh/q94fuxsf","slide":5,"bbox":[550,234,10,10]}
+{"kind":"textbox","id":"sh/radg3290","slide":5,"text":"출발지 기준 도착지 후보를 탐색하는 서브 조회 흐름","textPreview":"출발지 기준 도착지 후보를 탐색하는 서브 조회 흐름","textChars":28,"textLines":1,"bbox":[574,226,486,60]}
+{"kind":"shape","id":"sh/8f2xk3ah","slide":5,"bbox":[550,296,10,10]}
+{"kind":"textbox","id":"sh/tgbet8r2","slide":5,"text":"운항 일정 목록에서 바로 선박 상세 모달 조회","textPreview":"운항 일정 목록에서 바로 선박 상세 모달 조회","textChars":25,"textLines":1,"bbox":[574,288,486,60]}
+{"kind":"shape","id":"sh/1g7up0fq","slide":5,"bbox":[550,358,10,10]}
+{"kind":"textbox","id":"sh/0fydgve5","slide":5,"text":"오늘/내일/주말 빠른 날짜 선택","textPreview":"오늘/내일/주말 빠른 날짜 선택","textChars":17,"textLines":1,"bbox":[574,350,486,60]}
+{"kind":"shape","id":"sh/fe5cnqxk","slide":5,"bbox":[550,420,10,10]}
+{"kind":"textbox","id":"sh/edwbelwf","slide":5,"text":"항로 즐겨찾기와 최근 조회 기반 재검색","textPreview":"항로 즐겨찾기와 최근 조회 기반 재검색","textChars":21,"textLines":1,"bbox":[574,412,486,60]}
+{"kind":"textbox","id":"sh/p47ut0f2","slide":5,"text":"사용자 가치","textPreview":"사용자 가치","textChars":6,"textLines":1,"bbox":[550,472,180,28]}
+{"kind":"textbox","id":"sh/o3ydkveh","slide":5,"text":"섬 여행의 첫 질문인 “오늘 배가 있나?”를 가장 짧은 단계로 답합니다.","textPreview":"섬 여행의 첫 질문인 “오늘 배가 있나?”를 가장 짧은 단계로 답합니다.","textChars":40,"textLines":1,"bbox":[550,512,490,46]}
+{"kind":"textbox","id":"sh/n2pcraxw","slide":5,"text":"섬똑 여행앱 개발 기획서","textPreview":"섬똑 여행앱 개발 기획서","textChars":13,"textLines":1,"bbox":[64,682,360,20]}
+{"kind":"textbox","id":"sh/2hgvi5wb","slide":5,"text":"05","textPreview":"05","textChars":2,"textLines":1,"bbox":[1160,682,56,20]}
+{"kind":"image","id":"im/p07mxw3e","slide":5,"name":"","geometry":"roundRect","alt":"02-schedule.png","bbox":[76,118,330,545]}
+{"kind":"notes","id":"nt/gvl5jc","slide":5,"text":"[Sources]\nScreenshot: docs/play-store/screenshots/phone/02-schedule.png\nSchedule screen source: apps/mobile/app/(tabs)/schedule.tsx"}
+{"kind":"slide","id":"sl/oznp2t","slide":6,"title":"핵심 기능 2","textShapes":9}
+{"kind":"textbox","id":"sh/18jqlo7u","slide":6,"text":"핵심 기능 2","textPreview":"핵심 기능 2","textChars":7,"textLines":1,"bbox":[64,42,360,26]}
+{"kind":"textbox","id":"sh/e5sra98j","slide":6,"text":"예보는 출항 판단을 돕는 안전 레이어입니다","textPreview":"예보는 출항 판단을 돕는 안전 레이어입니다","textChars":23,"textLines":1,"bbox":[64,78,880,58]}
+{"kind":"textbox","id":"sh/z618jep4","slide":6,"text":"권역 선택 후 풍속·파고·강수·조석·특보를 함께 보여 여행 리스크를 한 번에 점검합니다.","textPreview":"권역 선택 후 풍속·파고·강수·조석·특보를 함께 보여 여행 리스크를 한 번에 점검합니다.","textChars":49,"textLines":1,"bbox":[64,140,920,44]}
+{"kind":"shape","id":"sh/obu9g3ql","slide":6,"bbox":[80,180,500,360]}
+{"kind":"shape","id":"sh/9c3qpo76","slide":6,"bbox":[128,240,10,10]}
+{"kind":"textbox","id":"sh/m9sret8f","slide":6,"text":"여행 권역처럼 펼치고 접는 조회 권역 선택","textPreview":"여행 권역처럼 펼치고 접는 조회 권역 선택","textChars":23,"textLines":1,"bbox":[152,232,396,56]}
+{"kind":"shape","id":"sh/nal8nyp0","slide":6,"bbox":[128,298,10,10]}
+{"kind":"textbox","id":"sh/4fqp4zqh","slide":6,"text":"운항 위험 점수와 사유 요약","textPreview":"운항 위험 점수와 사유 요약","textChars":15,"textLines":1,"bbox":[152,290,396,56]}
+{"kind":"shape","id":"sh/pgzqd472","slide":6,"bbox":[128,356,10,10]}
+{"kind":"textbox","id":"sh/dsf2hczu","slide":6,"text":"단기예보, 기상특보, 만조·간조 흐름 연결","textPreview":"단기예보, 기상특보, 만조·간조 흐름 연결","textChars":23,"textLines":1,"bbox":[152,348,396,56]}
+{"kind":"shape","id":"sh/sr6lo7i9","slide":6,"bbox":[128,414,10,10]}
+{"kind":"textbox","id":"sh/rqxkf2ho","slide":6,"text":"시간표·홈 추천 항로와 이어지는 안전 확인","textPreview":"시간표·홈 추천 항로와 이어지는 안전 확인","textChars":23,"textLines":1,"bbox":[152,406,396,56]}
+{"kind":"textbox","id":"sh/1gf2lczq","slide":6,"text":"섬똑 여행앱 개발 기획서","textPreview":"섬똑 여행앱 개발 기획서","textChars":13,"textLines":1,"bbox":[64,682,360,20]}
+{"kind":"textbox","id":"sh/0f6ls7y5","slide":6,"text":"06","textPreview":"06","textChars":2,"textLines":1,"bbox":[1160,682,56,20]}
+{"kind":"image","id":"im/t83uhcza","slide":6,"name":"","geometry":"roundRect","alt":"05-forecast.png","bbox":[712,126,300,520]}
+{"kind":"notes","id":"nt/oznp2t","slide":6,"text":"[Sources]\nScreenshot: docs/play-store/screenshots/phone/05-forecast.png\nForecast screen source: apps/mobile/app/(tabs)/forecast.tsx"}
+{"kind":"slide","id":"sl/dhypgq","slide":7,"title":"핵심 기능 3","textShapes":13}
+{"kind":"textbox","id":"sh/l0jmdgvq","slide":7,"text":"핵심 기능 3","textPreview":"핵심 기능 3","textChars":7,"textLines":1,"bbox":[64,42,360,26]}
+{"kind":"textbox","id":"sh/yxsni1cf","slide":7,"text":"섬여행은 섬 하나를 찾고 이해하는 검색 화면입니다","textPreview":"섬여행은 섬 하나를 찾고 이해하는 검색 화면입니다","textChars":27,"textLines":1,"bbox":[64,78,880,58]}
+{"kind":"textbox","id":"sh/zy14b6d0","slide":7,"text":"섬명, 관광지, 식당, 숙박을 통합검색하고 항목별 상세를 확인하도록 구성합니다.","textPreview":"섬명, 관광지, 식당, 숙박을 통합검색하고 항목별 상세를 확인하도록 구성합니다.","textChars":44,"textLines":1,"bbox":[64,140,920,44]}
+{"kind":"shape","id":"sh/943mhgv2","slide":7,"bbox":[500,178,600,74]}
+{"kind":"textbox","id":"sh/m1snmlcb","slide":7,"text":"통합검색","textPreview":"통합검색","textChars":4,"textLines":1,"bbox":[528,192,150,26]}
+{"kind":"textbox","id":"sh/n214fqdw","slide":7,"text":"섬 이름과 주변 여행 데이터를 함께 검색","textPreview":"섬 이름과 주변 여행 데이터를 함께 검색","textChars":22,"textLines":1,"bbox":[696,194,360,36]}
+{"kind":"shape","id":"sh/o7qlcrex","slide":7,"bbox":[500,280,600,74]}
+{"kind":"textbox","id":"sh/p8zm5wvi","slide":7,"text":"추천권역","textPreview":"추천권역","textChars":4,"textLines":1,"bbox":[528,294,150,26]}
+{"kind":"textbox","id":"sh/hsjq5kfm","slide":7,"text":"여행 권역 기준 추천섬 목록으로 확장","textPreview":"여행 권역 기준 추천섬 목록으로 확장","textChars":20,"textLines":1,"bbox":[696,296,360,36]}
+{"kind":"shape","id":"sh/grapwfe1","slide":7,"bbox":[500,382,600,74]}
+{"kind":"textbox","id":"sh/fq183axg","slide":7,"text":"상세 조회","textPreview":"상세 조회","textChars":5,"textLines":1,"bbox":[528,396,150,26]}
+{"kind":"textbox","id":"sh/ups7u5wv","slide":7,"text":"요약, 위치·연락, 상세 항목 중심의 모달","textPreview":"요약, 위치·연락, 상세 항목 중심의 모달","textChars":23,"textLines":1,"bbox":[696,398,360,36]}
+{"kind":"shape","id":"sh/pwjq9kvi","slide":7,"bbox":[500,484,600,74]}
+{"kind":"textbox","id":"sh/4vap0fex","slide":7,"text":"연결 동선","textPreview":"연결 동선","textChars":5,"textLines":1,"bbox":[528,498,150,26]}
+{"kind":"textbox","id":"sh/3u187axc","slide":7,"text":"사진, 지도, 예보, 시간표로 다음 행동 연결","textPreview":"사진, 지도, 예보, 시간표로 다음 행동 연결","textChars":25,"textLines":1,"bbox":[696,500,360,36]}
+{"kind":"textbox","id":"sh/2ts7y5w7","slide":7,"text":"섬똑 여행앱 개발 기획서","textPreview":"섬똑 여행앱 개발 기획서","textChars":13,"textLines":1,"bbox":[64,682,360,20]}
+{"kind":"textbox","id":"sh/dk3qd4vu","slide":7,"text":"07","textPreview":"07","textChars":2,"textLines":1,"bbox":[1160,682,56,20]}
+{"kind":"image","id":"im/dsrixoja","slide":7,"name":"","geometry":"roundRect","alt":"03-island-trip.png","bbox":[74,126,310,530]}
+{"kind":"notes","id":"nt/dhypgq","slide":7,"text":"[Sources]\nScreenshot: docs/play-store/screenshots/phone/03-island-trip.png\nIsland trip source: apps/mobile/app/(tabs)/island-trip.tsx"}
+{"kind":"slide","id":"sl/xo6ghq","slide":8,"title":"핵심 기능 4","textShapes":10}
+{"kind":"textbox","id":"sh/t87upgb2","slide":8,"text":"핵심 기능 4","textPreview":"핵심 기능 4","textChars":7,"textLines":1,"bbox":[64,42,360,26]}
+{"kind":"textbox","id":"sh/65wvelsb","slide":8,"text":"크루즈는 항만·선박 중심 정보 메뉴로 확장합니다","textPreview":"크루즈는 항만·선박 중심 정보 메뉴로 확장합니다","textChars":26,"textLines":1,"bbox":[64,78,880,58]}
+{"kind":"textbox","id":"sh/r65cnqtw","slide":8,"text":"입항 일정과 선박 규모, 등록 사업자 정보를 관광 맥락으로 묶어 제공합니다.","textPreview":"입항 일정과 선박 규모, 등록 사업자 정보를 관광 맥락으로 묶어 제공합니다.","textChars":42,"textLines":1,"bbox":[64,140,920,44]}
+{"kind":"shape","id":"sh/gbydkvat","slide":8,"bbox":[80,192,1010,290]}
+{"kind":"textbox","id":"sh/1w7ut0ry","slide":8,"text":"최근 반영된 UX","textPreview":"최근 반영된 UX","textChars":9,"textLines":1,"bbox":[120,234,260,32]}
+{"kind":"shape","id":"sh/e9gvilsn","slide":8,"bbox":[122,300,10,10]}
+{"kind":"textbox","id":"sh/fapcrq98","slide":8,"text":"입항 일정을 월별로 접고 펼 수 있게 구성","textPreview":"입항 일정을 월별로 접고 펼 수 있게 구성","textChars":23,"textLines":1,"bbox":[146,292,866,44]}
+{"kind":"shape","id":"sh/wfud8ra9","slide":8,"bbox":[122,346,10,10]}
+{"kind":"textbox","id":"sh/h03uhwbu","slide":8,"text":"부산·인천·여수·포항 크루즈 데이터 기반 마스터 적재","textPreview":"부산·인천·여수·포항 크루즈 데이터 기반 마스터 적재","textChars":29,"textLines":1,"bbox":[146,338,866,44]}
+{"kind":"shape","id":"sh/dcbu1kzq","slide":8,"bbox":[122,392,10,10]}
+{"kind":"textbox","id":"sh/cb2t8fy5","slide":8,"text":"스케줄 상세, 선박 상세, 등록 유람선 사업자 상세로 분리","textPreview":"스케줄 상세, 선박 상세, 등록 유람선 사업자 상세로 분리","textChars":32,"textLines":1,"bbox":[146,384,866,44]}
+{"kind":"shape","id":"sh/ra9czahk","slide":8,"bbox":[122,438,10,10]}
+{"kind":"textbox","id":"sh/q90b65gz","slide":8,"text":"데이터가 채워질수록 항만별 시즌성과 관광 상품 연결 가능","textPreview":"데이터가 채워질수록 항만별 시즌성과 관광 상품 연결 가능","textChars":31,"textLines":1,"bbox":[146,430,866,44]}
+{"kind":"textbox","id":"sh/10bu5kfm","slide":8,"text":"섬똑 여행앱 개발 기획서","textPreview":"섬똑 여행앱 개발 기획서","textChars":13,"textLines":1,"bbox":[64,682,360,20]}
+{"kind":"textbox","id":"sh/0z2tcfy1","slide":8,"text":"08","textPreview":"08","textChars":2,"textLines":1,"bbox":[1160,682,56,20]}
+{"kind":"notes","id":"nt/xo6ghq","slide":8,"text":"[Sources]\nCruise screen source: apps/mobile/app/(tabs)/cruise.tsx\nCruise seed source: apps/api/prisma/seed-cruise-data.cjs"}
+{"kind":"slide","id":"sl/yyvmt5","slide":9,"title":"데이터 전략","textShapes":14}
+{"kind":"textbox","id":"sh/y9ormxoj","slide":9,"text":"데이터 전략","textPreview":"데이터 전략","textChars":6,"textLines":1,"bbox":[64,42,360,26]}
+{"kind":"textbox","id":"sh/lwzahc7u","slide":9,"text":"서비스 품질은 데이터 파이프라인의 정리 수준에 달려 있습니다","textPreview":"서비스 품질은 데이터 파이프라인의 정리 수준에 달려 있습니다","textChars":33,"textLines":1,"bbox":[64,78,880,58]}
+{"kind":"textbox","id":"sh/0vq9o76p","slide":9,"text":"공공 API와 파일 데이터를 같은 검색·추천 자산으로 바꾸는 구조가 필요합니다.","textPreview":"공공 API와 파일 데이터를 같은 검색·추천 자산으로 바꾸는 구조가 필요합니다.","textChars":44,"textLines":1,"bbox":[64,140,920,44]}
+{"kind":"shape","id":"sh/b6x8b2ps","slide":9,"bbox":[86,248,218,168]}
+{"kind":"textbox","id":"sh/q5orixo7","slide":9,"text":"수집","textPreview":"수집","textChars":2,"textLines":1,"bbox":[114,276,160,34]}
+{"kind":"textbox","id":"sh/d8fads7y","slide":9,"text":"공공 API, data.go.kr 파일, 항만·관광 사이트","textPreview":"공공 API, data.go.kr 파일, 항만·관광 사이트","textChars":32,"textLines":1,"bbox":[114,326,156,62]}
+{"kind":"shape","id":"sh/c769kn6d","slide":9,"bbox":[312,320,44,28]}
+{"kind":"shape","id":"sh/v2hsnm5c","slide":9,"bbox":[370,248,218,168]}
+{"kind":"textbox","id":"sh/a18ruhor","slide":9,"text":"정제","textPreview":"정제","textChars":2,"textLines":1,"bbox":[398,276,160,34]}
+{"kind":"textbox","id":"sh/4j6loril","slide":9,"text":"주소 보정, 권역 매핑, 중복 다운로드 제거","textPreview":"주소 보정, 권역 매핑, 중복 다운로드 제거","textChars":24,"textLines":1,"bbox":[398,326,156,62]}
+{"kind":"shape","id":"sh/5kfmxwz6","slide":9,"bbox":[596,320,44,28]}
+{"kind":"shape","id":"sh/ih43mh0f","slide":9,"bbox":[654,248,218,168]}
+{"kind":"textbox","id":"sh/jid4vmh0","slide":9,"text":"마스터","textPreview":"마스터","textChars":3,"textLines":1,"bbox":[682,276,160,34]}
+{"kind":"textbox","id":"sh/wvmlk7ip","slide":9,"text":"섬, 주소, 예보권역, 여행권역, 크루즈","textPreview":"섬, 주소, 예보권역, 여행권역, 크루즈","textChars":22,"textLines":1,"bbox":[682,326,156,62]}
+{"kind":"shape","id":"sh/hwvmtcza","slide":9,"bbox":[880,320,44,28]}
+{"kind":"shape","id":"sh/at43ih0j","slide":9,"bbox":[938,248,218,168]}
+{"kind":"textbox","id":"sh/vud4r2h4","slide":9,"text":"서비스","textPreview":"서비스","textChars":3,"textLines":1,"bbox":[966,276,160,34]}
+{"kind":"textbox","id":"sh/8rmlg7id","slide":9,"text":"검색, 상세, 추천, 안전 판단","textPreview":"검색, 상세, 추천, 안전 판단","textChars":17,"textLines":1,"bbox":[966,326,156,62]}
+{"kind":"textbox","id":"sh/9sv2pczy","slide":9,"text":"다음 고도화의 핵심은 “많이 모은 데이터”가 아니라 “섬과 권역에 정확히 붙은 데이터”입니다.","textPreview":"다음 고도화의 핵심은 “많이 모은 데이터”가 아니라 “섬과 권역에 정확히 붙은 데이터”입니다.","textChars":52,"textLines":1,"bbox":[130,542,980,42]}
+{"kind":"textbox","id":"sh/pon2torm","slide":9,"text":"섬똑 여행앱 개발 기획서","textPreview":"섬똑 여행앱 개발 기획서","textChars":13,"textLines":1,"bbox":[64,682,360,20]}
+{"kind":"textbox","id":"sh/one1k3ah","slide":9,"text":"09","textPreview":"09","textChars":2,"textLines":1,"bbox":[1160,682,56,20]}
+{"kind":"notes","id":"nt/yyvmt5","slide":9,"text":"[Sources]\nData collection scripts: apps/api/prisma/collect-data-go-kr-travel-files.cjs\nTravel regions: apps/api/prisma/seed-island-travel-region-master.cjs\nAddress master: apps/api/prisma/seed-address-master.cjs"}
+{"kind":"slide","id":"sl/vxtjbh","slide":10,"title":"추천 설계","textShapes":12}
+{"kind":"textbox","id":"sh/0ra5ov69","slide":10,"text":"추천 설계","textPreview":"추천 설계","textChars":5,"textLines":1,"bbox":[64,42,360,26]}
+{"kind":"textbox","id":"sh/zqhovq5o","slide":10,"text":"추천 알고리즘은 조건 매칭보다 코스 맥락을 먼저 봐야 합니다","textPreview":"추천 알고리즘은 조건 매칭보다 코스 맥락을 먼저 봐야 합니다","textChars":33,"textLines":1,"bbox":[64,78,880,58]}
+{"kind":"textbox","id":"sh/ep8nmlo3","slide":10,"text":"여행 스타일과 조건은 후보를 좁히고, 최종 추천은 경로 성격과 거리·동선 품질로 설명합니다.","textPreview":"여행 스타일과 조건은 후보를 좁히고, 최종 추천은 경로 성격과 거리·동선 품질로 설명합니다.","textChars":51,"textLines":1,"bbox":[64,140,920,44]}
+{"kind":"shape","id":"sh/9gj6l0nq","slide":10,"bbox":[78,210,336,250]}
+{"kind":"shape","id":"sh/ova5sv6l","slide":10,"bbox":[472,210,336,250]}
+{"kind":"shape","id":"sh/nu1ozq50","slide":10,"bbox":[866,210,336,250]}
+{"kind":"textbox","id":"sh/mtsnqlof","slide":10,"text":"1. 후보 생성","textPreview":"1. 후보 생성","textChars":8,"textLines":1,"bbox":[112,246,240,28]}
+{"kind":"textbox","id":"sh/pkzmpwnm","slide":10,"text":"권역, 섬, 검색어, 활동 카테고리로 여행 자원을 모읍니다.","textPreview":"권역, 섬, 검색어, 활동 카테고리로 여행 자원을 모읍니다.","textChars":33,"textLines":1,"bbox":[112,304,228,82]}
+{"kind":"textbox","id":"sh/4zq5gb61","slide":10,"text":"2. 품질 점수","textPreview":"2. 품질 점수","textChars":8,"textLines":1,"bbox":[506,246,240,28]}
+{"kind":"textbox","id":"sh/itwr2l0v","slide":10,"text":"주소·좌표·섬 매칭·운영 상태·상세 필드 보유 여부를 반영합니다.","textPreview":"주소·좌표·섬 매칭·운영 상태·상세 필드 보유 여부를 반영합니다.","textChars":36,"textLines":1,"bbox":[506,304,236,100]}
+{"kind":"textbox","id":"sh/jupsvqh0","slide":10,"text":"3. 코스 구성","textPreview":"3. 코스 구성","textChars":8,"textLines":1,"bbox":[900,246,240,28]}
+{"kind":"textbox","id":"sh/4vyt4vil","slide":10,"text":"관광지, 체험, 맛집, 전망, 이동거리 흐름으로 실제 코스처럼 묶습니다.","textPreview":"관광지, 체험, 맛집, 전망, 이동거리 흐름으로 실제 코스처럼 묶습니다.","textChars":40,"textLines":1,"bbox":[900,304,236,100]}
+{"kind":"textbox","id":"sh/5w7ax0z6","slide":10,"text":"설명 가능한 추천: 왜 이 섬인지, 왜 이 순서인지, 무엇을 확인해야 하는지까지 보여줍니다.","textPreview":"설명 가능한 추천: 왜 이 섬인지, 왜 이 순서인지, 무엇을 확인해야 하는지까지 보여줍니다.","textChars":51,"textLines":1,"bbox":[132,560,1016,38]}
+{"kind":"textbox","id":"sh/6xgb650r","slide":10,"text":"섬똑 여행앱 개발 기획서","textPreview":"섬똑 여행앱 개발 기획서","textChars":13,"textLines":1,"bbox":[64,682,360,20]}
+{"kind":"textbox","id":"sh/rypszahc","slide":10,"text":"10","textPreview":"10","textChars":2,"textLines":1,"bbox":[1160,682,56,20]}
+{"kind":"notes","id":"nt/vxtjbh","slide":10,"text":"[Sources]\nRecommendation service source: apps/api/src/island-trips/island-trips.service.ts\nRecommendation asset seed: apps/api/prisma/seed-travel-recommendation-assets.cjs"}
+{"kind":"slide","id":"sl/pkggad","slide":11,"title":"출시 준비","textShapes":15}
+{"kind":"textbox","id":"sh/sny9obu5","slide":11,"text":"출시 준비","textPreview":"출시 준비","textChars":5,"textLines":1,"bbox":[64,42,360,26]}
+{"kind":"textbox","id":"sh/rmp8f6tk","slide":11,"text":"출시 준비는 Play 등록 자산과 운영 안정성을 함께 봐야 합니다","textPreview":"출시 준비는 Play 등록 자산과 운영 안정성을 함께 봐야 합니다","textChars":36,"textLines":1,"bbox":[64,78,880,58]}
+{"kind":"textbox","id":"sh/6lgrm1cf","slide":11,"text":"AAB, 앱 서명, 개인정보 처리방침, 스토어 이미지, 서버 도메인 연결이 1차 준비 범위입니다.","textPreview":"AAB, 앱 서명, 개인정보 처리방침, 스토어 이미지, 서버 도메인 연결이 1차 준비 범위입니다.","textChars":54,"textLines":1,"bbox":[64,140,920,44]}
+{"kind":"shape","id":"sh/5k7qdwbu","slide":11,"bbox":[86,208,500,330]}
+{"kind":"shape","id":"sh/4je9kru9","slide":11,"bbox":[692,208,500,330]}
+{"kind":"textbox","id":"sh/ji58b6to","slide":11,"text":"완료된 준비물","textPreview":"완료된 준비물","textChars":7,"textLines":1,"bbox":[126,246,280,32]}
+{"kind":"shape","id":"sh/ihwri1c3","slide":11,"bbox":[128,312,10,10]}
+{"kind":"textbox","id":"sh/hgnq9wvi","slide":11,"text":"앱 아이콘, 그래픽 이미지","textPreview":"앱 아이콘, 그래픽 이미지","textChars":14,"textLines":1,"bbox":[152,304,386,42]}
+{"kind":"shape","id":"sh/wvepgrux","slide":11,"bbox":[128,356,10,10]}
+{"kind":"textbox","id":"sh/a54vm5on","slide":11,"text":"휴대전화·7인치·10인치 스크린샷","textPreview":"휴대전화·7인치·10인치 스크린샷","textChars":18,"textLines":1,"bbox":[152,348,386,42]}
+{"kind":"shape","id":"sh/v6dwfaps","slide":11,"bbox":[128,400,10,10]}
+{"kind":"textbox","id":"sh/w7mxof6d","slide":11,"text":"개인정보 처리방침 URL","textPreview":"개인정보 처리방침 URL","textChars":13,"textLines":1,"bbox":[152,392,386,42]}
+{"kind":"shape","id":"sh/h8vehk7y","slide":11,"bbox":[128,444,10,10]}
+{"kind":"textbox","id":"sh/mhkvilob","slide":11,"text":"Play 업로드용 AAB 빌드","textPreview":"Play 업로드용 AAB 빌드","textChars":16,"textLines":1,"bbox":[152,436,386,42]}
+{"kind":"textbox","id":"sh/nitwbqpw","slide":11,"text":"출시 전 확인","textPreview":"출시 전 확인","textChars":7,"textLines":1,"bbox":[732,246,280,32]}
+{"kind":"shape","id":"sh/832dkv6h","slide":11,"bbox":[734,312,10,10]}
+{"kind":"textbox","id":"sh/94bed072","slide":11,"text":"운영 API health와 주요 API 정상 응답","textPreview":"운영 API health와 주요 API 정상 응답","textChars":27,"textLines":1,"bbox":[758,304,386,42]}
+{"kind":"shape","id":"sh/yd0velof","slide":11,"bbox":[734,356,10,10]}
+{"kind":"textbox","id":"sh/zetw7qpk","slide":11,"text":"Play Console 데이터 보안 양식 확정","textPreview":"Play Console 데이터 보안 양식 확정","textChars":25,"textLines":1,"bbox":[758,348,386,42]}
+{"kind":"shape","id":"sh/3ipsfm5c","slide":11,"bbox":[734,400,10,10]}
+{"kind":"textbox","id":"sh/2hgbmh47","slide":11,"text":"업로드 키와 Play App Signing 보관","textPreview":"업로드 키와 Play App Signing 보관","textChars":26,"textLines":1,"bbox":[758,392,386,42]}
+{"kind":"shape","id":"sh/pk7uhwni","slide":11,"bbox":[734,444,10,10]}
+{"kind":"textbox","id":"sh/ojytormx","slide":11,"text":"실기기 설치 후 전체 메뉴 QA","textPreview":"실기기 설치 후 전체 메뉴 QA","textChars":17,"textLines":1,"bbox":[758,436,386,42]}
+{"kind":"textbox","id":"sh/bm9cjm5o","slide":11,"text":"섬똑 여행앱 개발 기획서","textPreview":"섬똑 여행앱 개발 기획서","textChars":13,"textLines":1,"bbox":[64,682,360,20]}
+{"kind":"textbox","id":"sh/qlgbq143","slide":11,"text":"11","textPreview":"11","textChars":2,"textLines":1,"bbox":[1160,682,56,20]}
+{"kind":"notes","id":"nt/pkggad","slide":11,"text":"[Sources]\nPlay assets folder: docs/play-store\nPrivacy URL route: apps/mobile/app/privacy-policy.tsx\nAAB build script: scripts/build-play-aab.ps1"}
+{"kind":"slide","id":"sl/21i75b","slide":12,"title":"로드맵","textShapes":14}
+{"kind":"textbox","id":"sh/0b2l83y9","slide":12,"text":"로드맵","textPreview":"로드맵","textChars":3,"textLines":1,"bbox":[64,42,360,26]}
+{"kind":"textbox","id":"sh/zat4zyho","slide":12,"text":"다음 단계는 검색 품질과 추천 코스의 실제감을 높이는 것입니다","textPreview":"다음 단계는 검색 품질과 추천 코스의 실제감을 높이는 것입니다","textChars":34,"textLines":1,"bbox":[64,78,880,58]}
+{"kind":"textbox","id":"sh/y9036dg3","slide":12,"text":"1차 출시는 정보 조회 품질을 안정화하고, 2차는 섬별 추천·코스·검색엔진으로 확장합니다.","textPreview":"1차 출시는 정보 조회 품질을 안정화하고, 2차는 섬별 추천·코스·검색엔진으로 확장합니다.","textChars":50,"textLines":1,"bbox":[64,140,920,44]}
+{"kind":"textbox","id":"sh/d8rmd8zi","slide":12,"text":"1차 안정화","textPreview":"1차 안정화","textChars":6,"textLines":1,"bbox":[94,200,220,32]}
+{"kind":"shape","id":"sh/c7il43yx","slide":12,"bbox":[326,215,650,2]}
+{"kind":"textbox","id":"sh/bm94byhc","slide":12,"text":"Play 등록, 운영 API 모니터링, 시간표·예보·섬여행 기본 QA","textPreview":"Play 등록, 운영 API 모니터링, 시간표·예보·섬여행 기본 QA","textChars":38,"textLines":1,"bbox":[360,194,720,48]}
+{"kind":"textbox","id":"sh/ql032tg7","slide":12,"text":"2차 데이터 고도화","textPreview":"2차 데이터 고도화","textChars":10,"textLines":1,"bbox":[94,296,220,32]}
+{"kind":"shape","id":"sh/pkrm9ozm","slide":12,"bbox":[326,311,650,2]}
+{"kind":"textbox","id":"sh/ojil0jy1","slide":12,"text":"주소 없는 여행 데이터 보정, 섬·시군구·권역 매칭 정교화","textPreview":"주소 없는 여행 데이터 보정, 섬·시군구·권역 매칭 정교화","textChars":32,"textLines":1,"bbox":[360,290,720,48]}
+{"kind":"textbox","id":"sh/m5knilgz","slide":12,"text":"3차 추천 고도화","textPreview":"3차 추천 고도화","textChars":9,"textLines":1,"bbox":[94,392,220,32]}
+{"kind":"shape","id":"sh/n6t4bqhk","slide":12,"bbox":[326,407,650,2]}
+{"kind":"textbox","id":"sh/8725kvy5","slide":12,"text":"코스 이동거리, 계절성, 날씨·배편 조건을 반영한 추천","textPreview":"코스 이동거리, 계절성, 날씨·배편 조건을 반영한 추천","textChars":30,"textLines":1,"bbox":[360,386,720,48]}
+{"kind":"textbox","id":"sh/98bmd0zq","slide":12,"text":"4차 검색엔진","textPreview":"4차 검색엔진","textChars":7,"textLines":1,"bbox":[94,488,220,32]}
+{"kind":"shape","id":"sh/y103elg3","slide":12,"bbox":[326,503,650,2]}
+{"kind":"textbox","id":"sh/z2947qh8","slide":12,"text":"관광검색엔진으로 유형별 상세·필터·랭킹 제공","textPreview":"관광검색엔진으로 유형별 상세·필터·랭킹 제공","textChars":24,"textLines":1,"bbox":[360,482,720,48]}
+{"kind":"textbox","id":"sh/0325gbyt","slide":12,"text":"의사결정 요청: 1차 출시 범위는 유지하고, 데이터 보정·검색엔진·추천코스는 출시 후 반복 개선 과제로 분리합니다.","textPreview":"의사결정 요청: 1차 출시 범위는 유지하고, 데이터 보정·검색엔진·추천코스는 출시 후 반복 개선 과제로 분리합니다.","textChars":64,"textLines":1,"bbox":[128,600,1020,44]}
+{"kind":"textbox","id":"sh/l4bm9gze","slide":12,"text":"섬똑 여행앱 개발 기획서","textPreview":"섬똑 여행앱 개발 기획서","textChars":13,"textLines":1,"bbox":[64,682,360,20]}
+{"kind":"textbox","id":"sh/qx03a1gr","slide":12,"text":"12","textPreview":"12","textChars":2,"textLines":1,"bbox":[1160,682,56,20]}
+{"kind":"notes","id":"nt/21i75b","slide":12,"text":"[Sources]\nRoadmap synthesized from current project state and prior planning in this Codex task.\nNo external market data used."}

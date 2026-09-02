@@ -9,10 +9,38 @@
 - 배포 형식: Android App Bundle (`.aab`)
 - API 서버: `https://seaload.aodata.co.kr/api/v1`
 - 개인정보 처리방침 URL: `https://seaload.aodata.co.kr/privacy-policy`
+- Play Console 앱 아이콘: `docs/play-store/assets/seomttok-play-icon-512.png`
+  - 형식: PNG
+  - 크기: 512 x 512px
+  - 용량: 1MB 미만
+- Play Console 그래픽 이미지: `docs/play-store/assets/seomttok-feature-graphic-1024x500.png`
+  - 형식: PNG
+  - 크기: 1024 x 500px
+  - 용량: 15MB 미만
 
 ## 2. 업로드 전 필수 확인
 
 - Google Play Console 앱 생성
+- 앱 아이콘 업로드: `docs/play-store/assets/seomttok-play-icon-512.png`
+- 그래픽 이미지 업로드: `docs/play-store/assets/seomttok-feature-graphic-1024x500.png`
+- 휴대전화 스크린샷 업로드:
+  - `docs/play-store/screenshots/phone/01-home.png`
+  - `docs/play-store/screenshots/phone/02-schedule.png`
+  - `docs/play-store/screenshots/phone/03-island-trip.png`
+  - `docs/play-store/screenshots/phone/05-forecast.png`
+  - 선택: `docs/play-store/screenshots/phone/04-cruise.png`
+- 7인치 태블릿 스크린샷 업로드:
+  - `docs/play-store/screenshots/tablet-7/01-home-tablet7.png`
+  - `docs/play-store/screenshots/tablet-7/02-schedule-tablet7.png`
+  - `docs/play-store/screenshots/tablet-7/03-island-trip-tablet7.png`
+  - `docs/play-store/screenshots/tablet-7/04-forecast-tablet7.png`
+  - 선택: `docs/play-store/screenshots/tablet-7/05-cruise-tablet7.png`
+- 10인치 태블릿 스크린샷 업로드:
+  - `docs/play-store/screenshots/tablet-10/01-home-tablet10.png`
+  - `docs/play-store/screenshots/tablet-10/02-schedule-tablet10.png`
+  - `docs/play-store/screenshots/tablet-10/03-island-trip-tablet10.png`
+  - `docs/play-store/screenshots/tablet-10/04-forecast-tablet10.png`
+  - 선택: `docs/play-store/screenshots/tablet-10/05-cruise-tablet10.png`
 - 앱 카테고리: 여행 및 지역정보
 - 앱 또는 게임: 앱
 - 무료/유료: 무료 권장

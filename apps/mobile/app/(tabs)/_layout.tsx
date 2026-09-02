@@ -1,4 +1,4 @@
-import { Tabs, usePathname } from 'expo-router';
+import { Tabs, usePathname, useRouter } from 'expo-router';
 import { Anchor, CalendarDays, Compass, Home, Map, Ship, User } from 'lucide-react-native';
 import type { ComponentType } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -6,25 +6,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 
 type TabItem = {
-  routeName: string;
-  params?: Record<string, string>;
+  href: string | { pathname: string; params?: Record<string, string> };
   label: string;
   match: string;
   Icon: ComponentType<{ color: string; size: number; strokeWidth?: number }>;
 };
 
 const tabItems: TabItem[] = [
-  { routeName: 'index', label: '섬똑', match: '/', Icon: Home },
-  { routeName: 'schedule', label: '시간표', match: '/schedule', Icon: CalendarDays },
-  { routeName: 'islands', params: { mode: 'trip' }, label: '섬여행', match: '/islands:trip', Icon: Compass },
-  { routeName: 'cruise', label: '크루즈', match: '/cruise', Icon: Anchor },
-  { routeName: 'forecast', label: '예보', match: '/forecast', Icon: Ship },
-  { routeName: 'profile', label: '내정보', match: '/profile', Icon: User }
+  { href: '/', label: '섬똑', match: '/', Icon: Home },
+  { href: '/schedule', label: '시간표', match: '/schedule', Icon: CalendarDays },
+  { href: { pathname: '/islands', params: { mode: 'trip' } }, label: '섬여행', match: '/islands:trip', Icon: Compass },
+  { href: '/cruise', label: '크루즈', match: '/cruise', Icon: Anchor },
+  { href: '/forecast', label: '예보', match: '/forecast', Icon: Ship },
+  { href: '/profile', label: '내정보', match: '/profile', Icon: User }
 ];
-
-type TabNavigation = {
-  navigate: (routeName: string, params?: Record<string, string>) => void;
-};
 
 type TabState = {
   index: number;
@@ -37,7 +32,7 @@ type TabState = {
 export default function TabLayout() {
   return (
     <Tabs
-      tabBar={({ navigation, state }) => <SeomttokTabBar navigation={navigation} state={state} />}
+      tabBar={({ state }) => <SeomttokTabBar state={state} />}
       screenOptions={{
         headerShown: false
       }}
@@ -70,8 +65,9 @@ export default function TabLayout() {
   );
 }
 
-function SeomttokTabBar({ navigation, state }: { navigation: TabNavigation; state: TabState }) {
+function SeomttokTabBar({ state }: { state: TabState }) {
   const pathname = usePathname();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const currentRoute = state.routes[state.index];
   const currentParams = currentRoute?.params as { mode?: unknown } | undefined;
@@ -97,7 +93,7 @@ function SeomttokTabBar({ navigation, state }: { navigation: TabNavigation; stat
             accessibilityRole="button"
             accessibilityState={active ? { selected: true } : undefined}
             accessibilityLabel={item.label}
-            onPress={() => navigation.navigate(item.routeName, item.params)}
+            onPress={() => router.push(item.href as never)}
             style={styles.tabItem}
           >
             <Icon color={color} size={22} strokeWidth={active ? 2.8 : 2.4} />

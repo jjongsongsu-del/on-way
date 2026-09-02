@@ -28,11 +28,16 @@ if (-not $KeyPassword) {
 
 Push-Location $mobileAndroidDir
 try {
-  .\gradlew.bat bundleRelease `
-    "-PSEOMTTOK_UPLOAD_STORE_FILE=$KeystorePath" `
-    "-PSEOMTTOK_UPLOAD_KEY_ALIAS=$KeyAlias" `
-    "-PSEOMTTOK_UPLOAD_STORE_PASSWORD=$StorePassword" `
-    "-PSEOMTTOK_UPLOAD_KEY_PASSWORD=$KeyPassword"
+  $env:SEOMTTOK_UPLOAD_STORE_FILE = $KeystorePath
+  $env:SEOMTTOK_UPLOAD_KEY_ALIAS = $KeyAlias
+  $env:SEOMTTOK_UPLOAD_STORE_PASSWORD = $StorePassword
+  $env:SEOMTTOK_UPLOAD_KEY_PASSWORD = $KeyPassword
+
+  .\gradlew.bat bundleRelease
+
+  if ($LASTEXITCODE -ne 0) {
+    throw "Gradle bundleRelease failed with exit code $LASTEXITCODE."
+  }
 
   $bundlePath = Join-Path $mobileAndroidDir "app/build/outputs/bundle/release/app-release.aab"
   if (-not (Test-Path -LiteralPath $bundlePath)) {

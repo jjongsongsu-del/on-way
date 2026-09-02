@@ -2897,8 +2897,9 @@ function campSourceLabel(source: 'GOCAMPING' | 'CULTURE_CAMPING' | 'LOCAL_CAMPGR
   return null;
 }
 
-function attractionSourceLabel(source: 'TOUR_API' | 'MOCK') {
+function attractionSourceLabel(source: 'TOUR_API' | 'GGTOUR' | 'MOCK') {
   if (source === 'TOUR_API') return '한국관광공사 관광정보';
+  if (source === 'GGTOUR') return '경기관광 OPEN API';
   return null;
 }
 

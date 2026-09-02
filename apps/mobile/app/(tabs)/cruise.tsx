@@ -66,11 +66,21 @@ export default function CruiseScreen() {
   });
 
   const overview = overviewQuery.data;
+  const overviewSummary = overview?.summary ?? {
+    totalPorts: 0,
+    totalVessels: 0,
+    totalSchedules: 0,
+    totalOperatorLicenses: 0,
+    sourceNames: []
+  };
   const ports = overview?.ports ?? [];
-  const schedules = schedulesQuery.data ?? overview?.upcomingSchedules ?? [];
+  const upcomingSchedules = overview?.upcomingSchedules ?? [];
+  const tourProducts = overview?.tourProducts ?? [];
+  const operatorLicenses = overview?.operatorLicenses ?? [];
+  const schedules = schedulesQuery.data ?? upcomingSchedules;
   const groupedSchedules = useMemo(() => groupSchedulesByMonth(schedules), [schedules]);
   const selectedSchedule = selectedScheduleQuery.data ?? schedules.find((schedule) => schedule.id === selectedScheduleId) ?? null;
-  const featuredSchedule = schedules[0] ?? overview?.upcomingSchedules?.[0] ?? null;
+  const featuredSchedule = schedules[0] ?? upcomingSchedules[0] ?? null;
   const selectedPortLabel = selectedPortName ?? '전체 항만';
 
   const submitSearch = () => setKeyword(keywordInput.trim());
@@ -98,7 +108,7 @@ export default function CruiseScreen() {
       <MascotBanner
         imageSource={require('../../assets/mascot/boogi-routes.png')}
         eyebrow="크루즈 일정 안내"
-        title={featuredSchedule ? `${featuredSchedule.port.portName} ${featuredSchedule.vesselName}` : '국내 크루즈 정보를 모아봅니다'}
+        title={featuredSchedule ? `${featuredSchedule.port?.portName ?? '크루즈'} ${featuredSchedule.vesselName}` : '국내 크루즈 정보를 모아봅니다'}
         description={
           featuredSchedule
             ? `${formatShortDate(featuredSchedule.arrivalDate)} ${featuredSchedule.arrivalTime ?? ''} 입항 예정 · ${featuredSchedule.nextPortName ? `다음 항 ${featuredSchedule.nextPortName}` : '상세 일정 확인 가능'}`
@@ -108,10 +118,10 @@ export default function CruiseScreen() {
       />
 
       <View style={styles.heroStats}>
-        <HeroStat icon={Anchor} label="항만" value={overview?.summary.totalPorts ?? 0} />
-        <HeroStat icon={Ship} label="선박" value={overview?.summary.totalVessels ?? 0} />
-        <HeroStat icon={CalendarDays} label="일정" value={overview?.summary.totalSchedules ?? 0} />
-        <HeroStat icon={Building2} label="사업자" value={overview?.summary.totalOperatorLicenses ?? 0} />
+        <HeroStat icon={Anchor} label="항만" value={overviewSummary.totalPorts} />
+        <HeroStat icon={Ship} label="선박" value={overviewSummary.totalVessels} />
+        <HeroStat icon={CalendarDays} label="일정" value={overviewSummary.totalSchedules} />
+        <HeroStat icon={Building2} label="사업자" value={overviewSummary.totalOperatorLicenses} />
       </View>
 
       <InfoCard title="크루즈 찾기" eyebrow={schedulesQuery.isFetching ? '조회 중' : `${selectedPortLabel} · ${schedules.length}건`}>
@@ -203,17 +213,17 @@ export default function CruiseScreen() {
         )}
       </InfoCard>
 
-      <InfoCard title="관광 크루즈" eyebrow={`${overview?.tourProducts.length ?? 0}건`}>
-        {overview?.tourProducts.length ? (
-          overview.tourProducts.map((product) => <TourProductCard key={product.id} product={product} />)
+      <InfoCard title="관광 크루즈" eyebrow={`${tourProducts.length}건`}>
+        {tourProducts.length ? (
+          tourProducts.map((product) => <TourProductCard key={product.id} product={product} />)
         ) : (
           <Text style={styles.emptyText}>관광 크루즈 상품 데이터가 준비되면 여기에 표시됩니다.</Text>
         )}
       </InfoCard>
 
-      <InfoCard title="등록 유람선 사업자" eyebrow={`${overview?.summary.totalOperatorLicenses ?? 0}건`}>
-        {overview?.operatorLicenses.length ? (
-          overview.operatorLicenses.map((operator) => <OperatorCard key={operator.id} operator={operator} onPress={() => setSelectedOperator(operator)} />)
+      <InfoCard title="등록 유람선 사업자" eyebrow={`${overviewSummary.totalOperatorLicenses}건`}>
+        {operatorLicenses.length ? (
+          operatorLicenses.map((operator) => <OperatorCard key={operator.id} operator={operator} onPress={() => setSelectedOperator(operator)} />)
         ) : (
           <Text style={styles.emptyText}>관광유람선업 인허가 정보를 불러오고 있습니다.</Text>
         )}
@@ -221,7 +231,7 @@ export default function CruiseScreen() {
 
       <InfoCard title="데이터 갱신" eyebrow={overview?.updatedAt ? formatDateTime(overview.updatedAt) : '확인 중'}>
         <View style={styles.sourceWrap}>
-          {(overview?.summary.sourceNames ?? []).map((sourceName) => (
+          {overviewSummary.sourceNames.map((sourceName) => (
             <Text key={sourceName} style={styles.sourceChip}>
               {sourceName.replace('행정안전부_문화_', '행안부 ')}
             </Text>
@@ -278,7 +288,7 @@ function ScheduleRow({ schedule, onPress }: { schedule: CruiseSchedule; onPress:
           {schedule.scheduleType ? <Text style={styles.scheduleType}>{schedule.scheduleType}</Text> : null}
         </View>
         <Text style={styles.scheduleMeta} numberOfLines={2}>
-          {[schedule.port.portName, schedule.berthName, schedule.departureTime && `출항 ${schedule.departureTime}`].filter(Boolean).join(' · ')}
+          {[schedule.port?.portName, schedule.berthName, schedule.departureTime && `출항 ${schedule.departureTime}`].filter(Boolean).join(' · ')}
         </Text>
         <Text style={styles.scheduleRoute} numberOfLines={2}>
           {[schedule.previousPortName && `전항 ${schedule.previousPortName}`, schedule.nextPortName && `차항 ${schedule.nextPortName}`].filter(Boolean).join(' · ') ||
@@ -432,7 +442,7 @@ function ScheduleDetailModal({
           <View style={styles.modalHandle} />
           <View style={styles.modalHeader}>
             <View style={styles.modalTitleBox}>
-              <Text style={styles.modalEyebrow}>{schedule?.port.portName ?? '크루즈 일정'}</Text>
+              <Text style={styles.modalEyebrow}>{schedule?.port?.portName ?? '크루즈 일정'}</Text>
               <Text style={styles.modalTitle}>{schedule?.vesselName ?? (loading ? '상세 조회 중' : '일정 상세')}</Text>
             </View>
             <Pressable accessibilityRole="button" accessibilityLabel="닫기" onPress={onClose} style={styles.closeButton}>
@@ -468,7 +478,7 @@ function ScheduleDetailModal({
 
                 <View style={styles.detailSection}>
                   <Text style={styles.detailSectionTitle}>운항 경로</Text>
-                  <DetailLine label="터미널" value={schedule.port.terminalName} />
+                  <DetailLine label="터미널" value={schedule.port?.terminalName} />
                   <DetailLine label="출항지" value={schedule.homePortName} />
                   <DetailLine label="전항지" value={schedule.previousPortName} />
                   <DetailLine label="차항지" value={schedule.nextPortName} />
