@@ -190,9 +190,13 @@ export class IslandTripsService {
                r.traffic_info, r.lodging_info, r.food_info, r.nearby_attractions,
                r.photo_urls, r.source_data, r.highlights, r.tags, r.travel_styles,
                r.source_title, r.source_url, r.source_type, r.priority,
-               im.id AS master_id, im.island_name AS master_island_name, im.province_name AS master_province_name,
-               im.city_name AS master_city_name, im.address AS master_address, im.latitude AS master_latitude,
-               im.longitude AS master_longitude, im.travel_region_id AS master_travel_region_id,
+               im.id AS master_id, im.island_name AS master_island_name,
+               split_part(im.legal_dong_name, ' ', 1) AS master_province_name,
+               nullif(regexp_replace(im.legal_dong_name, '^[^ ]+[[:space:]]*', ''), '') AS master_city_name,
+               im.legal_dong_name AS master_address,
+               vf.latitude::float AS master_latitude,
+               vf.longitude::float AS master_longitude,
+               im.travel_region_id AS master_travel_region_id,
                im.travel_region_name AS master_travel_region_name, im.forecast_location_id AS master_forecast_location_id,
                im.forecast_location_name AS master_forecast_location_name
         FROM recommended_island r
@@ -203,10 +207,14 @@ export class IslandTripsService {
              OR im.island_name = regexp_replace(r.island_name, '(도|섬)$', '')
              OR r.island_name = regexp_replace(im.island_name, '(도|섬)$', '')
           ORDER BY
-            CASE WHEN im.province_name = r.province_name THEN 0 ELSE 1 END,
-            CASE WHEN im.city_name = r.city_name THEN 0 ELSE 1 END
+            CASE WHEN split_part(im.legal_dong_name, ' ', 1) = r.province_name THEN 0 ELSE 1 END,
+            CASE WHEN im.legal_dong_name ILIKE '%' || COALESCE(r.city_name, '') || '%' THEN 0 ELSE 1 END
           LIMIT 1
         ) im ON true
+        LEFT JOIN vworld_island_feature vf
+          ON vf.island_unique_no = im.island_unique_no
+          OR vf.legal_dong_code = im.legal_dong_code
+          OR vf.island_name = im.island_name
         WHERE r.active = true
           ${regionClauses.length > 0 ? `AND (${regionClauses.join(' OR ')})` : ''}
         ORDER BY r.priority DESC, r.island_name ASC

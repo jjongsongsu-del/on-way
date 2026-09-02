@@ -288,17 +288,33 @@ function isRelevantToGyeonggiSea(row) {
 
 async function loadMatchingContext() {
   const islands = await prisma.$queryRawUnsafe(`
-    SELECT id, island_name, province_name, city_name, address, latitude, longitude, travel_region_id, travel_region_name
-    FROM island_master
-    WHERE province_name = '경기도'
-       OR city_name IN ('안산시', '화성시', '시흥시', '평택시', '김포시')
-       OR island_name IN ('대부도', '제부도', '풍도', '육도', '국화도', '입파도', '도리도')
+    SELECT im.id,
+           im.island_name,
+           split_part(im.legal_dong_name, ' ', 1) AS province_name,
+           nullif(regexp_replace(im.legal_dong_name, '^[^ ]+[[:space:]]*', ''), '') AS city_name,
+           im.legal_dong_name AS address,
+           vf.latitude::float AS latitude,
+           vf.longitude::float AS longitude,
+           im.travel_region_id,
+           im.travel_region_name
+    FROM island_master im
+    LEFT JOIN vworld_island_feature vf
+      ON vf.island_unique_no = im.island_unique_no
+      OR vf.legal_dong_code = im.legal_dong_code
+      OR vf.island_name = im.island_name
+    WHERE im.legal_dong_name ILIKE '경기도%'
+       OR im.legal_dong_name ILIKE '%안산시%'
+       OR im.legal_dong_name ILIKE '%화성시%'
+       OR im.legal_dong_name ILIKE '%시흥시%'
+       OR im.legal_dong_name ILIKE '%평택시%'
+       OR im.legal_dong_name ILIKE '%김포시%'
+       OR im.island_name IN ('대부도', '제부도', '풍도', '육도', '국화도', '입파도', '도리도')
   `);
   const regions = await prisma.$queryRawUnsafe(`
-    SELECT id, region_name
+    SELECT id, name AS region_name
     FROM island_travel_region
-    WHERE region_name ILIKE '%경기%' OR region_name ILIKE '%수도%' OR region_name ILIKE '%서해%'
-    ORDER BY CASE WHEN region_name ILIKE '%경기%' THEN 0 WHEN region_name ILIKE '%수도%' THEN 1 ELSE 2 END
+    WHERE name ILIKE '%경기%' OR name ILIKE '%수도%' OR name ILIKE '%서해%'
+    ORDER BY CASE WHEN name ILIKE '%경기%' THEN 0 WHEN name ILIKE '%수도%' THEN 1 ELSE 2 END
     LIMIT 3
   `);
   return { islands, defaultRegion: regions[0] || null };
