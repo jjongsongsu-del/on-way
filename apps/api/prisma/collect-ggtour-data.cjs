@@ -472,12 +472,9 @@ function findMatchedIsland(row, islands) {
   const direct = islands.find((island) => {
     const name = normalize(island.island_name || '');
     const stem = name.replace(/[도섬]$/, '');
-    const city = normalize(island.city_name || '');
-    const cityBase = city.match(/^(.+?[시군])/u)?.[1] || city.split(/[\s,]+/)[0] || '';
     if (!name) return false;
-    if (text.includes(name)) return true;
-    if (stem.length >= 2 && (titleText.includes(stem) || locationText.includes(stem))) return true;
-    return cityBase.length >= 2 && locationText.includes(cityBase) && (titleText.includes(stem) || bodyText.includes(name));
+    if (titleText.includes(name) || locationText.includes(name)) return true;
+    return stem.length >= 2 && (titleText.includes(stem) || locationText.includes(stem));
   });
   if (direct) return direct;
 

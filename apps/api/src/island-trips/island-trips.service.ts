@@ -2054,10 +2054,8 @@ function isGgTourContentRelevantToParams(row: GgTourContentRow, params: TravelIn
   const cityName = normalizeCompact(params.cityName);
   const cityBase = cityName.match(/^(.+?[시군])/u)?.[1] ?? cityName.split(/[\s,]+/)[0] ?? '';
 
-  if (islandName && text.includes(islandName)) return true;
+  if (islandName && (titleText.includes(islandName) || locationText.includes(islandName))) return true;
   if (islandStem && islandStem.length >= 2 && (titleText.includes(islandStem) || locationText.includes(islandStem))) return true;
-  if (cityBase && cityBase.length >= 2 && locationText.includes(cityBase)) return true;
-  if (cityName && cityName.length >= 4 && locationText.includes(cityName)) return true;
 
   if (
     params.latitude !== undefined && params.longitude !== undefined &&
