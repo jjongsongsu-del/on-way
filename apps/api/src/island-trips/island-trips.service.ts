@@ -265,6 +265,7 @@ export class IslandTripsService {
     );
 
     const scoredAssets = rows
+      .filter((row) => isTravelAssetRelevantToKeyword(row, params.keyword))
       .map((row) => this.toRecommendationAsset(row, params))
       .map((asset) => boostRecommendationBySeedAsset(asset, seedAsset))
       .sort((left, right) => right.recommendationScore - left.recommendationScore || left.name.localeCompare(right.name, 'ko-KR'))
@@ -334,7 +335,9 @@ export class IslandTripsService {
 
     return toApiResponse(
       this.createResult(
-        rows.map((row) => this.toRecommendationAsset(row, { keyword })),
+        rows
+          .filter((row) => isTravelAssetRelevantToKeyword(row, keyword))
+          .map((row) => this.toRecommendationAsset(row, { keyword })),
         'LOCAL',
         'travel-assets-search'
       )
@@ -1290,6 +1293,21 @@ function toRecommendedIsland(row: RecommendedIslandRow): RecommendedIsland {
     matchedIsland,
     photo: null
   };
+}
+
+function isTravelAssetRelevantToKeyword(row: TravelAssetRow, keyword?: string | null) {
+  const normalizedKeyword = normalizeSearchKeyword(keyword ?? undefined);
+  if (!normalizedKeyword) return true;
+  if (row.source_dataset_pk !== 'GGTOUR_OPEN_API') return true;
+
+  const islandStem = normalizedKeyword.replace(/[도섬]$/, '');
+  const text = normalizeCompact([row.name, row.address].filter(Boolean).join(' '));
+  if (normalizedKeyword.endsWith('도') || normalizedKeyword.endsWith('섬')) {
+    if (hasIslandNameOccurrence(text, normalizedKeyword)) return true;
+    return islandStem.length >= 2 && hasIslandPlaceStem(text, islandStem);
+  }
+
+  return text.includes(normalizedKeyword);
 }
 
 function addKeywordFilter(whereClauses: string[], values: unknown[], keyword?: string) {
