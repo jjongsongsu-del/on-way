@@ -10,7 +10,7 @@ const prisma = new PrismaClient();
 const args = parseArgs(process.argv.slice(2));
 const baseUrl = String(process.env.GGTOUR_API_BASE_URL || 'https://ggtour.or.kr/ggapi-svc/api/v1').replace(/\/$/, '');
 const apiKey = process.env.GGTOUR_API_KEY;
-const selectedPath = args.path || process.env.GGTOUR_API_PATH || null;
+const selectedPath = args.path || process.env.GGTOUR_API_PATH || '/api/v1/contents/list';
 const specPath = args['spec-path'] || process.env.GGTOUR_OPENAPI_SPEC_PATH || null;
 const pages = args.pages === 'all' ? 'all' : Number(args.pages || 1);
 const pageSize = Number(args['page-size'] || 100);
@@ -18,12 +18,13 @@ const limit = args.limit ? Number(args.limit) : null;
 const delayMs = Number(args['delay-ms'] || 120);
 const dryRun = args['dry-run'] === true;
 const discoverOnly = args.discover === true;
+const includeDetails = args.details === true || args.details === 'true';
 
 async function main() {
-  if (!apiKey) throw new Error('GGTOUR_API_KEY is required. Add it to .env or the server environment.');
+  if (!apiKey && !discoverOnly) throw new Error('GGTOUR_API_KEY is required. Add it to .env or the server environment.');
 
   const spec = selectedPath && args['skip-spec'] === true ? null : await fetchOpenApiSpec();
-  const candidates = selectedPath ? [{ path: selectedPath, method: 'get', parameters: [] }] : discoverGetPaths(spec);
+  const candidates = selectedPath ? [{ path: selectedPath, method: selectedPath.includes('/contents/list') ? 'post' : 'get', parameters: [] }] : discoverGetPaths(spec);
 
   if (discoverOnly) {
     console.log(JSON.stringify({ baseUrl, candidates: candidates.slice(0, 40) }, null, 2));
@@ -74,6 +75,7 @@ async function fetchOpenApiSpec() {
   const paths = specPath
     ? [specPath]
     : [
+        '/ggapi-svc/api/v1/docs/json',
         '/v3/api-docs',
         '/api-docs',
         '/swagger/v1/swagger.json',
@@ -97,10 +99,13 @@ async function collectPath(candidate, warnings) {
   const records = [];
   const maxPages = pages === 'all' ? 1000 : pages;
   for (let page = 1; page <= maxPages; page += 1) {
-    const params = buildParams(candidate, page);
     let response;
     try {
-      response = await fetchJson(candidate.path, params);
+      if (candidate.method === 'post' || candidate.path.includes('/contents/list')) {
+        response = await postJson(candidate.path, buildGgTourListBody(page));
+      } else {
+        response = await fetchJson(candidate.path, buildParams(candidate, page));
+      }
     } catch (error) {
       warnings.push(`${candidate.path}: ${error.message}`);
       break;
@@ -108,22 +113,54 @@ async function collectPath(candidate, warnings) {
 
     const items = extractItems(response);
     if (items.length === 0) break;
-    items.forEach((item, index) => records.push({ ...item, __sourcePath: candidate.path, __page: page, __index: index }));
+
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index];
+      const detail = includeDetails ? await fetchGgTourDetail(item, warnings) : null;
+      records.push({ ...item, ...(detail || {}), __sourcePath: candidate.path, __page: page, __index: index });
+      if (includeDetails) await sleep(Math.max(40, Math.floor(delayMs / 2)));
+    }
+
     if (limit && records.length >= limit) break;
-    if (items.length < Math.min(pageSize, 20)) break;
+    const totalPages = Number(response?.paging?.total_page_count || response?.paging?.totalPageCount || response?.paging?.totalPages || 0);
+    if (totalPages && page >= totalPages) break;
+    if (items.length === 0) break;
     if (page < maxPages) await sleep(delayMs);
   }
   return limit ? records.slice(0, limit) : records;
+}
+
+function buildGgTourListBody(page) {
+  const body = {
+    sort_type: String(args['sort-type'] || 'latest'),
+    page_no: page
+  };
+  if (args.keyword) body.keyword = String(args.keyword);
+  if (args.sigugun || args.sigugun_code) body.sigugun_code = String(args.sigugun || args.sigugun_code);
+  if (args.category || args.ctgry_sn) body.ctgry_sn = String(args.category || args.ctgry_sn);
+  return body;
+}
+
+async function fetchGgTourDetail(item, warnings) {
+  const cotId = pick(item, ['cot_id', 'cotId', 'contentId', 'contentsId', 'id']);
+  if (!cotId) return null;
+  try {
+    const response = await postJson('/api/v1/contents/info', { cot_id: cotId });
+    return response && typeof response === 'object' && response.data && typeof response.data === 'object' ? response.data : null;
+  } catch (error) {
+    warnings.push(`/api/v1/contents/info:${cotId}: ${error.message}`);
+    return null;
+  }
 }
 
 function discoverGetPaths(spec) {
   const paths = spec && typeof spec === 'object' ? spec.paths || {} : {};
   return Object.entries(paths)
     .flatMap(([apiPath, operations]) => Object.entries(operations || {}).map(([method, operation]) => ({ apiPath, method, operation })))
-    .filter((entry) => String(entry.method).toLowerCase() === 'get')
+    .filter((entry) => ['get', 'post'].includes(String(entry.method).toLowerCase()))
     .map((entry) => ({
       path: entry.apiPath,
-      method: 'get',
+      method: String(entry.method).toLowerCase(),
       summary: entry.operation?.summary || entry.operation?.description || '',
       parameters: entry.operation?.parameters || []
     }))
@@ -146,6 +183,14 @@ function scorePath(apiPath, summary) {
 
 function isKnownQueryParam(name) {
   return /^(page|pageNo|pageIndex|currentPage|size|pageSize|perPage|numOfRows|limit|keyword|q|search|searchKeyword|sigungu|sigunguCode|area|areaCode|lang|type|format)$/i.test(String(name));
+}
+
+
+function createGgTourUrl(pathValue, options = {}) {
+  if (pathValue.startsWith('http')) return new URL(pathValue);
+  if (pathValue.startsWith('/ggapi-svc/')) return new URL(`https://ggtour.or.kr${pathValue}`);
+  if (pathValue.startsWith('/api/v1/')) return new URL(`${baseUrl.replace(/\/api\/v1$/, '')}${pathValue}`);
+  return new URL(`${baseUrl}${pathValue.startsWith('/') ? pathValue : `/${pathValue}`}`);
 }
 
 function buildParams(candidate, page) {
@@ -172,28 +217,51 @@ function buildParams(candidate, page) {
   return params;
 }
 
+async function postJson(apiPath, body = {}) {
+  const pathValue = String(apiPath);
+  const url = createGgTourUrl(pathValue);
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      ...(apiKey ? { 'GGTOUR-API-KEY': apiKey } : {}),
+      'Content-Type': 'application/json;charset=UTF-8',
+      'Accept': 'application/json'
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(20000)
+  });
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+  const json = await response.json();
+  if (json && typeof json === 'object' && json.result_code && Number(json.result_code) !== 200) {
+    throw new Error(`${json.result_code} ${json.result_message || 'GGTOUR API error'}`);
+  }
+  return json;
+}
+
 async function fetchJson(apiPath, params = {}, options = {}) {
   const pathValue = String(apiPath);
-  const url = pathValue.startsWith('http')
-    ? new URL(pathValue)
-    : new URL(options.allowAbsolutePath && pathValue.startsWith('/ggapi-svc/') ? `https://ggtour.or.kr${pathValue}` : `${baseUrl}${pathValue.startsWith('/') ? pathValue : `/${pathValue}`}`);
+  const url = createGgTourUrl(pathValue, options);
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, String(value));
   });
-  const response = await fetch(url, { headers: { 'GGTOUR-API-KEY': apiKey }, signal: AbortSignal.timeout(20000) });
+  const response = await fetch(url, { headers: { ...(apiKey ? { 'GGTOUR-API-KEY': apiKey } : {}), 'Accept': 'application/json' }, signal: AbortSignal.timeout(20000) });
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-  return response.json();
+  const json = await response.json();
+  if (json && typeof json === 'object' && json.result_code && Number(json.result_code) !== 200) {
+    throw new Error(`${json.result_code} ${json.result_message || 'GGTOUR API error'}`);
+  }
+  return json;
 }
 
 function normalizeContent(item) {
   const raw = stripInternal(item);
-  const title = pick(item, ['title', 'name', 'contentTitle', 'contentName', 'touristSpotName', 'placeName', 'facltNm', '업소명', '관광지명', '명칭', '제목']);
-  const address = pick(item, ['address', 'addr', 'addr1', 'roadAddress', 'jibunAddress', 'refineRoadnmAddr', 'refineLotnoAddr', '소재지', '주소', '도로명주소']);
-  const category = pick(item, ['category', 'catName', 'contentType', 'contentTypeName', 'themeName', 'type', '분류', '콘텐츠유형']);
-  const contentId = pick(item, ['contentId', 'contentsId', 'id', 'seq', 'idx', '관광지ID', '콘텐츠ID']);
-  const sigunguName = pick(item, ['sigunguName', 'sigungu', 'cityName', 'signguNm', 'areaName', '시군명', '시군구']);
-  const lat = pickNumber(item, ['latitude', 'lat', 'mapY', 'y', 'refineWgs84Lat', '위도']);
-  const lng = pickNumber(item, ['longitude', 'lng', 'lon', 'mapX', 'x', 'refineWgs84Logt', '경도']);
+  const title = pick(item, ['cot_conts_name', 'title', 'name', 'contentTitle', 'contentName', 'touristSpotName', 'placeName', 'facltNm', '업소명', '관광지명', '명칭', '제목']);
+  const address = pick(item, ['addr1', 'addr2', 'cot_addr_full_new', 'cot_addr_full_old', 'address', 'addr', 'roadAddress', 'jibunAddress', 'refineRoadnmAddr', 'refineLotnoAddr', '소재지', '주소', '도로명주소']);
+  const category = pick(item, ['category_nm', 'ctgry_nm', 'category', 'catName', 'contentType', 'contentTypeName', 'themeName', 'type', '분류', '콘텐츠유형']);
+  const contentId = pick(item, ['cot_id', 'contentId', 'contentsId', 'id', 'seq', 'idx', '관광지ID', '콘텐츠ID']);
+  const sigunguName = pick(item, ['sigugun_nm', 'sigunguName', 'sigungu', 'cityName', 'signguNm', 'areaName', '시군명', '시군구']);
+  const lat = pickNumber(item, ['lat', 'latitude', 'mapY', 'y', 'refineWgs84Lat', '위도']);
+  const lng = pickNumber(item, ['lng', 'longitude', 'lon', 'mapX', 'x', 'refineWgs84Logt', '경도']);
   return {
     id: hash(['ggtour', contentId, title, address].filter(Boolean).join(':')),
     contentId,
@@ -203,11 +271,11 @@ function normalizeContent(item) {
     address,
     latitude: lat,
     longitude: lng,
-    tel: pick(item, ['tel', 'telephone', 'phone', 'contact', '문의처', '전화번호']),
-    homepageUrl: pick(item, ['homepage', 'homepageUrl', 'url', 'website', '홈페이지']),
-    imageUrl: pick(item, ['imageUrl', 'firstImage', 'firstimage', 'thumbnailUrl', 'imgUrl', 'mainImage', '이미지URL']),
-    summary: pick(item, ['summary', 'subtitle', 'overview', 'intro', 'description', '소개', '개요', '요약']),
-    description: pick(item, ['description', 'content', 'contents', 'detail', 'body', '상세내용', '내용']),
+    tel: pick(item, ['telno', 'tel', 'telephone', 'phone', 'contact', '문의처', '전화번호']),
+    homepageUrl: pick(item, ['homepage_url', 'homepage', 'homepageUrl', 'url', 'website', '홈페이지']),
+    imageUrl: pick(item, ['img_url', 'image_url', 'imageUrl', 'firstImage', 'firstimage', 'thumbnailUrl', 'imgUrl', 'mainImage', '이미지URL']),
+    summary: pick(item, ['cot_summary', 'summary', 'subtitle', 'overview', 'intro', 'description', '소개', '개요', '요약']),
+    description: pick(item, ['cot_conts', 'description', 'content', 'contents', 'detail', 'body', '상세내용', '내용']),
     sourceUrl: pick(item, ['sourceUrl', 'detailUrl', 'url', 'homepageUrl']),
     raw
   };
