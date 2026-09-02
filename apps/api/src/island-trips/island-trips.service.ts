@@ -2039,8 +2039,11 @@ function createGgTourKeywordParts(params: TravelInfoParams) {
 }
 
 function isGgTourContentRelevantToParams(row: GgTourContentRow, params: TravelInfoParams) {
-  const text = normalizeCompact([row.title, row.address, row.sigungu_name, row.summary, row.description].filter(Boolean).join(' '));
-  if (!text) return false;
+  const titleText = normalizeCompact(row.title);
+  const locationText = normalizeCompact([row.address, row.sigungu_name].filter(Boolean).join(' '));
+  const bodyText = normalizeCompact([row.summary, row.description].filter(Boolean).join(' '));
+  const text = `${titleText} ${locationText} ${bodyText}`;
+  if (!text.trim()) return false;
 
   const textProvince = findKoreanProvince(text);
   const requestedProvince = findKoreanProvince(normalizeCompact(params.provinceName));
@@ -2048,13 +2051,13 @@ function isGgTourContentRelevantToParams(row: GgTourContentRow, params: TravelIn
 
   const islandName = normalizeCompact(normalizeIslandName(params.islandName));
   const islandStem = islandName.replace(/[도섬]$/, '');
-  const cityParts = normalizeCompact(params.cityName).split(/(?=시|군|구)/).filter(Boolean);
   const cityName = normalizeCompact(params.cityName);
+  const cityBase = cityName.match(/^(.+?[시군])/u)?.[1] ?? cityName.split(/[\s,]+/)[0] ?? '';
 
   if (islandName && text.includes(islandName)) return true;
-  if (islandStem && islandStem.length >= 2 && text.includes(islandStem)) return true;
-  if (cityName && text.includes(cityName)) return true;
-  if (cityParts.some((part) => part.length >= 2 && text.includes(part))) return true;
+  if (islandStem && islandStem.length >= 2 && (titleText.includes(islandStem) || locationText.includes(islandStem))) return true;
+  if (cityBase && cityBase.length >= 2 && locationText.includes(cityBase)) return true;
+  if (cityName && cityName.length >= 4 && locationText.includes(cityName)) return true;
 
   if (
     params.latitude !== undefined && params.longitude !== undefined &&

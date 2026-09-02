@@ -464,11 +464,20 @@ function toTravelAsset(row, context) {
 }
 
 function findMatchedIsland(row, islands) {
-  const text = normalize(`${row.title} ${row.address || ''} ${row.summary || ''} ${row.description || ''}`);
+  const titleText = normalize(row.title || '');
+  const locationText = normalize(`${row.sigunguName || ''} ${row.address || ''}`);
+  const bodyText = normalize(`${row.summary || ''} ${row.description || ''}`);
+  const text = `${titleText} ${locationText} ${bodyText}`;
+
   const direct = islands.find((island) => {
     const name = normalize(island.island_name || '');
     const stem = name.replace(/[도섬]$/, '');
-    return name && (text.includes(name) || (stem.length >= 2 && text.includes(stem)));
+    const city = normalize(island.city_name || '');
+    const cityBase = city.match(/^(.+?[시군])/u)?.[1] || city.split(/[\s,]+/)[0] || '';
+    if (!name) return false;
+    if (text.includes(name)) return true;
+    if (stem.length >= 2 && (titleText.includes(stem) || locationText.includes(stem))) return true;
+    return cityBase.length >= 2 && locationText.includes(cityBase) && (titleText.includes(stem) || bodyText.includes(name));
   });
   if (direct) return direct;
 
