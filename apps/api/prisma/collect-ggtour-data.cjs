@@ -11,6 +11,7 @@ const args = parseArgs(process.argv.slice(2));
 const baseUrl = String(process.env.GGTOUR_API_BASE_URL || 'https://ggtour.or.kr/ggapi-svc/api/v1').replace(/\/$/, '');
 const apiKey = process.env.GGTOUR_API_KEY;
 const selectedPath = args.path || process.env.GGTOUR_API_PATH || null;
+const specPath = args['spec-path'] || process.env.GGTOUR_OPENAPI_SPEC_PATH || null;
 const pages = args.pages === 'all' ? 'all' : Number(args.pages || 1);
 const pageSize = Number(args['page-size'] || 100);
 const limit = args.limit ? Number(args.limit) : null;
@@ -21,7 +22,7 @@ const discoverOnly = args.discover === true;
 async function main() {
   if (!apiKey) throw new Error('GGTOUR_API_KEY is required. Add it to .env or the server environment.');
 
-  const spec = await fetchJson('/v3/api-docs');
+  const spec = selectedPath && args['skip-spec'] === true ? null : await fetchOpenApiSpec();
   const candidates = selectedPath ? [{ path: selectedPath, method: 'get', parameters: [] }] : discoverGetPaths(spec);
 
   if (discoverOnly) {
@@ -66,6 +67,30 @@ async function main() {
   await upsertTravelAssetMatches(matchRows);
 
   console.log(JSON.stringify(summary, null, 2));
+}
+
+
+async function fetchOpenApiSpec() {
+  const paths = specPath
+    ? [specPath]
+    : [
+        '/v3/api-docs',
+        '/api-docs',
+        '/swagger/v1/swagger.json',
+        '/swagger.json',
+        '/openapi.json',
+        '/ggapi-svc/api/v1/v3/api-docs',
+        '/ggapi-svc/api/v1/api-docs'
+      ];
+  const errors = [];
+  for (const path of paths) {
+    try {
+      return await fetchJson(path, {}, { allowAbsolutePath: true });
+    } catch (error) {
+      errors.push(`${path}: ${error.message}`);
+    }
+  }
+  throw new Error(`Unable to fetch GGTOUR OpenAPI spec. Try --spec-path with the Swagger JSON path. Attempts: ${errors.join(' / ')}`);
 }
 
 async function collectPath(candidate, warnings) {
@@ -147,8 +172,11 @@ function buildParams(candidate, page) {
   return params;
 }
 
-async function fetchJson(apiPath, params = {}) {
-  const url = new URL(`${baseUrl}${apiPath.startsWith('/') ? apiPath : `/${apiPath}`}`);
+async function fetchJson(apiPath, params = {}, options = {}) {
+  const pathValue = String(apiPath);
+  const url = pathValue.startsWith('http')
+    ? new URL(pathValue)
+    : new URL(options.allowAbsolutePath && pathValue.startsWith('/ggapi-svc/') ? `https://ggtour.or.kr${pathValue}` : `${baseUrl}${pathValue.startsWith('/') ? pathValue : `/${pathValue}`}`);
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, String(value));
   });

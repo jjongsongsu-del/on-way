@@ -6,7 +6,8 @@ export class GgTourApiClient {
   constructor(private readonly configService: ConfigService) {}
 
   async getOpenApiSpec<T = unknown>() {
-    return this.getJson<T>('/v3/api-docs');
+    const path = this.configService.get<string>('GGTOUR_OPENAPI_SPEC_PATH', '/v3/api-docs');
+    return this.getJson<T>(path);
   }
 
   async getContents<T = unknown>(path: string, params: Record<string, string | number | undefined> = {}) {
