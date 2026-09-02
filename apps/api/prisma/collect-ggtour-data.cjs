@@ -20,6 +20,7 @@ const dryRun = args['dry-run'] === true;
 const discoverOnly = args.discover === true;
 const includeDetails = args.details === true || args.details === 'true';
 const debugDetails = args['debug-details'] === true || args['debug-details'] === 'true';
+const detailsAll = args['details-all'] === true || args['details-all'] === 'true';
 
 async function main() {
   if (!apiKey && !discoverOnly) throw new Error('GGTOUR_API_KEY is required. Add it to .env or the server environment.');
@@ -118,9 +119,11 @@ async function collectPath(candidate, warnings) {
     for (let index = 0; index < items.length; index += 1) {
       if (limit && records.length >= limit) break;
       const item = items[index];
-      const detail = includeDetails ? await fetchGgTourDetail(item, warnings) : null;
+      const listRow = normalizeContent(item);
+      const shouldFetchDetail = includeDetails && (detailsAll || isRelevantToGyeonggiSea(listRow));
+      const detail = shouldFetchDetail ? await fetchGgTourDetail(item, warnings) : null;
       records.push({ ...item, ...(detail || {}), __sourcePath: candidate.path, __page: page, __index: index });
-      if (includeDetails) await sleep(Math.max(40, Math.floor(delayMs / 2)));
+      if (shouldFetchDetail) await sleep(Math.max(40, Math.floor(delayMs / 2)));
     }
 
     if (limit && records.length >= limit) break;
@@ -147,13 +150,17 @@ async function fetchGgTourDetail(item, warnings) {
   const cotId = pick(item, ['cot_id', 'cotId', 'contentId', 'contentsId', 'id']);
   if (!cotId) return null;
 
-  const attempts = [
-    { label: 'json:cot_id', body: { cot_id: cotId }, mode: 'json' },
-    { label: 'json:cotId', body: { cotId }, mode: 'json' },
-    { label: 'json:id', body: { id: cotId }, mode: 'json' },
-    { label: 'form:cot_id', body: { cot_id: cotId }, mode: 'form' },
-    { label: 'query:cot_id', body: { cot_id: cotId }, mode: 'query' }
-  ];
+  const attempts = debugDetails
+    ? [
+        { label: 'json:cot_id', body: { cot_id: cotId }, mode: 'json' },
+        { label: 'json:cotId', body: { cotId }, mode: 'json' },
+        { label: 'json:id', body: { id: cotId }, mode: 'json' },
+        { label: 'form:cot_id', body: { cot_id: cotId }, mode: 'form' },
+        { label: 'query:cot_id', body: { cot_id: cotId }, mode: 'query' }
+      ]
+    : [
+        { label: 'json:cot_id', body: { cot_id: cotId }, mode: 'json' }
+      ];
 
   const errors = [];
   for (const attempt of attempts) {
