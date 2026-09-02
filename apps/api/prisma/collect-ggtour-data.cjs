@@ -116,6 +116,7 @@ async function collectPath(candidate, warnings) {
     if (items.length === 0) break;
 
     for (let index = 0; index < items.length; index += 1) {
+      if (limit && records.length >= limit) break;
       const item = items[index];
       const detail = includeDetails ? await fetchGgTourDetail(item, warnings) : null;
       records.push({ ...item, ...(detail || {}), __sourcePath: candidate.path, __page: page, __index: index });
@@ -284,6 +285,13 @@ async function fetchJson(apiPath, params = {}, options = {}) {
   return json;
 }
 
+
+
+function truncate(value, maxLength = 1000) {
+  if (value === undefined || value === null) return null;
+  const text = String(value).replace(/\s+/g, ' ').trim();
+  return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
+}
 
 function parseJsonText(text) {
   if (!text) return null;
