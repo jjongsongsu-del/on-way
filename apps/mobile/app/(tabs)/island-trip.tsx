@@ -107,11 +107,20 @@ type UnifiedSearchResult = {
 
 type UnifiedSearchFilter = '전체' | UnifiedSearchResult['group'];
 
-type IslandTravelRegionOption = {
+type IslandRegionMode = 'travel' | 'forecast' | 'admin';
+
+type IslandRegionOption = {
   id: string;
   name: string;
   count: number;
+  mode: IslandRegionMode;
 };
+
+const islandRegionModeOptions: { key: IslandRegionMode; label: string; description: string }[] = [
+  { key: 'travel', label: '여행권역', description: '여행지로 이해하기 쉬운 권역' },
+  { key: 'forecast', label: '예보권역', description: '날씨와 해양예보 연결용' },
+  { key: 'admin', label: '행정권역', description: '시도와 시군구 기준' }
+];
 
 type TravelInfoCardItem = {
   id: string;
@@ -316,6 +325,7 @@ export default function IslandTripScreen() {
   const [pendingFavoriteIsland, setPendingFavoriteIsland] = useState<IslandSummary | null>(null);
   const [selectedTravelItem, setSelectedTravelItem] = useState<TravelInfoCardItem | null>(null);
   const [selectedTravelRegionId, setSelectedTravelRegionId] = useState<string | null>(null);
+  const [selectedIslandRegionMode, setSelectedIslandRegionMode] = useState<IslandRegionMode>('travel');
   const [selectedRecommendedRegionId, setSelectedRecommendedRegionId] = useState<string | null>(null);
 
   const islandsQuery = useQuery({
@@ -334,13 +344,16 @@ export default function IslandTripScreen() {
     staleTime: 24 * 60 * 60 * 1000
   });
   const travelRegions = forecastLocationsQuery.data ?? [];
-  const islandTravelRegions = useMemo(() => buildIslandTravelRegionOptions(islandsQuery.data?.data ?? []), [islandsQuery.data?.data]);
-  const selectedRecommendedRegion = islandTravelRegions.find((region) => region.id === selectedRecommendedRegionId) ?? islandTravelRegions[0] ?? null;
+  const islandRegionOptions = useMemo(
+    () => buildIslandRegionOptions(islandsQuery.data?.data ?? [], selectedIslandRegionMode),
+    [islandsQuery.data?.data, selectedIslandRegionMode]
+  );
+  const selectedRecommendedRegion = islandRegionOptions.find((region) => region.id === selectedRecommendedRegionId) ?? islandRegionOptions[0] ?? null;
   const selectedRegionIslands = useMemo(() => {
     if (!selectedRecommendedRegion) return [];
 
     return (islandsQuery.data?.data ?? [])
-      .filter((island) => island.travelRegionId === selectedRecommendedRegion.id)
+      .filter((island) => islandMatchesRegionOption(island, selectedRecommendedRegion))
       .sort((left, right) => left.islandName.localeCompare(right.islandName, 'ko-KR'));
   }, [islandsQuery.data?.data, selectedRecommendedRegion]);
   const regionIslands = useMemo(() => {
@@ -538,6 +551,17 @@ export default function IslandTripScreen() {
     setFocusedTripId(null);
   };
 
+  const selectIslandRegionMode = (mode: IslandRegionMode) => {
+    setSelectedIslandRegionMode(mode);
+    setSelectedRecommendedRegionId(null);
+    setRegionSearchKeyword('');
+  };
+
+  const selectIslandRegion = (regionId: string) => {
+    setSelectedRecommendedRegionId(regionId);
+    setRegionSearchKeyword('');
+  };
+
   const selectRegionIsland = (island: IslandSummary) => {
     setDetailIslandOverride(island);
     setFocusedTripId(null);
@@ -703,13 +727,16 @@ export default function IslandTripScreen() {
       </View>
 
       <RecommendedRegionPanel
-        regions={islandTravelRegions}
+        modes={islandRegionModeOptions}
+        selectedMode={selectedIslandRegionMode}
+        regions={islandRegionOptions}
         selectedRegionId={selectedRecommendedRegion?.id ?? null}
         islands={regionIslands}
         totalCount={selectedRegionIslands.length}
         searchKeyword={regionSearchKeyword}
         loading={islandsQuery.isLoading}
-        onSelectRegion={setSelectedRecommendedRegionId}
+        onSelectMode={selectIslandRegionMode}
+        onSelectRegion={selectIslandRegion}
         onChangeSearchKeyword={setRegionSearchKeyword}
         onSelectIsland={selectRegionIsland}
       />
@@ -1229,27 +1256,34 @@ function MiniStat({ label, value }: { label: string; value: string }) {
 }
 
 function RecommendedRegionPanel({
+  modes,
+  selectedMode,
   regions,
   selectedRegionId,
   islands,
   totalCount,
   searchKeyword,
   loading,
+  onSelectMode,
   onSelectRegion,
   onChangeSearchKeyword,
   onSelectIsland
 }: {
-  regions: IslandTravelRegionOption[];
+  modes: typeof islandRegionModeOptions;
+  selectedMode: IslandRegionMode;
+  regions: IslandRegionOption[];
   selectedRegionId: string | null;
   islands: IslandSummary[];
   totalCount: number;
   searchKeyword: string;
   loading: boolean;
+  onSelectMode: (mode: IslandRegionMode) => void;
   onSelectRegion: (regionId: string) => void;
   onChangeSearchKeyword: (keyword: string) => void;
   onSelectIsland: (island: IslandSummary) => void;
 }) {
   const selectedRegion = regions.find((region) => region.id === selectedRegionId) ?? regions[0] ?? null;
+  const selectedModeOption = modes.find((mode) => mode.key === selectedMode) ?? modes[0];
   const hasSearchKeyword = searchKeyword.trim().length > 0;
 
   return (
@@ -1257,11 +1291,26 @@ function RecommendedRegionPanel({
       <View style={styles.sectionHeader}>
         <View>
           <Text style={styles.eyebrow}>권역별로 찾기</Text>
-          <Text style={styles.sectionTitle}>{selectedRegion ? `${selectedRegion.name} 섬 목록` : '여행 권역별 섬 찾기'}</Text>
+          <Text style={styles.sectionTitle}>{selectedRegion ? `${selectedModeOption.label} · ${selectedRegion.name}` : '권역별 섬 찾기'}</Text>
         </View>
         <MapPin color={colors.primary} size={22} />
       </View>
-      <Text style={styles.sectionDescription}>섬마스터의 여행 권역 기준으로 섬을 묶어 보여줍니다. 권역을 고르면 해당 권역의 섬 상세로 바로 이동할 수 있습니다.</Text>
+      <Text style={styles.sectionDescription}>{selectedModeOption.description} 기준으로 섬을 묶어 보여줍니다. 권역을 고르면 해당 권역의 섬 상세로 바로 이동할 수 있습니다.</Text>
+      <View style={styles.regionModeTabs}>
+        {modes.map((mode) => {
+          const selected = mode.key === selectedMode;
+          return (
+            <Pressable
+              key={mode.key}
+              accessibilityRole="button"
+              onPress={() => onSelectMode(mode.key)}
+              style={[styles.regionModeTab, selected ? styles.regionModeTabSelected : null]}
+            >
+              <Text style={[styles.regionModeTabText, selected ? styles.regionModeTabTextSelected : null]}>{mode.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recommendedRegionStrip}>
         {regions.map((region) => {
           const selected = region.id === selectedRegion?.id;
@@ -1296,12 +1345,12 @@ function RecommendedRegionPanel({
       </View>
       {!loading ? (
         <Text style={styles.regionSearchCount}>
-          {hasSearchKeyword ? `검색 결과 ${islands.length}개 / 권역 전체 ${totalCount}개` : `권역 전체 ${totalCount}개`}
+          {hasSearchKeyword ? `검색 결과 ${islands.length}개 / ${selectedModeOption.label} 전체 ${totalCount}개` : `${selectedModeOption.label} 전체 ${totalCount}개`}
         </Text>
       ) : null}
       {loading ? <Text style={styles.travelInfoEmpty}>섬 목록을 불러오고 있습니다.</Text> : null}
       {!loading && islands.length === 0 ? (
-        <Text style={styles.travelInfoEmpty}>{hasSearchKeyword ? '검색어와 일치하는 섬이 없습니다.' : '선택한 권역에 매핑된 섬이 아직 없습니다.'}</Text>
+        <Text style={styles.travelInfoEmpty}>{hasSearchKeyword ? '검색어와 일치하는 섬이 없습니다.' : `선택한 ${selectedModeOption.label}에 매핑된 섬이 아직 없습니다.`}</Text>
       ) : null}
       <View style={styles.recommendedIslandGrid}>
         {islands.map((island) => (
@@ -1312,7 +1361,7 @@ function RecommendedRegionPanel({
             <View style={styles.recommendedIslandCopy}>
               <Text style={styles.recommendedIslandTitle}>{island.islandName}</Text>
               <Text style={styles.recommendedIslandMeta} numberOfLines={1}>
-                {[island.provinceName, island.cityName, island.travelRegionName].filter(Boolean).join(' · ') || '권역 정보 확인 필요'}
+                {formatIslandRegionMeta(island, selectedMode) || '권역 정보 확인 필요'}
               </Text>
               <Text style={styles.recommendedIslandDescription} numberOfLines={2}>
                 {[island.address, island.forecastLocationName ? `예보 ${island.forecastLocationName}` : null].filter(Boolean).join(' · ') || '섬 상세에서 배편, 예보, 지도, 관광 정보를 확인하세요.'}
@@ -2768,19 +2817,58 @@ function normalizeIslandRegionKeyword(value: string | null | undefined) {
   return value?.replace(/\s/g, '').toLowerCase() ?? '';
 }
 
-function buildIslandTravelRegionOptions(islands: IslandSummary[]): IslandTravelRegionOption[] {
-  const counts = new Map<string, IslandTravelRegionOption>();
+function buildIslandRegionOptions(islands: IslandSummary[], mode: IslandRegionMode): IslandRegionOption[] {
+  const counts = new Map<string, IslandRegionOption>();
   islands.forEach((island) => {
-    if (!island.travelRegionId || !island.travelRegionName) return;
-    const current = counts.get(island.travelRegionId);
-    counts.set(island.travelRegionId, {
-      id: island.travelRegionId,
-      name: island.travelRegionName,
-      count: (current?.count ?? 0) + 1
+    const region = getIslandRegionValue(island, mode);
+    if (!region) return;
+
+    const current = counts.get(region.id);
+    counts.set(region.id, {
+      id: region.id,
+      name: region.name,
+      count: (current?.count ?? 0) + 1,
+      mode
     });
   });
 
   return [...counts.values()].sort((left, right) => right.count - left.count || left.name.localeCompare(right.name, 'ko-KR'));
+}
+
+function getIslandRegionValue(island: IslandSummary, mode: IslandRegionMode) {
+  if (mode === 'travel') {
+    if (!island.travelRegionId || !island.travelRegionName) return null;
+    return { id: island.travelRegionId, name: island.travelRegionName };
+  }
+
+  if (mode === 'forecast') {
+    if (!island.forecastLocationId || !island.forecastLocationName) return null;
+    return { id: island.forecastLocationId, name: island.forecastLocationName };
+  }
+
+  const parts = [island.provinceName, island.cityName].filter(Boolean);
+  if (parts.length === 0) return null;
+
+  return {
+    id: parts.join('|'),
+    name: parts.join(' ')
+  };
+}
+
+function islandMatchesRegionOption(island: IslandSummary, region: IslandRegionOption) {
+  const value = getIslandRegionValue(island, region.mode);
+  return value?.id === region.id;
+}
+
+function formatIslandRegionMeta(island: IslandSummary, mode: IslandRegionMode) {
+  const primaryRegion = getIslandRegionValue(island, mode)?.name;
+  const admin = [island.provinceName, island.cityName].filter(Boolean).join(' ');
+  const forecast = island.forecastLocationName ? `예보 ${island.forecastLocationName}` : null;
+  const travel = island.travelRegionName ? `여행 ${island.travelRegionName}` : null;
+
+  if (mode === 'travel') return [primaryRegion, admin, forecast].filter(Boolean).join(' · ');
+  if (mode === 'forecast') return [primaryRegion ? `예보 ${primaryRegion}` : null, admin, travel].filter(Boolean).join(' · ');
+  return [primaryRegion, travel, forecast].filter(Boolean).join(' · ');
 }
 
 function getRegionDeparturePorts(region: MarineForecastLocation | null) {
@@ -3377,6 +3465,33 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: 11,
     padding: 14
+  },
+  regionModeTabs: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8
+  },
+  regionModeTab: {
+    alignItems: 'center',
+    backgroundColor: colors.backgroundSoft,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: 34,
+    paddingHorizontal: 12
+  },
+  regionModeTabSelected: {
+    backgroundColor: colors.primaryDark,
+    borderColor: colors.primaryDark
+  },
+  regionModeTabText: {
+    color: colors.primaryDark,
+    fontSize: 12,
+    fontWeight: '900'
+  },
+  regionModeTabTextSelected: {
+    color: colors.surface
   },
   recommendedRegionStrip: {
     gap: 8,
