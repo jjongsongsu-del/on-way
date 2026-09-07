@@ -38,9 +38,11 @@ async function main() {
     .filter((source) => Number(source.usabilityScore ?? 0) >= 35);
   const sourcePkSet = new Set(selectedSources.map((source) => source.publicDataPk));
 
+  const regionContext = await loadRegionContext();
   const selectedAssets = candidates
     .filter((asset) => sourcePkSet.has(asset.sourceDatasetPk))
     .filter((asset) => Number(asset.matchScore ?? 0) >= minMatchScore)
+    .map((asset) => enrichAssetRegion(asset, regionContext))
     .filter((asset) => asset.travelRegionId)
     .filter((asset) => asset.name || asset.address)
     .slice(0, maxAssets ?? undefined);
@@ -286,6 +288,92 @@ async function countTable(tableName) {
   return rows[0]?.count ?? 0;
 }
 
+async function loadRegionContext() {
+  const islands = await prisma.$queryRawUnsafe(`
+    SELECT island_key, island_name, legal_dong_name, travel_region_id, travel_region_name
+    FROM island_master
+    WHERE travel_region_id IS NOT NULL
+  `);
+  const regions = await prisma.$queryRawUnsafe(`
+    SELECT id, name, province_names, city_names
+    FROM island_travel_region
+    ORDER BY sort_order, name
+  `);
+  return { islands, regions };
+}
+
+function enrichAssetRegion(asset, context) {
+  if (asset.travelRegionId) return asset;
+
+  const island = findAssetIsland(asset, context.islands);
+  if (island?.travel_region_id) {
+    return {
+      ...asset,
+      matchedIslandId: asset.matchedIslandId ?? island.island_key,
+      matchedIslandName: asset.matchedIslandName ?? island.island_name,
+      travelRegionId: island.travel_region_id,
+      travelRegionName: island.travel_region_name,
+      matchType: asset.matchType ?? 'seed_island_region_fallback',
+      matchScore: Math.max(Number(asset.matchScore ?? 0), 60)
+    };
+  }
+
+  const region = findAssetAdminRegion(asset, context.regions);
+  if (region?.id) {
+    return {
+      ...asset,
+      travelRegionId: region.id,
+      travelRegionName: region.name,
+      matchType: asset.matchType ?? 'seed_admin_region_fallback',
+      matchScore: Math.max(Number(asset.matchScore ?? 0), 55)
+    };
+  }
+
+  return asset;
+}
+
+function findAssetIsland(asset, islands) {
+  const matchedIslandId = String(asset.matchedIslandId ?? '');
+  if (matchedIslandId) {
+    const byId = islands.find((island) => String(island.island_key ?? '') === matchedIslandId);
+    if (byId) return byId;
+  }
+
+  const text = normalizeCompact([asset.name, asset.address, asset.legalDongName, asset.matchedIslandName].filter(Boolean).join(' '));
+  return islands.find((island) => {
+    const name = normalizeCompact(island.island_name);
+    const stem = name.replace(/[도섬]$/, '');
+    return name && (hasIslandNameOccurrence(text, name) || (stem.length >= 2 && hasIslandPlaceStem(text, stem)));
+  }) ?? null;
+}
+
+function findAssetAdminRegion(asset, regions) {
+  const text = normalizeCompact([asset.province, asset.city, asset.legalDongName, asset.address].filter(Boolean).join(' '));
+  return regions.find((region) => {
+    const provinceMatch = normalizeStringArray(region.province_names).some((province) => text.includes(normalizeCompact(province)));
+    const cityNames = normalizeStringArray(region.city_names);
+    const cityMatch = cityNames.length === 0 || cityNames.some((city) => text.includes(normalizeCompact(city)));
+    return provinceMatch && cityMatch;
+  }) ?? null;
+}
+
+function normalizeCompact(value) {
+  return String(value ?? '').replace(/\s+/g, '');
+}
+
+function hasIslandNameOccurrence(text, islandName) {
+  const escapedName = escapeRegExp(islandName);
+  return new RegExp(`${escapedName}($|[^가-힣A-Za-z0-9]|도|섬|동|리|면|항|길|해상|해안|해변|해수욕장|산책로|어촌|전망대|펜션|캠핑|축제|체험|마을|먹거리|방아머리|해솔|모세|아트|워터|경관)`, 'u').test(text);
+}
+
+function hasIslandPlaceStem(text, islandStem) {
+  const escapedStem = escapeRegExp(islandStem);
+  return new RegExp(`${escapedStem}(도|섬|동|리|면|항|해변|해수욕장|해솔|방아머리|구봉|탄도|선착장)`, 'u').test(text);
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 function normalizeStringArray(values) {
   return Array.isArray(values)
     ? [...new Set(values.filter((value) => value !== null && value !== undefined).map((value) => String(value).replace(/\u0000/g, '').trim()).filter(Boolean))]

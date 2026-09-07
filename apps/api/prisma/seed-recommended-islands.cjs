@@ -1,4 +1,4 @@
-﻿const { PrismaClient } = require('@prisma/client');
+const { PrismaClient } = require('@prisma/client');
 const fs = require('fs');
 const path = require('path');
 
@@ -199,9 +199,34 @@ async function upsertRecommendedIsland(item) {
 async function main() {
   await ensureTable();
   for (const item of rows) {
-    await upsertRecommendedIsland(item);
+    await upsertRecommendedIsland(await resolveIslandMaster(item));
   }
   console.log(`Seeded ${rows.length} recommended islands.`);
+}
+
+async function resolveIslandMaster(item) {
+  if (item.islandKey) return item;
+
+  const rows = await prisma.$queryRawUnsafe(
+    `
+      SELECT island_key, legal_dong_name
+      FROM island_master
+      WHERE island_name = $1
+         OR island_name = regexp_replace($1, '(도|섬)$', '')
+         OR $1 = regexp_replace(island_name, '(도|섬)$', '')
+      ORDER BY
+        CASE WHEN split_part(legal_dong_name, ' ', 1) = $2 THEN 0 ELSE 1 END,
+        CASE WHEN legal_dong_name ILIKE '%' || COALESCE($3, '') || '%' THEN 0 ELSE 1 END,
+        island_name
+      LIMIT 1
+    `,
+    item.islandName,
+    item.provinceName,
+    item.cityName
+  );
+
+  const master = rows[0];
+  return master?.island_key ? { ...item, islandKey: master.island_key } : item;
 }
 
 main()
@@ -212,4 +237,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-
