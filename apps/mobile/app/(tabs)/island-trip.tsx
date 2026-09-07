@@ -605,6 +605,7 @@ export default function IslandTripScreen() {
     setDetailIslandOverride(detailIsland);
     setFocusedTripId(null);
     setActiveDetailTab('basic');
+    setPendingDetailScroll(true);
     addRecentIsland(detailIsland);
     moveToSection('detail');
   };
@@ -612,6 +613,7 @@ export default function IslandTripScreen() {
     setDetailIslandOverride(island);
     setFocusedTripId(null);
     setActiveDetailTab('basic');
+    setPendingDetailScroll(true);
     addRecentIsland(island);
     moveToSection('detail');
   };
