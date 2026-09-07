@@ -17,6 +17,18 @@ run_api() {
   compose exec -T api "$@"
 }
 
+read_env_value() {
+  local key="$1"
+
+  if [[ ! -f "${ENV_FILE}" ]]; then
+    return 0
+  fi
+
+  grep -E "^[[:space:]]*${key}[[:space:]]*=" "${ENV_FILE}" |
+    tail -n 1 |
+    sed -E "s/^[[:space:]]*${key}[[:space:]]*=[[:space:]]*//; s/^[\"']//; s/[\"']$//"
+}
+
 echo "[1/9] Checking containers"
 compose ps
 
@@ -49,8 +61,9 @@ fi
 
 echo "[7/9] Importing vessel detail seed SQL if available"
 if [[ -f vessel_detail_seed.sql ]]; then
-  source "${ENV_FILE}"
-  docker exec -i "${POSTGRES_CONTAINER}" psql -U "${POSTGRES_USER:-badagil}" -d "${POSTGRES_DB:-badagil}" < vessel_detail_seed.sql
+  POSTGRES_USER_VALUE="${POSTGRES_USER:-$(read_env_value POSTGRES_USER)}"
+  POSTGRES_DB_VALUE="${POSTGRES_DB:-$(read_env_value POSTGRES_DB)}"
+  docker exec -i "${POSTGRES_CONTAINER}" psql -U "${POSTGRES_USER_VALUE:-badagil}" -d "${POSTGRES_DB_VALUE:-badagil}" < vessel_detail_seed.sql
 else
   echo "vessel_detail_seed.sql was not found; skipping vessel detail import."
 fi
