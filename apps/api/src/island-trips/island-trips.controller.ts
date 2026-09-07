@@ -60,14 +60,21 @@ export class IslandTripsController {
 
   @Get('recommended-islands')
   @ApiOkResponse({ description: 'Curated recommended islands with source descriptions and ferry notes' })
-  getRecommendedIslands(@Query('limit') limit?: string, @Query('travelRegionId') travelRegionId?: string, @Query('regionName') regionName?: string) {
+  getRecommendedIslands(
+    @Query('limit') limit?: string,
+    @Query('travelRegionId') travelRegionId?: string,
+    @Query('regionKind') regionKind?: string,
+    @Query('regionId') regionId?: string,
+    @Query('regionName') regionName?: string
+  ) {
     return this.islandTripsService.getRecommendedIslands({
       limit: limit ? Number(limit) : undefined,
       travelRegionId,
+      regionKind,
+      regionId,
       regionName
     });
   }
-
   @Get('travel-info')
   @ApiOkResponse({ description: 'Island travel content merged from tourism, camping, and sea trip index APIs' })
   getTravelInfo(

@@ -26,9 +26,9 @@ import {
   X
 } from 'lucide-react-native';
 import { Link, useLocalSearchParams } from 'expo-router';
-import type { IslandSummary, MarineForecastLocation, MarineForecastOverview, SailingStatus, TripRecommendationAsset } from '@badagil/shared';
+import type { IslandSummary, MarineForecastLocation, MarineForecastOverview, RecommendedIsland, SailingStatus, TripRecommendationAsset } from '@badagil/shared';
 import { fetchIslandsResponse } from '@/api/islands';
-import { fetchIslandTravelInfo, searchTravelAssets } from '@/api/island-trips';
+import { fetchIslandTravelInfo, fetchRecommendedIslands, fetchTripRecommendations, searchTravelAssets } from '@/api/island-trips';
 import { fetchMarineForecast, fetchMarineForecastLocations } from '@/api/forecasts';
 import { fetchRouteOptions, type RouteOption } from '@/api/routes';
 import { fetchScheduleCandidates, type ScheduleCandidate } from '@/api/schedules';
@@ -362,6 +362,40 @@ export default function IslandTripScreen() {
 
     return selectedRegionIslands.filter((island) => islandMatchesRegionKeyword(island, keyword));
   }, [regionSearchKeyword, selectedRegionIslands]);
+  const regionRecommendedIslandsQuery = useQuery({
+    queryKey: ['island-trip-recommended-islands', selectedIslandRegionMode, selectedRecommendedRegion?.id, selectedRecommendedRegion?.name],
+    queryFn: () =>
+      fetchRecommendedIslands(12, {
+        regionKind: selectedIslandRegionMode,
+        regionId: selectedRecommendedRegion?.id,
+        regionName: selectedRecommendedRegion?.name
+      }),
+    enabled: Boolean(selectedRecommendedRegion),
+    staleTime: 30 * 60 * 1000
+  });
+  const regionRecommendedIslands = useMemo(() => {
+    const items = regionRecommendedIslandsQuery.data ?? [];
+    const keyword = normalizeIslandRegionKeyword(regionSearchKeyword);
+    if (!keyword) return items;
+
+    return items.filter((island) => recommendedIslandMatchesKeyword(island, keyword));
+  }, [regionRecommendedIslandsQuery.data, regionSearchKeyword]);
+  const regionTravelAssetsQuery = useQuery({
+    queryKey: ['island-trip-region-assets', selectedIslandRegionMode, selectedRecommendedRegion?.id, selectedRecommendedRegion?.name, regionSearchKeyword],
+    queryFn: async () => {
+      const overview = await fetchTripRecommendations({
+        regionKind: selectedIslandRegionMode,
+        regionId: selectedRecommendedRegion?.id,
+        regionName: selectedRecommendedRegion?.name,
+        keyword: regionSearchKeyword.trim() || undefined,
+        limit: 12
+      });
+
+      return overview.assets;
+    },
+    enabled: Boolean(selectedRecommendedRegion),
+    staleTime: 10 * 60 * 1000
+  });
   const selectedTravelRegion = travelRegions.find((region) => region.id === selectedTravelRegionId) ?? null;
   const regionDeparturePorts = useMemo(() => getRegionDeparturePorts(selectedTravelRegion), [selectedTravelRegion]);
   const activeDeparturePorts = useMemo(
@@ -562,6 +596,18 @@ export default function IslandTripScreen() {
     setRegionSearchKeyword('');
   };
 
+  const selectRecommendedIsland = (island: RecommendedIsland) => {
+    const detailIsland = island.matchedIsland ?? createSearchIsland(island.islandName, {
+      provinceName: island.provinceName,
+      cityName: island.cityName
+    });
+
+    setDetailIslandOverride(detailIsland);
+    setFocusedTripId(null);
+    setActiveDetailTab('basic');
+    addRecentIsland(detailIsland);
+    moveToSection('detail');
+  };
   const selectRegionIsland = (island: IslandSummary) => {
     setDetailIslandOverride(island);
     setFocusedTripId(null);
@@ -570,6 +616,9 @@ export default function IslandTripScreen() {
     moveToSection('detail');
   };
 
+  const openRegionTravelAssetDetail = (asset: TripRecommendationAsset) => {
+    setSelectedTravelItem(mapTravelAssetToTravelInfoItem(asset));
+  };
   const runUnifiedSearch = () => {
     const keyword = unifiedSearchKeyword.trim();
     if (keyword.length < 2) return;
@@ -731,14 +780,20 @@ export default function IslandTripScreen() {
         selectedMode={selectedIslandRegionMode}
         regions={islandRegionOptions}
         selectedRegionId={selectedRecommendedRegion?.id ?? null}
+        recommendedIslands={regionRecommendedIslands}
+        recommendedLoading={regionRecommendedIslandsQuery.isFetching}
         islands={regionIslands}
         totalCount={selectedRegionIslands.length}
         searchKeyword={regionSearchKeyword}
         loading={islandsQuery.isLoading}
+        travelAssets={regionTravelAssetsQuery.data ?? []}
+        travelAssetsLoading={regionTravelAssetsQuery.isFetching}
         onSelectMode={selectIslandRegionMode}
         onSelectRegion={selectIslandRegion}
         onChangeSearchKeyword={setRegionSearchKeyword}
+        onSelectRecommendedIsland={selectRecommendedIsland}
         onSelectIsland={selectRegionIsland}
+        onSelectTravelAsset={openRegionTravelAssetDetail}
       />
 
       <IslandQuickPanel
@@ -1260,27 +1315,39 @@ function RecommendedRegionPanel({
   selectedMode,
   regions,
   selectedRegionId,
+  recommendedIslands,
+  recommendedLoading,
   islands,
   totalCount,
   searchKeyword,
   loading,
+  travelAssets,
+  travelAssetsLoading,
   onSelectMode,
   onSelectRegion,
   onChangeSearchKeyword,
-  onSelectIsland
+  onSelectRecommendedIsland,
+  onSelectIsland,
+  onSelectTravelAsset
 }: {
   modes: typeof islandRegionModeOptions;
   selectedMode: IslandRegionMode;
   regions: IslandRegionOption[];
   selectedRegionId: string | null;
+  recommendedIslands: RecommendedIsland[];
+  recommendedLoading: boolean;
   islands: IslandSummary[];
   totalCount: number;
   searchKeyword: string;
   loading: boolean;
+  travelAssets: TripRecommendationAsset[];
+  travelAssetsLoading: boolean;
   onSelectMode: (mode: IslandRegionMode) => void;
   onSelectRegion: (regionId: string) => void;
   onChangeSearchKeyword: (keyword: string) => void;
+  onSelectRecommendedIsland: (island: RecommendedIsland) => void;
   onSelectIsland: (island: IslandSummary) => void;
+  onSelectTravelAsset: (asset: TripRecommendationAsset) => void;
 }) {
   const selectedRegion = regions.find((region) => region.id === selectedRegionId) ?? null;
   const selectedModeOption = modes.find((mode) => mode.key === selectedMode) ?? modes[0];
@@ -1337,8 +1404,43 @@ function RecommendedRegionPanel({
       ) : null}
       {selectedRegion ? (
         <View style={styles.regionResultPanel}>
+          <View style={styles.regionFeaturedPanel}>
+            <View style={styles.regionResultHeader}>
+              <Text style={styles.regionResultTitle}>추천섬 마스터</Text>
+              <Text style={styles.regionSearchCount}>{recommendedLoading ? '조회 중' : `${recommendedIslands.length}개`}</Text>
+            </View>
+            {recommendedLoading ? <Text style={styles.travelInfoEmpty}>추천섬을 불러오고 있습니다.</Text> : null}
+            {!recommendedLoading && recommendedIslands.length === 0 ? <Text style={styles.travelInfoEmpty}>선택한 권역에 등록된 추천섬이 아직 없습니다.</Text> : null}
+            {recommendedIslands.length > 0 ? (
+              <View style={styles.recommendedIslandGrid}>
+                {recommendedIslands.map((island) => (
+                  <Pressable key={island.id} accessibilityRole="button" onPress={() => onSelectRecommendedIsland(island)} style={styles.recommendedIslandCard}>
+                    {island.photoUrls[0] ? (
+                      <Image source={{ uri: island.photoUrls[0] }} style={styles.recommendedIslandImage} resizeMode="cover" />
+                    ) : (
+                      <View style={styles.regionIslandIconBox}>
+                        <Star color={colors.primary} size={24} />
+                      </View>
+                    )}
+                    <View style={styles.recommendedIslandCopy}>
+                      <Text style={styles.recommendedIslandTitle}>{island.displayName ?? island.islandName}</Text>
+                      <Text style={styles.recommendedIslandMeta} numberOfLines={1}>
+                        {[island.matchedIsland?.travelRegionName, island.provinceName, island.cityName].filter(Boolean).join(' · ') || selectedRegion.name}
+                      </Text>
+                      <Text style={styles.recommendedIslandDescription} numberOfLines={3}>{island.description}</Text>
+                      <View style={styles.recommendedIslandTags}>
+                        {[...island.highlights, ...island.tags].filter(Boolean).slice(0, 3).map((tag) => (
+                          <Text key={String(tag)} style={styles.recommendedIslandTag}>{String(tag)}</Text>
+                        ))}
+                      </View>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+          </View>
           <View style={styles.regionResultHeader}>
-            <Text style={styles.regionResultTitle}>추천섬 목록</Text>
+            <Text style={styles.regionResultTitle}>권역 내 전체 섬</Text>
             <Text style={styles.regionSearchCount}>
               {hasSearchKeyword ? `검색 결과 ${islands.length}개 / ${selectedModeOption.label} 전체 ${totalCount}개` : `${selectedModeOption.label} 전체 ${totalCount}개`}
             </Text>
@@ -1387,6 +1489,29 @@ function RecommendedRegionPanel({
               </Pressable>
             ))}
           </View>
+          {travelAssetsLoading ? <Text style={styles.travelInfoEmpty}>권역 여행자원을 불러오고 있습니다.</Text> : null}
+          {!travelAssetsLoading && travelAssets.length > 0 ? (
+            <View style={styles.regionAssetPanel}>
+              <View style={styles.regionResultHeader}>
+                <Text style={styles.regionResultTitle}>권역 여행자원</Text>
+                <Text style={styles.regionSearchCount}>{travelAssets.length}개</Text>
+              </View>
+              <View style={styles.regionAssetList}>
+                {travelAssets.slice(0, 6).map((asset) => (
+                  <Pressable key={asset.id} accessibilityRole="button" onPress={() => onSelectTravelAsset(asset)} style={styles.regionAssetCard}>
+                    <View style={styles.regionAssetIconBox}>
+                      <MapPin color={colors.primary} size={18} />
+                    </View>
+                    <View style={styles.recommendedIslandCopy}>
+                      <Text style={styles.recommendedIslandTitle} numberOfLines={1}>{asset.name}</Text>
+                      <Text style={styles.recommendedIslandMeta} numberOfLines={1}>{[asset.category, asset.matchedIslandName, asset.travelRegionName].filter(Boolean).join(' · ')}</Text>
+                      <Text style={styles.recommendedIslandDescription} numberOfLines={2}>{asset.reasons[0] || asset.address || asset.sourceTitle}</Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ) : null}
         </View>
       ) : null}
     </View>
@@ -2417,6 +2542,26 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function mapTravelAssetToTravelInfoItem(asset: TripRecommendationAsset): TravelInfoCardItem {
+  const mapped = mapTravelAssetToUnifiedSearch(asset);
+  return {
+    id: `region-asset-${asset.id}`,
+    tab: mapped.tab,
+    group: mapped.group,
+    title: asset.name,
+    description: asset.reasons.join(' · ') || asset.address || `${asset.sourceTitle}에서 수집된 권역 여행자원입니다.`,
+    badge: mapped.badge,
+    address: asset.address,
+    source: asset.sourceTitle,
+    detailRows: [
+      { label: '분류', value: asset.category },
+      { label: '연결 섬', value: asset.matchedIslandName },
+      { label: '여행권역', value: asset.travelRegionName },
+      { label: '추천 근거', value: asset.reasons.join(' · ') },
+      { label: '태그', value: asset.tags.join(', ') }
+    ]
+  };
+}
 function mapUnifiedSearchResultToTravelItem(result: UnifiedSearchResult): TravelInfoCardItem {
   return {
     id: result.id,
@@ -2806,6 +2951,28 @@ function filterTripsByRegion(trips: TripRecommendation[], region: MarineForecast
   });
 }
 
+function recommendedIslandMatchesKeyword(island: RecommendedIsland, keyword: string) {
+  const haystack = [
+    island.islandName,
+    island.displayName,
+    island.provinceName,
+    island.cityName,
+    island.address,
+    island.description,
+    island.ferrySummary,
+    island.trafficInfo,
+    island.lodgingInfo,
+    island.foodInfo,
+    island.nearbyAttractions,
+    ...(island.highlights ?? []),
+    ...(island.tags ?? []),
+    ...(island.travelStyles ?? [])
+  ]
+    .map((value) => normalizeIslandRegionKeyword(value))
+    .join('');
+
+  return haystack.includes(keyword);
+}
 function islandMatchesRegionKeyword(island: IslandSummary, keyword: string) {
   const haystack = [
     island.islandName,
@@ -3556,7 +3723,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 18
   },
-  regionResultPanel: {
+  regionFeaturedPanel: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 10,
+    padding: 10
+  },  regionResultPanel: {
     gap: 10
   },
   regionResultHeader: {
@@ -3602,7 +3776,33 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800'
   },
-  recommendedIslandGrid: {
+  regionAssetPanel: {
+    gap: 10,
+    marginTop: 2
+  },
+  regionAssetList: {
+    gap: 8
+  },
+  regionAssetCard: {
+    alignItems: 'flex-start',
+    backgroundColor: colors.backgroundSoft,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 9,
+    padding: 10
+  },
+  regionAssetIconBox: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 34,
+    justifyContent: 'center',
+    width: 34
+  },  recommendedIslandGrid: {
     gap: 9
   },
   recommendedIslandCard: {

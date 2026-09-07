@@ -1,4 +1,4 @@
-﻿import { Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import type {
   IslandSummary,
   IslandTravelAttraction,
@@ -169,18 +169,46 @@ export class IslandTripsService {
     private readonly prismaService: PrismaService
   ) {}
 
-  async getRecommendedIslands(params: { limit?: number; travelRegionId?: string; regionName?: string }) {
+  async getRecommendedIslands(params: { limit?: number; travelRegionId?: string; regionKind?: string; regionId?: string; regionName?: string }) {
     const limit = clampNumber(params.limit ?? 12, 4, 40);
     const values: unknown[] = [];
     const regionClauses: string[] = [];
+    const kind = normalizeRegionKind(params.regionKind);
+
     if (params.travelRegionId) {
       values.push(params.travelRegionId);
       regionClauses.push(`im.travel_region_id = $${values.length}`);
+    } else if (kind === 'travel' && params.regionId) {
+      values.push(params.regionId);
+      regionClauses.push(`im.travel_region_id = $${values.length}`);
+    } else if (kind === 'forecast' && params.regionId) {
+      values.push(params.regionId);
+      regionClauses.push(`im.forecast_location_id = $${values.length}`);
+    } else if (kind === 'admin') {
+      const adminName = (params.regionName ?? params.regionId ?? '').trim();
+      const adminParts = adminName.split(/[|\s]+/).filter(Boolean);
+      const provinceName = adminParts[0];
+      const cityName = adminParts.slice(1).join(' ');
+      if (provinceName) {
+        values.push(provinceName);
+        const provinceIndex = values.length;
+        const recommendedAdminClauses = [`r.province_name = $${provinceIndex}`];
+        const masterAdminClauses = [`im.legal_dong_name ILIKE '%' || $${provinceIndex} || '%'`];
+        if (cityName) {
+          values.push(cityName);
+          const cityIndex = values.length;
+          recommendedAdminClauses.push(`r.city_name = $${cityIndex}`);
+          masterAdminClauses.push(`im.legal_dong_name ILIKE '%' || $${cityIndex} || '%'`);
+        }
+        regionClauses.push(`((${recommendedAdminClauses.join(' AND ')}) OR (${masterAdminClauses.join(' AND ')}))`);
+      }
     }
-    if (params.regionName) {
+
+    if (params.regionName && kind !== 'admin') {
       values.push(params.regionName);
-      regionClauses.push(`(im.travel_region_name = $${values.length} OR r.tags @> ARRAY[$${values.length}]::text[])`);
+      regionClauses.push(`(im.travel_region_name = $${values.length} OR im.forecast_location_name = $${values.length} OR r.tags @> ARRAY[$${values.length}]::text[])`);
     }
+
     values.push(limit);
     const limitIndex = values.length;
     const rows = await this.prismaService.$queryRawUnsafe<RecommendedIslandRow[]>(
@@ -225,7 +253,6 @@ export class IslandTripsService {
 
     return toApiResponse(this.createResult(rows.map(toRecommendedIsland), 'LOCAL', 'recommended-island-master'));
   }
-
   async getRecommendations(params: TripRecommendationParams) {
     const limit = clampNumber(params.limit ?? 24, 6, 60);
     const seedAsset = params.assetId ? await this.findRecommendationSeedAsset(params.assetId) : null;

@@ -90,10 +90,19 @@ export async function searchTravelAssets(keyword: string, limit = 20) {
   return response.body.data;
 }
 
-export async function fetchRecommendedIslands(limit = 12, filters: { travelRegionId?: string | null; regionName?: string | null } = {}) {
+export type RecommendedIslandFilters = {
+  travelRegionId?: string | null;
+  regionKind?: TripRecommendationFilters['regionKind'];
+  regionId?: string | null;
+  regionName?: string | null;
+};
+
+export async function fetchRecommendedIslands(limit = 12, filters: RecommendedIslandFilters = {}) {
   const searchParams = new URLSearchParams();
   searchParams.set('limit', String(limit));
   if (filters.travelRegionId) searchParams.set('travelRegionId', filters.travelRegionId);
+  if (filters.regionKind) searchParams.set('regionKind', filters.regionKind);
+  if (filters.regionId) searchParams.set('regionId', filters.regionId);
   if (filters.regionName) searchParams.set('regionName', filters.regionName);
 
   const response = await requestJson<ApiResponse<RecommendedIsland[]>>(
@@ -106,7 +115,6 @@ export async function fetchRecommendedIslands(limit = 12, filters: { travelRegio
 
   return response.body.data;
 }
-
 function normalizeIslandTravelInfo(data: IslandTravelInfo): IslandTravelInfo {
   return {
     ...data,
