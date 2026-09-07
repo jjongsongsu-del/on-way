@@ -26,9 +26,9 @@ import {
   X
 } from 'lucide-react-native';
 import { Link, useLocalSearchParams } from 'expo-router';
-import type { IslandSummary, MarineForecastLocation, MarineForecastOverview, RecommendedIsland, SailingStatus, TripRecommendationAsset } from '@badagil/shared';
+import type { IslandSummary, MarineForecastLocation, MarineForecastOverview, SailingStatus, TripRecommendationAsset } from '@badagil/shared';
 import { fetchIslandsResponse } from '@/api/islands';
-import { fetchIslandTravelInfo, fetchRecommendedIslands, searchTravelAssets } from '@/api/island-trips';
+import { fetchIslandTravelInfo, searchTravelAssets } from '@/api/island-trips';
 import { fetchMarineForecast, fetchMarineForecastLocations } from '@/api/forecasts';
 import { fetchRouteOptions, type RouteOption } from '@/api/routes';
 import { fetchScheduleCandidates, type ScheduleCandidate } from '@/api/schedules';
@@ -307,6 +307,7 @@ export default function IslandTripScreen() {
   const [photoModalVisible, setPhotoModalVisible] = useState(false);
   const [unifiedSearchKeyword, setUnifiedSearchKeyword] = useState('');
   const [submittedUnifiedKeyword, setSubmittedUnifiedKeyword] = useState('');
+  const [regionSearchKeyword, setRegionSearchKeyword] = useState('');
   const [isQuickPanelExpanded, setQuickPanelExpanded] = useState(false);
   const [favoriteIslands, setFavoriteIslands] = useState<SavedIslandSearch[]>(() => readSavedIslandSearches(ISLAND_TRIP_FAVORITES_KEY));
   const [recentIslandSearches, setRecentIslandSearches] = useState<SavedIslandSearch[]>(() => readSavedIslandSearches(ISLAND_TRIP_RECENTS_KEY));
@@ -335,16 +336,19 @@ export default function IslandTripScreen() {
   const travelRegions = forecastLocationsQuery.data ?? [];
   const islandTravelRegions = useMemo(() => buildIslandTravelRegionOptions(islandsQuery.data?.data ?? []), [islandsQuery.data?.data]);
   const selectedRecommendedRegion = islandTravelRegions.find((region) => region.id === selectedRecommendedRegionId) ?? islandTravelRegions[0] ?? null;
-  const recommendedIslandsQuery = useQuery({
-    queryKey: ['island-trip-recommended-islands', selectedRecommendedRegion?.id],
-    queryFn: () =>
-      fetchRecommendedIslands(18, {
-        travelRegionId: selectedRecommendedRegion?.id,
-        regionName: selectedRecommendedRegion?.name
-      }),
-    enabled: Boolean(selectedRecommendedRegion?.id),
-    staleTime: 30 * 60 * 1000
-  });
+  const selectedRegionIslands = useMemo(() => {
+    if (!selectedRecommendedRegion) return [];
+
+    return (islandsQuery.data?.data ?? [])
+      .filter((island) => island.travelRegionId === selectedRecommendedRegion.id)
+      .sort((left, right) => left.islandName.localeCompare(right.islandName, 'ko-KR'));
+  }, [islandsQuery.data?.data, selectedRecommendedRegion]);
+  const regionIslands = useMemo(() => {
+    const keyword = normalizeIslandRegionKeyword(regionSearchKeyword);
+    if (!keyword) return selectedRegionIslands;
+
+    return selectedRegionIslands.filter((island) => islandMatchesRegionKeyword(island, keyword));
+  }, [regionSearchKeyword, selectedRegionIslands]);
   const selectedTravelRegion = travelRegions.find((region) => region.id === selectedTravelRegionId) ?? null;
   const regionDeparturePorts = useMemo(() => getRegionDeparturePorts(selectedTravelRegion), [selectedTravelRegion]);
   const activeDeparturePorts = useMemo(
@@ -534,16 +538,11 @@ export default function IslandTripScreen() {
     setFocusedTripId(null);
   };
 
-  const selectRecommendedIsland = (island: RecommendedIsland) => {
-    const detailIsland = island.matchedIsland ?? createSearchIsland(island.islandName, {
-      provinceName: island.provinceName,
-      cityName: island.cityName
-    });
-
-    setDetailIslandOverride(detailIsland);
+  const selectRegionIsland = (island: IslandSummary) => {
+    setDetailIslandOverride(island);
     setFocusedTripId(null);
     setActiveDetailTab('basic');
-    addRecentIsland(detailIsland);
+    addRecentIsland(island);
     moveToSection('detail');
   };
 
@@ -706,10 +705,13 @@ export default function IslandTripScreen() {
       <RecommendedRegionPanel
         regions={islandTravelRegions}
         selectedRegionId={selectedRecommendedRegion?.id ?? null}
-        islands={recommendedIslandsQuery.data ?? []}
-        loading={recommendedIslandsQuery.isLoading || islandsQuery.isLoading}
+        islands={regionIslands}
+        totalCount={selectedRegionIslands.length}
+        searchKeyword={regionSearchKeyword}
+        loading={islandsQuery.isLoading}
         onSelectRegion={setSelectedRecommendedRegionId}
-        onSelectIsland={selectRecommendedIsland}
+        onChangeSearchKeyword={setRegionSearchKeyword}
+        onSelectIsland={selectRegionIsland}
       />
 
       <IslandQuickPanel
@@ -1230,29 +1232,36 @@ function RecommendedRegionPanel({
   regions,
   selectedRegionId,
   islands,
+  totalCount,
+  searchKeyword,
   loading,
   onSelectRegion,
+  onChangeSearchKeyword,
   onSelectIsland
 }: {
   regions: IslandTravelRegionOption[];
   selectedRegionId: string | null;
-  islands: RecommendedIsland[];
+  islands: IslandSummary[];
+  totalCount: number;
+  searchKeyword: string;
   loading: boolean;
   onSelectRegion: (regionId: string) => void;
-  onSelectIsland: (island: RecommendedIsland) => void;
+  onChangeSearchKeyword: (keyword: string) => void;
+  onSelectIsland: (island: IslandSummary) => void;
 }) {
   const selectedRegion = regions.find((region) => region.id === selectedRegionId) ?? regions[0] ?? null;
+  const hasSearchKeyword = searchKeyword.trim().length > 0;
 
   return (
     <View style={styles.recommendedRegionPanel}>
       <View style={styles.sectionHeader}>
         <View>
-          <Text style={styles.eyebrow}>추천권역으로 찾기</Text>
-          <Text style={styles.sectionTitle}>{selectedRegion ? `${selectedRegion.name} 추천섬` : '여행 권역별 추천섬'}</Text>
+          <Text style={styles.eyebrow}>권역별로 찾기</Text>
+          <Text style={styles.sectionTitle}>{selectedRegion ? `${selectedRegion.name} 섬 목록` : '여행 권역별 섬 찾기'}</Text>
         </View>
         <MapPin color={colors.primary} size={22} />
       </View>
-      <Text style={styles.sectionDescription}>섬마스터의 여행 권역 기준으로 추천섬 마스터를 묶어 보여줍니다.</Text>
+      <Text style={styles.sectionDescription}>섬마스터의 여행 권역 기준으로 섬을 묶어 보여줍니다. 권역을 고르면 해당 권역의 섬 상세로 바로 이동할 수 있습니다.</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recommendedRegionStrip}>
         {regions.map((region) => {
           const selected = region.id === selectedRegion?.id;
@@ -1269,24 +1278,49 @@ function RecommendedRegionPanel({
           );
         })}
       </ScrollView>
-      {loading ? <Text style={styles.travelInfoEmpty}>추천섬 목록을 불러오고 있습니다.</Text> : null}
-      {!loading && islands.length === 0 ? <Text style={styles.travelInfoEmpty}>선택한 권역에 등록된 추천섬이 아직 없습니다.</Text> : null}
+      <View style={styles.regionSearchBox}>
+        <Search color={colors.muted} size={18} />
+        <TextInput
+          value={searchKeyword}
+          onChangeText={onChangeSearchKeyword}
+          placeholder={selectedRegion ? `${selectedRegion.name}에서 섬 검색` : '권역 안에서 섬 검색'}
+          placeholderTextColor={colors.muted}
+          returnKeyType="search"
+          style={styles.regionSearchInput}
+        />
+        {hasSearchKeyword ? (
+          <Pressable accessibilityRole="button" onPress={() => onChangeSearchKeyword('')} style={styles.regionSearchClear}>
+            <X color={colors.muted} size={16} />
+          </Pressable>
+        ) : null}
+      </View>
+      {!loading ? (
+        <Text style={styles.regionSearchCount}>
+          {hasSearchKeyword ? `검색 결과 ${islands.length}개 / 권역 전체 ${totalCount}개` : `권역 전체 ${totalCount}개`}
+        </Text>
+      ) : null}
+      {loading ? <Text style={styles.travelInfoEmpty}>섬 목록을 불러오고 있습니다.</Text> : null}
+      {!loading && islands.length === 0 ? (
+        <Text style={styles.travelInfoEmpty}>{hasSearchKeyword ? '검색어와 일치하는 섬이 없습니다.' : '선택한 권역에 매핑된 섬이 아직 없습니다.'}</Text>
+      ) : null}
       <View style={styles.recommendedIslandGrid}>
         {islands.map((island) => (
           <Pressable key={island.id} accessibilityRole="button" onPress={() => onSelectIsland(island)} style={styles.recommendedIslandCard}>
-            {island.photoUrls[0] ? <Image source={{ uri: island.photoUrls[0] }} style={styles.recommendedIslandImage} /> : null}
+            <View style={styles.regionIslandIconBox}>
+              <Waves color={colors.primary} size={24} />
+            </View>
             <View style={styles.recommendedIslandCopy}>
-              <Text style={styles.recommendedIslandTitle}>{island.displayName ?? island.islandName}</Text>
+              <Text style={styles.recommendedIslandTitle}>{island.islandName}</Text>
               <Text style={styles.recommendedIslandMeta} numberOfLines={1}>
-                {[island.matchedIsland?.travelRegionName, island.address, island.contact].filter(Boolean).join(' · ')}
+                {[island.provinceName, island.cityName, island.travelRegionName].filter(Boolean).join(' · ') || '권역 정보 확인 필요'}
               </Text>
-              <Text style={styles.recommendedIslandDescription} numberOfLines={3}>
-                {island.description}
+              <Text style={styles.recommendedIslandDescription} numberOfLines={2}>
+                {[island.address, island.forecastLocationName ? `예보 ${island.forecastLocationName}` : null].filter(Boolean).join(' · ') || '섬 상세에서 배편, 예보, 지도, 관광 정보를 확인하세요.'}
               </Text>
               <View style={styles.recommendedIslandTags}>
-                {island.highlights.slice(0, 3).map((highlight) => (
-                  <Text key={highlight} style={styles.recommendedIslandTag}>
-                    {highlight}
+                {[island.source, island.islandTypeName, island.connectionTypeName].filter(Boolean).slice(0, 3).map((tag) => (
+                  <Text key={String(tag)} style={styles.recommendedIslandTag}>
+                    {String(tag)}
                   </Text>
                 ))}
               </View>
@@ -2711,6 +2745,29 @@ function filterTripsByRegion(trips: TripRecommendation[], region: MarineForecast
   });
 }
 
+function islandMatchesRegionKeyword(island: IslandSummary, keyword: string) {
+  const haystack = [
+    island.islandName,
+    island.legalDongCode,
+    island.address,
+    island.provinceName,
+    island.cityName,
+    island.travelRegionName,
+    island.forecastLocationName,
+    island.source,
+    island.islandTypeName,
+    island.connectionTypeName
+  ]
+    .map((value) => normalizeIslandRegionKeyword(value))
+    .join('');
+
+  return haystack.includes(keyword);
+}
+
+function normalizeIslandRegionKeyword(value: string | null | undefined) {
+  return value?.replace(/\s/g, '').toLowerCase() ?? '';
+}
+
 function buildIslandTravelRegionOptions(islands: IslandSummary[]): IslandTravelRegionOption[] {
   const counts = new Map<string, IslandTravelRegionOption>();
   islands.forEach((island) => {
@@ -3353,6 +3410,37 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '900'
   },
+  regionSearchBox: {
+    alignItems: 'center',
+    backgroundColor: colors.backgroundSoft,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    minHeight: 44,
+    paddingHorizontal: 11
+  },
+  regionSearchInput: {
+    color: colors.navy,
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '800',
+    minWidth: 0,
+    paddingVertical: 8
+  },
+  regionSearchClear: {
+    alignItems: 'center',
+    borderRadius: 8,
+    height: 30,
+    justifyContent: 'center',
+    width: 30
+  },
+  regionSearchCount: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '800'
+  },
   recommendedIslandGrid: {
     gap: 9
   },
@@ -3366,6 +3454,17 @@ const styles = StyleSheet.create({
     minHeight: 118,
     overflow: 'hidden',
     padding: 10
+  },
+  regionIslandIconBox: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 56,
+    justifyContent: 'center',
+    width: 56
   },
   recommendedIslandImage: {
     backgroundColor: colors.border,
