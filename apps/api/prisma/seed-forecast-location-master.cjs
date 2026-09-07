@@ -3,14 +3,31 @@ const fs = require('fs');
 const { PrismaClient } = require('@prisma/client');
 
 loadDotEnv(path.resolve(__dirname, '../../../.env'));
-process.env.TS_NODE_COMPILER_OPTIONS = JSON.stringify({
-  module: 'CommonJS',
-  moduleResolution: 'Node'
-});
-require('ts-node/register/transpile-only');
-
-const { getMarineForecastLocations } = require('../src/forecasts/marine-forecast-location-map');
+const { getMarineForecastLocations } = loadForecastLocationMap();
 const prisma = new PrismaClient();
+
+function loadForecastLocationMap() {
+  const candidates = [
+    path.resolve(__dirname, '../dist/apps/api/src/forecasts/marine-forecast-location-map.js'),
+    path.resolve(__dirname, '../src/forecasts/marine-forecast-location-map')
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      return require(candidate);
+    } catch (error) {
+      if (error.code !== 'MODULE_NOT_FOUND') throw error;
+    }
+  }
+
+  process.env.TS_NODE_COMPILER_OPTIONS = JSON.stringify({
+    module: 'CommonJS',
+    moduleResolution: 'Node'
+  });
+  require('ts-node/register/transpile-only');
+  return require('../src/forecasts/marine-forecast-location-map');
+}
+
 
 const ADDRESS_LOCATION_RULES = [
   { id: 'incheon-coast', keywords: ['인천광역시', '경기도 김포시', '경기도 안산시'] },
