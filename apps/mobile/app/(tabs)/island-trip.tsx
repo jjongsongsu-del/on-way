@@ -1352,6 +1352,53 @@ function RecommendedRegionPanel({
   const selectedRegion = regions.find((region) => region.id === selectedRegionId) ?? null;
   const selectedModeOption = modes.find((mode) => mode.key === selectedMode) ?? modes[0];
   const hasSearchKeyword = searchKeyword.trim().length > 0;
+  const adminProvinceOptions = useMemo(() => buildAdminProvinceOptions(regions), [regions]);
+  const [selectedAdminProvinceId, setSelectedAdminProvinceId] = useState<string | null>(null);
+  const activeAdminProvinceId = selectedMode === 'admin' ? selectedAdminProvinceId ?? getAdminProvinceId(selectedRegion) : null;
+  const activeAdminProvince = adminProvinceOptions.find((province) => province.id === activeAdminProvinceId) ?? null;
+  const visibleRegions = selectedMode === 'admin' ? activeAdminProvince?.regions ?? [] : regions;
+  const [allIslandsExpanded, setAllIslandsExpanded] = useState(true);
+  const [islandPage, setIslandPage] = useState(1);
+  const pageSize = 10;
+  const totalPages = Math.max(1, Math.ceil(islands.length / pageSize));
+  const currentPage = Math.min(islandPage, totalPages);
+  const pagedIslands = islands.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  useEffect(() => {
+    setIslandPage(1);
+    setAllIslandsExpanded(true);
+  }, [selectedRegionId, searchKeyword, selectedMode]);
+
+  useEffect(() => {
+    if (selectedMode !== 'admin') {
+      setSelectedAdminProvinceId(null);
+      return;
+    }
+
+    const selectedProvinceId = getAdminProvinceId(selectedRegion);
+    if (selectedProvinceId) {
+      setSelectedAdminProvinceId(selectedProvinceId);
+    } else if (selectedAdminProvinceId && !adminProvinceOptions.some((province) => province.id === selectedAdminProvinceId)) {
+      setSelectedAdminProvinceId(null);
+    }
+  }, [adminProvinceOptions, selectedAdminProvinceId, selectedMode, selectedRegion]);
+
+  const selectAdminProvince = (provinceId: string) => {
+    setSelectedAdminProvinceId(provinceId);
+    onChangeSearchKeyword('');
+  };
+
+  const hasRegionChoices = selectedMode === 'admin' ? Boolean(activeAdminProvince) : regions.length > 0;
+  const regionGuideTitle = selectedMode === 'admin'
+    ? activeAdminProvince
+      ? '시군구를 선택하세요'
+      : '도를 먼저 선택하세요'
+    : '권역을 선택하세요';
+  const regionGuideText = selectedMode === 'admin'
+    ? activeAdminProvince
+      ? `${activeAdminProvince.name} 안에서 시군구를 선택하면 추천섬 목록과 섬 검색창이 아래에 열립니다.`
+      : '도 선택 후 해당 도의 시군구 목록이 열립니다.'
+    : '권역을 누르면 해당 권역의 추천섬 목록과 섬 검색창이 아래에 열립니다.';
 
   return (
     <View style={styles.recommendedRegionPanel}>
@@ -1378,28 +1425,73 @@ function RecommendedRegionPanel({
           );
         })}
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recommendedRegionStrip}>
-        {regions.map((region) => {
-          const selected = region.id === selectedRegion?.id;
-          return (
-            <Pressable
-              key={region.id}
-              accessibilityRole="button"
-              onPress={() => onSelectRegion(region.id)}
-              style={[styles.recommendedRegionChip, selected ? styles.recommendedRegionChipSelected : null]}
-            >
-              <Text style={[styles.recommendedRegionChipText, selected ? styles.recommendedRegionChipTextSelected : null]}>{region.name}</Text>
-              <Text style={[styles.recommendedRegionChipCount, selected ? styles.recommendedRegionChipTextSelected : null]}>{region.count}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+
+      {selectedMode === 'admin' ? (
+        <View style={styles.regionChoiceGroup}>
+          <Text style={styles.regionChoiceLabel}>도 선택</Text>
+          <View style={styles.recommendedRegionGrid}>
+            {adminProvinceOptions.map((province) => {
+              const selected = province.id === activeAdminProvinceId;
+              return (
+                <Pressable
+                  key={province.id}
+                  accessibilityRole="button"
+                  onPress={() => selectAdminProvince(province.id)}
+                  style={[styles.recommendedRegionChip, selected ? styles.recommendedRegionChipSelected : null]}
+                >
+                  <Text style={[styles.recommendedRegionChipText, selected ? styles.recommendedRegionChipTextSelected : null]} numberOfLines={2}>{province.name}</Text>
+                  <Text style={[styles.recommendedRegionChipCount, selected ? styles.recommendedRegionChipTextSelected : null]}>{province.count}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          {activeAdminProvince ? (
+            <>
+              <Text style={styles.regionChoiceLabel}>시군구 선택</Text>
+              <View style={styles.recommendedRegionGrid}>
+                {activeAdminProvince.regions.map((region) => {
+                  const selected = region.id === selectedRegion?.id;
+                  return (
+                    <Pressable
+                      key={region.id}
+                      accessibilityRole="button"
+                      onPress={() => onSelectRegion(region.id)}
+                      style={[styles.recommendedRegionChip, selected ? styles.recommendedRegionChipSelected : null]}
+                    >
+                      <Text style={[styles.recommendedRegionChipText, selected ? styles.recommendedRegionChipTextSelected : null]} numberOfLines={2}>{getAdminCityName(region)}</Text>
+                      <Text style={[styles.recommendedRegionChipCount, selected ? styles.recommendedRegionChipTextSelected : null]}>{region.count}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </>
+          ) : null}
+        </View>
+      ) : (
+        <View style={styles.recommendedRegionGrid}>
+          {visibleRegions.map((region) => {
+            const selected = region.id === selectedRegion?.id;
+            return (
+              <Pressable
+                key={region.id}
+                accessibilityRole="button"
+                onPress={() => onSelectRegion(region.id)}
+                style={[styles.recommendedRegionChip, selected ? styles.recommendedRegionChipSelected : null]}
+              >
+                <Text style={[styles.recommendedRegionChipText, selected ? styles.recommendedRegionChipTextSelected : null]} numberOfLines={2}>{region.name}</Text>
+                <Text style={[styles.recommendedRegionChipCount, selected ? styles.recommendedRegionChipTextSelected : null]}>{region.count}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+
       {loading ? <Text style={styles.travelInfoEmpty}>권역 목록을 불러오고 있습니다.</Text> : null}
       {!loading && regions.length === 0 ? <Text style={styles.travelInfoEmpty}>선택한 기준에 매핑된 권역이 아직 없습니다.</Text> : null}
-      {!loading && !selectedRegion && regions.length > 0 ? (
+      {!loading && !selectedRegion && hasRegionChoices ? (
         <View style={styles.regionSelectionGuide}>
-          <Text style={styles.regionSelectionGuideTitle}>권역을 선택하세요</Text>
-          <Text style={styles.regionSelectionGuideText}>권역을 누르면 해당 권역의 추천섬 목록과 섬 검색창이 아래에 열립니다.</Text>
+          <Text style={styles.regionSelectionGuideTitle}>{regionGuideTitle}</Text>
+          <Text style={styles.regionSelectionGuideText}>{regionGuideText}</Text>
         </View>
       ) : null}
       {selectedRegion ? (
@@ -1439,56 +1531,91 @@ function RecommendedRegionPanel({
               </View>
             ) : null}
           </View>
-          <View style={styles.regionResultHeader}>
-            <Text style={styles.regionResultTitle}>권역 내 전체 섬</Text>
-            <Text style={styles.regionSearchCount}>
-              {hasSearchKeyword ? `검색 결과 ${islands.length}개 / ${selectedModeOption.label} 전체 ${totalCount}개` : `${selectedModeOption.label} 전체 ${totalCount}개`}
-            </Text>
-          </View>
-          <View style={styles.regionSearchBox}>
-            <Search color={colors.muted} size={18} />
-            <TextInput
-              value={searchKeyword}
-              onChangeText={onChangeSearchKeyword}
-              placeholder={`${selectedRegion.name}에서 섬 검색`}
-              placeholderTextColor={colors.muted}
-              returnKeyType="search"
-              style={styles.regionSearchInput}
-            />
-            {hasSearchKeyword ? (
-              <Pressable accessibilityRole="button" onPress={() => onChangeSearchKeyword('')} style={styles.regionSearchClear}>
-                <X color={colors.muted} size={16} />
-              </Pressable>
+
+          <View style={styles.regionCollapsiblePanel}>
+            <Pressable accessibilityRole="button" onPress={() => setAllIslandsExpanded((value) => !value)} style={styles.regionCollapsibleHeader}>
+              <View style={styles.regionResultHeaderText}>
+                <Text style={styles.regionResultTitle}>권역 내 전체 섬</Text>
+                <Text style={styles.regionSearchCount}>
+                  {hasSearchKeyword ? `검색 결과 ${islands.length}개 / ${selectedModeOption.label} 전체 ${totalCount}개` : `${selectedModeOption.label} 전체 ${totalCount}개`}
+                </Text>
+              </View>
+              <View style={styles.quickPanelToggle}>
+                <Text style={styles.quickPanelToggleText}>{allIslandsExpanded ? '접기' : '펼치기'}</Text>
+                <ChevronRight color={colors.primary} size={16} style={allIslandsExpanded ? styles.chevronExpanded : null} />
+              </View>
+            </Pressable>
+            {allIslandsExpanded ? (
+              <>
+                <View style={styles.regionSearchBox}>
+                  <Search color={colors.muted} size={18} />
+                  <TextInput
+                    value={searchKeyword}
+                    onChangeText={onChangeSearchKeyword}
+                    placeholder={`${selectedRegion.name}에서 섬 검색`}
+                    placeholderTextColor={colors.muted}
+                    returnKeyType="search"
+                    style={styles.regionSearchInput}
+                  />
+                  {hasSearchKeyword ? (
+                    <Pressable accessibilityRole="button" onPress={() => onChangeSearchKeyword('')} style={styles.regionSearchClear}>
+                      <X color={colors.muted} size={16} />
+                    </Pressable>
+                  ) : null}
+                </View>
+                {islands.length === 0 ? (
+                  <Text style={styles.travelInfoEmpty}>{hasSearchKeyword ? '검색어와 일치하는 섬이 없습니다.' : `선택한 ${selectedModeOption.label}에 매핑된 섬이 아직 없습니다.`}</Text>
+                ) : null}
+                <View style={styles.recommendedIslandGrid}>
+                  {pagedIslands.map((island) => (
+                    <Pressable key={island.id} accessibilityRole="button" onPress={() => onSelectIsland(island)} style={styles.recommendedIslandCard}>
+                      <View style={styles.regionIslandIconBox}>
+                        <Waves color={colors.primary} size={24} />
+                      </View>
+                      <View style={styles.recommendedIslandCopy}>
+                        <Text style={styles.recommendedIslandTitle}>{island.islandName}</Text>
+                        <Text style={styles.recommendedIslandMeta} numberOfLines={1}>
+                          {formatIslandRegionMeta(island, selectedMode) || '권역 정보 확인 필요'}
+                        </Text>
+                        <Text style={styles.recommendedIslandDescription} numberOfLines={2}>
+                          {[island.address, island.forecastLocationName ? `예보 ${island.forecastLocationName}` : null].filter(Boolean).join(' · ') || '섬 상세에서 배편, 예보, 지도, 관광 정보를 확인하세요.'}
+                        </Text>
+                        <View style={styles.recommendedIslandTags}>
+                          {[island.source, island.islandTypeName, island.connectionTypeName].filter(Boolean).slice(0, 3).map((tag) => (
+                            <Text key={String(tag)} style={styles.recommendedIslandTag}>
+                              {String(tag)}
+                            </Text>
+                          ))}
+                        </View>
+                      </View>
+                    </Pressable>
+                  ))}
+                </View>
+                {islands.length > pageSize ? (
+                  <View style={styles.regionPagination}>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => setIslandPage((page) => Math.max(page - 1, 1))}
+                      disabled={currentPage <= 1}
+                      style={[styles.regionPageButton, currentPage <= 1 ? styles.regionPageButtonDisabled : null]}
+                    >
+                      <Text style={[styles.regionPageButtonText, currentPage <= 1 ? styles.regionPageButtonTextDisabled : null]}>이전</Text>
+                    </Pressable>
+                    <Text style={styles.regionPageText}>{currentPage} / {totalPages}</Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => setIslandPage((page) => Math.min(page + 1, totalPages))}
+                      disabled={currentPage >= totalPages}
+                      style={[styles.regionPageButton, currentPage >= totalPages ? styles.regionPageButtonDisabled : null]}
+                    >
+                      <Text style={[styles.regionPageButtonText, currentPage >= totalPages ? styles.regionPageButtonTextDisabled : null]}>다음</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+              </>
             ) : null}
           </View>
-          {islands.length === 0 ? (
-            <Text style={styles.travelInfoEmpty}>{hasSearchKeyword ? '검색어와 일치하는 섬이 없습니다.' : `선택한 ${selectedModeOption.label}에 매핑된 섬이 아직 없습니다.`}</Text>
-          ) : null}
-          <View style={styles.recommendedIslandGrid}>
-            {islands.map((island) => (
-              <Pressable key={island.id} accessibilityRole="button" onPress={() => onSelectIsland(island)} style={styles.recommendedIslandCard}>
-                <View style={styles.regionIslandIconBox}>
-                  <Waves color={colors.primary} size={24} />
-                </View>
-                <View style={styles.recommendedIslandCopy}>
-                  <Text style={styles.recommendedIslandTitle}>{island.islandName}</Text>
-                  <Text style={styles.recommendedIslandMeta} numberOfLines={1}>
-                    {formatIslandRegionMeta(island, selectedMode) || '권역 정보 확인 필요'}
-                  </Text>
-                  <Text style={styles.recommendedIslandDescription} numberOfLines={2}>
-                    {[island.address, island.forecastLocationName ? `예보 ${island.forecastLocationName}` : null].filter(Boolean).join(' · ') || '섬 상세에서 배편, 예보, 지도, 관광 정보를 확인하세요.'}
-                  </Text>
-                  <View style={styles.recommendedIslandTags}>
-                    {[island.source, island.islandTypeName, island.connectionTypeName].filter(Boolean).slice(0, 3).map((tag) => (
-                      <Text key={String(tag)} style={styles.recommendedIslandTag}>
-                        {String(tag)}
-                      </Text>
-                    ))}
-                  </View>
-                </View>
-              </Pressable>
-            ))}
-          </View>
+
           {travelAssetsLoading ? <Text style={styles.travelInfoEmpty}>권역 여행자원을 불러오고 있습니다.</Text> : null}
           {!travelAssetsLoading && travelAssets.length > 0 ? (
             <View style={styles.regionAssetPanel}>
@@ -1517,7 +1644,6 @@ function RecommendedRegionPanel({
     </View>
   );
 }
-
 function IslandQuickPanel({
   expanded,
   favorites,
@@ -2973,6 +3099,48 @@ function recommendedIslandMatchesKeyword(island: RecommendedIsland, keyword: str
 
   return haystack.includes(keyword);
 }
+type AdminProvinceOption = {
+  id: string;
+  name: string;
+  count: number;
+  regions: IslandRegionOption[];
+};
+
+function buildAdminProvinceOptions(regions: IslandRegionOption[]): AdminProvinceOption[] {
+  const byProvince = new Map<string, AdminProvinceOption>();
+
+  regions.forEach((region) => {
+    const provinceName = getAdminProvinceName(region);
+    if (!provinceName) return;
+
+    const current = byProvince.get(provinceName) ?? { id: provinceName, name: provinceName, count: 0, regions: [] };
+    current.count += region.count;
+    current.regions.push(region);
+    byProvince.set(provinceName, current);
+  });
+
+  return [...byProvince.values()]
+    .map((province) => ({
+      ...province,
+      regions: province.regions.sort((left, right) => right.count - left.count || getAdminCityName(left).localeCompare(getAdminCityName(right), 'ko-KR'))
+    }))
+    .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name, 'ko-KR'));
+}
+
+function getAdminProvinceId(region: IslandRegionOption | null) {
+  return region ? getAdminProvinceName(region) : null;
+}
+
+function getAdminProvinceName(region: IslandRegionOption) {
+  return region.name.split(/\s+/).filter(Boolean)[0] ?? region.id.split('|')[0] ?? '';
+}
+
+function getAdminCityName(region: IslandRegionOption) {
+  const nameParts = region.name.split(/\s+/).filter(Boolean);
+  if (nameParts.length > 1) return nameParts.slice(1).join(' ');
+  const idParts = region.id.split('|').filter(Boolean);
+  return idParts.length > 1 ? idParts.slice(1).join(' ') : region.name;
+}
 function islandMatchesRegionKeyword(island: IslandSummary, keyword: string) {
   const haystack = [
     island.islandName,
@@ -3672,20 +3840,34 @@ const styles = StyleSheet.create({
   regionModeTabTextSelected: {
     color: colors.surface
   },
-  recommendedRegionStrip: {
-    gap: 8,
-    paddingRight: 4
+  recommendedRegionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8
+  },
+  regionChoiceGroup: {
+    gap: 8
+  },
+  regionChoiceLabel: {
+    color: colors.navy,
+    fontSize: 12,
+    fontWeight: '900'
   },
   recommendedRegionChip: {
     alignItems: 'center',
     backgroundColor: colors.backgroundSoft,
     borderColor: colors.border,
-    borderRadius: 999,
+    borderRadius: 8,
     borderWidth: 1,
     flexDirection: 'row',
+    flexGrow: 1,
+    flexShrink: 1,
     gap: 6,
-    minHeight: 34,
-    paddingHorizontal: 12
+    justifyContent: 'center',
+    minHeight: 38,
+    minWidth: 104,
+    paddingHorizontal: 10,
+    paddingVertical: 7
   },
   recommendedRegionChipSelected: {
     backgroundColor: colors.primary,
@@ -3693,8 +3875,11 @@ const styles = StyleSheet.create({
   },
   recommendedRegionChipText: {
     color: colors.primaryDark,
+    flexShrink: 1,
     fontSize: 12,
-    fontWeight: '900'
+    fontWeight: '900',
+    lineHeight: 16,
+    textAlign: 'center'
   },
   recommendedRegionChipTextSelected: {
     color: colors.surface
@@ -3730,7 +3915,60 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: 10,
     padding: 10
-  },  regionResultPanel: {
+  },
+  regionCollapsiblePanel: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 10,
+    padding: 10
+  },
+  regionCollapsibleHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'space-between',
+    minHeight: 36
+  },
+  regionResultHeaderText: {
+    flex: 1,
+    gap: 3,
+    minWidth: 0
+  },
+  regionPagination: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'center',
+    paddingTop: 2
+  },
+  regionPageButton: {
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    borderRadius: 8,
+    justifyContent: 'center',
+    minHeight: 34,
+    minWidth: 62,
+    paddingHorizontal: 10
+  },
+  regionPageButtonDisabled: {
+    backgroundColor: colors.backgroundSoft
+  },
+  regionPageButtonText: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '900'
+  },
+  regionPageButtonTextDisabled: {
+    color: colors.muted
+  },
+  regionPageText: {
+    color: colors.navy,
+    fontSize: 12,
+    fontWeight: '900'
+  },
+  regionResultPanel: {
     gap: 10
   },
   regionResultHeader: {
@@ -3802,7 +4040,8 @@ const styles = StyleSheet.create({
     height: 34,
     justifyContent: 'center',
     width: 34
-  },  recommendedIslandGrid: {
+  },
+  recommendedIslandGrid: {
     gap: 9
   },
   recommendedIslandCard: {
