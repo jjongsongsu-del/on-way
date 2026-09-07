@@ -348,7 +348,7 @@ export default function IslandTripScreen() {
     () => buildIslandRegionOptions(islandsQuery.data?.data ?? [], selectedIslandRegionMode),
     [islandsQuery.data?.data, selectedIslandRegionMode]
   );
-  const selectedRecommendedRegion = islandRegionOptions.find((region) => region.id === selectedRecommendedRegionId) ?? islandRegionOptions[0] ?? null;
+  const selectedRecommendedRegion = islandRegionOptions.find((region) => region.id === selectedRecommendedRegionId) ?? null;
   const selectedRegionIslands = useMemo(() => {
     if (!selectedRecommendedRegion) return [];
 
@@ -1282,7 +1282,7 @@ function RecommendedRegionPanel({
   onChangeSearchKeyword: (keyword: string) => void;
   onSelectIsland: (island: IslandSummary) => void;
 }) {
-  const selectedRegion = regions.find((region) => region.id === selectedRegionId) ?? regions[0] ?? null;
+  const selectedRegion = regions.find((region) => region.id === selectedRegionId) ?? null;
   const selectedModeOption = modes.find((mode) => mode.key === selectedMode) ?? modes[0];
   const hasSearchKeyword = searchKeyword.trim().length > 0;
 
@@ -1295,7 +1295,7 @@ function RecommendedRegionPanel({
         </View>
         <MapPin color={colors.primary} size={22} />
       </View>
-      <Text style={styles.sectionDescription}>{selectedModeOption.description} 기준으로 섬을 묶어 보여줍니다. 권역을 고르면 해당 권역의 섬 상세로 바로 이동할 수 있습니다.</Text>
+      <Text style={styles.sectionDescription}>{selectedModeOption.description} 기준으로 권역을 먼저 고른 뒤, 해당 권역의 추천섬을 검색하고 상세로 이동할 수 있습니다.</Text>
       <View style={styles.regionModeTabs}>
         {modes.map((mode) => {
           const selected = mode.key === selectedMode;
@@ -1327,56 +1327,68 @@ function RecommendedRegionPanel({
           );
         })}
       </ScrollView>
-      <View style={styles.regionSearchBox}>
-        <Search color={colors.muted} size={18} />
-        <TextInput
-          value={searchKeyword}
-          onChangeText={onChangeSearchKeyword}
-          placeholder={selectedRegion ? `${selectedRegion.name}에서 섬 검색` : '권역 안에서 섬 검색'}
-          placeholderTextColor={colors.muted}
-          returnKeyType="search"
-          style={styles.regionSearchInput}
-        />
-        {hasSearchKeyword ? (
-          <Pressable accessibilityRole="button" onPress={() => onChangeSearchKeyword('')} style={styles.regionSearchClear}>
-            <X color={colors.muted} size={16} />
-          </Pressable>
-        ) : null}
-      </View>
-      {!loading ? (
-        <Text style={styles.regionSearchCount}>
-          {hasSearchKeyword ? `검색 결과 ${islands.length}개 / ${selectedModeOption.label} 전체 ${totalCount}개` : `${selectedModeOption.label} 전체 ${totalCount}개`}
-        </Text>
+      {loading ? <Text style={styles.travelInfoEmpty}>권역 목록을 불러오고 있습니다.</Text> : null}
+      {!loading && regions.length === 0 ? <Text style={styles.travelInfoEmpty}>선택한 기준에 매핑된 권역이 아직 없습니다.</Text> : null}
+      {!loading && !selectedRegion && regions.length > 0 ? (
+        <View style={styles.regionSelectionGuide}>
+          <Text style={styles.regionSelectionGuideTitle}>권역을 선택하세요</Text>
+          <Text style={styles.regionSelectionGuideText}>권역을 누르면 해당 권역의 추천섬 목록과 섬 검색창이 아래에 열립니다.</Text>
+        </View>
       ) : null}
-      {loading ? <Text style={styles.travelInfoEmpty}>섬 목록을 불러오고 있습니다.</Text> : null}
-      {!loading && islands.length === 0 ? (
-        <Text style={styles.travelInfoEmpty}>{hasSearchKeyword ? '검색어와 일치하는 섬이 없습니다.' : `선택한 ${selectedModeOption.label}에 매핑된 섬이 아직 없습니다.`}</Text>
-      ) : null}
-      <View style={styles.recommendedIslandGrid}>
-        {islands.map((island) => (
-          <Pressable key={island.id} accessibilityRole="button" onPress={() => onSelectIsland(island)} style={styles.recommendedIslandCard}>
-            <View style={styles.regionIslandIconBox}>
-              <Waves color={colors.primary} size={24} />
-            </View>
-            <View style={styles.recommendedIslandCopy}>
-              <Text style={styles.recommendedIslandTitle}>{island.islandName}</Text>
-              <Text style={styles.recommendedIslandMeta} numberOfLines={1}>
-                {formatIslandRegionMeta(island, selectedMode) || '권역 정보 확인 필요'}
-              </Text>
-              <Text style={styles.recommendedIslandDescription} numberOfLines={2}>
-                {[island.address, island.forecastLocationName ? `예보 ${island.forecastLocationName}` : null].filter(Boolean).join(' · ') || '섬 상세에서 배편, 예보, 지도, 관광 정보를 확인하세요.'}
-              </Text>
-              <View style={styles.recommendedIslandTags}>
-                {[island.source, island.islandTypeName, island.connectionTypeName].filter(Boolean).slice(0, 3).map((tag) => (
-                  <Text key={String(tag)} style={styles.recommendedIslandTag}>
-                    {String(tag)}
+      {selectedRegion ? (
+        <View style={styles.regionResultPanel}>
+          <View style={styles.regionResultHeader}>
+            <Text style={styles.regionResultTitle}>추천섬 목록</Text>
+            <Text style={styles.regionSearchCount}>
+              {hasSearchKeyword ? `검색 결과 ${islands.length}개 / ${selectedModeOption.label} 전체 ${totalCount}개` : `${selectedModeOption.label} 전체 ${totalCount}개`}
+            </Text>
+          </View>
+          <View style={styles.regionSearchBox}>
+            <Search color={colors.muted} size={18} />
+            <TextInput
+              value={searchKeyword}
+              onChangeText={onChangeSearchKeyword}
+              placeholder={`${selectedRegion.name}에서 섬 검색`}
+              placeholderTextColor={colors.muted}
+              returnKeyType="search"
+              style={styles.regionSearchInput}
+            />
+            {hasSearchKeyword ? (
+              <Pressable accessibilityRole="button" onPress={() => onChangeSearchKeyword('')} style={styles.regionSearchClear}>
+                <X color={colors.muted} size={16} />
+              </Pressable>
+            ) : null}
+          </View>
+          {islands.length === 0 ? (
+            <Text style={styles.travelInfoEmpty}>{hasSearchKeyword ? '검색어와 일치하는 섬이 없습니다.' : `선택한 ${selectedModeOption.label}에 매핑된 섬이 아직 없습니다.`}</Text>
+          ) : null}
+          <View style={styles.recommendedIslandGrid}>
+            {islands.map((island) => (
+              <Pressable key={island.id} accessibilityRole="button" onPress={() => onSelectIsland(island)} style={styles.recommendedIslandCard}>
+                <View style={styles.regionIslandIconBox}>
+                  <Waves color={colors.primary} size={24} />
+                </View>
+                <View style={styles.recommendedIslandCopy}>
+                  <Text style={styles.recommendedIslandTitle}>{island.islandName}</Text>
+                  <Text style={styles.recommendedIslandMeta} numberOfLines={1}>
+                    {formatIslandRegionMeta(island, selectedMode) || '권역 정보 확인 필요'}
                   </Text>
-                ))}
-              </View>
-            </View>
-          </Pressable>
-        ))}
-      </View>
+                  <Text style={styles.recommendedIslandDescription} numberOfLines={2}>
+                    {[island.address, island.forecastLocationName ? `예보 ${island.forecastLocationName}` : null].filter(Boolean).join(' · ') || '섬 상세에서 배편, 예보, 지도, 관광 정보를 확인하세요.'}
+                  </Text>
+                  <View style={styles.recommendedIslandTags}>
+                    {[island.source, island.islandTypeName, island.connectionTypeName].filter(Boolean).slice(0, 3).map((tag) => (
+                      <Text key={String(tag)} style={styles.recommendedIslandTag}>
+                        {String(tag)}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -3523,6 +3535,40 @@ const styles = StyleSheet.create({
   recommendedRegionChipCount: {
     color: colors.muted,
     fontSize: 11,
+    fontWeight: '900'
+  },
+  regionSelectionGuide: {
+    backgroundColor: colors.backgroundSoft,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 4,
+    padding: 12
+  },
+  regionSelectionGuideTitle: {
+    color: colors.navy,
+    fontSize: 14,
+    fontWeight: '900'
+  },
+  regionSelectionGuideText: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 18
+  },
+  regionResultPanel: {
+    gap: 10
+  },
+  regionResultHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'space-between'
+  },
+  regionResultTitle: {
+    color: colors.navy,
+    fontSize: 15,
     fontWeight: '900'
   },
   regionSearchBox: {
